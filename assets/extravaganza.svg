@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200" fill="none" role="img" aria-labelledby="title desc">
+  <title id="title">Extravaganza logo</title>
+  <desc id="desc">A theatrical hexagonal emblem with a spotlighted stage, marquee rails, and a bright proving-ground core.</desc>
+  <defs>
+    <linearGradient id="exShell" x1="32" y1="24" x2="168" y2="176" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFD46E"/>
+      <stop offset="0.46" stop-color="#FF7A72"/>
+      <stop offset="1" stop-color="#FF4FC3"/>
+    </linearGradient>
+    <linearGradient id="exTrace" x1="56" y1="46" x2="144" y2="154" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFF6DB"/>
+      <stop offset="1" stop-color="#FFD8F2"/>
+    </linearGradient>
+    <radialGradient id="exAura" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(100 98) rotate(90) scale(74)">
+      <stop offset="0" stop-color="#FFBA95" stop-opacity="0.7"/>
+      <stop offset="1" stop-color="#FFBA95" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="exSpotlight" x1="100" y1="42" x2="100" y2="134" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFF5D8" stop-opacity="0.92"/>
+      <stop offset="1" stop-color="#FFBF8A" stop-opacity="0.18"/>
+    </linearGradient>
+    <filter id="exShadow" x="14" y="12" width="172" height="178" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="11" stdDeviation="11" flood-color="#160C14" flood-opacity="0.26"/>
+    </filter>
+    <filter id="exBloom" x="40" y="36" width="120" height="126" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="4.4" result="blur"/>
+      <feBlend in="SourceGraphic" in2="blur" mode="screen"/>
+    </filter>
+  </defs>
+
+  <g filter="url(#exShadow)">
+    <path d="M100 20L158.89 54V122L100 156L41.11 122V54L100 20Z" fill="url(#exAura)"/>
+    <path d="M100 24L155.42 56V120L100 152L44.58 120V56L100 24Z" fill="#191018" fill-opacity="0.95" stroke="url(#exShell)" stroke-width="4.6" stroke-linejoin="round"/>
+    <path d="M100 42L140.13 65V111L100 134L59.87 111V65L100 42Z" fill="#24151D" stroke="url(#exTrace)" stroke-width="3.2" stroke-linejoin="round"/>
+    <path d="M100 56L126 71V101L100 116L74 101V71L100 56Z" fill="#20131A" stroke="#FFF0DC" stroke-opacity="0.72" stroke-width="2.2" stroke-linejoin="round"/>
+  </g>
+
+  <g filter="url(#exBloom)" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M74 68L100 50L126 68" stroke="#FFF6DB" stroke-opacity="0.72" stroke-width="1.8"/>
+    <path d="M88 58H112" stroke="#FFD46E" stroke-opacity="0.78" stroke-width="1.8"/>
+    <path d="M66 78H134" stroke="url(#exShell)" stroke-opacity="0.46" stroke-width="1.4"/>
+    <path d="M60 111H140" stroke="url(#exShell)" stroke-opacity="0.4" stroke-width="1.4"/>
+    <path d="M100 52V126" stroke="url(#exTrace)" stroke-opacity="0.62" stroke-width="1.5"/>
+    <path d="M82 71L82 104" stroke="#FFF6DB" stroke-opacity="0.52" stroke-width="1.3"/>
+    <path d="M118 71L118 104" stroke="#FFF6DB" stroke-opacity="0.52" stroke-width="1.3"/>
+    <path d="M70 108C79.5 100.4 89.4 96.7 100 96.7C110.6 96.7 120.5 100.4 130 108" stroke="#FFD8F2" stroke-opacity="0.78" stroke-width="1.7"/>
+    <path d="M82 64L74 90L100 128L126 90L118 64" fill="url(#exSpotlight)" fill-opacity="0.9"/>
+    <path d="M81 100L100 74L119 100" stroke="#FFF5DB" stroke-opacity="0.84" stroke-width="2"/>
+    <path d="M86.5 91H113.5" stroke="#FF8B79" stroke-opacity="0.76" stroke-width="1.8"/>
+    <circle cx="100" cy="88" r="10.2" fill="#291720" stroke="#FFF5DB" stroke-width="2"/>
+    <circle cx="100" cy="88" r="4.1" fill="#FFD46E"/>
+    <circle cx="74" cy="68" r="3" fill="#191018" stroke="#FFF6DB" stroke-width="1.15"/>
+    <circle cx="126" cy="68" r="3" fill="#191018" stroke="#FFF6DB" stroke-width="1.15"/>
+    <circle cx="70" cy="108" r="2.8" fill="#191018" stroke="#FFD8F2" stroke-width="1.15"/>
+    <circle cx="130" cy="108" r="2.8" fill="#191018" stroke="#FFD8F2" stroke-width="1.15"/>
+  </g>
+</svg>
