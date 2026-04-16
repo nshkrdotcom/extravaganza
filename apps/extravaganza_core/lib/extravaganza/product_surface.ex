@@ -22,8 +22,12 @@ defmodule Extravaganza.ProductSurface do
 
   @spec work_control_opts(Config.t(), keyword()) :: keyword()
   def work_control_opts(%Config{} = config, opts) when is_list(opts) do
-    :ok = AppKitBackends.ensure_configured()
-    Keyword.merge([scope_id: AppKitContext.scope_id(config)], opts)
+    scoped_opts(config, opts)
+  end
+
+  @spec work_query_opts(Config.t(), keyword()) :: keyword()
+  def work_query_opts(%Config{} = config, opts) when is_list(opts) do
+    scoped_opts(config, opts)
   end
 
   @spec operator_opts(Config.t(), keyword()) :: keyword()
@@ -37,5 +41,10 @@ defmodule Extravaganza.ProductSurface do
       ],
       opts
     )
+  end
+
+  defp scoped_opts(%Config{} = config, opts) when is_list(opts) do
+    :ok = AppKitBackends.ensure_configured()
+    Keyword.merge([scope_id: AppKitContext.scope_id(config)], opts)
   end
 end

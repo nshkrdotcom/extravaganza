@@ -1,0 +1,83 @@
+<section style="display:grid; gap:2rem;">
+  <header style="display:grid; gap:0.9rem;">
+    <p style="margin:0; letter-spacing:0.18em; text-transform:uppercase; font-size:0.72rem; font-weight:700; color:#7d3a21;">
+      Phase 5.3.2
+    </p>
+    <div style="display:flex; flex-wrap:wrap; justify-content:space-between; gap:1rem; align-items:end;">
+      <div style="display:grid; gap:0.45rem;">
+        <h1 style="margin:0; font-family:'Iowan Old Style','Palatino Linotype',serif; font-size:clamp(2.1rem, 5vw, 4rem); line-height:0.96;">
+          Operator Queue
+        </h1>
+        <p style="margin:0; max-width:42rem; font-size:1rem; line-height:1.7;">
+          The first web queue path reads governed work summaries through <code>extravaganza_core</code> only.
+        </p>
+      </div>
+      <a href={~p"/"} style="display:inline-flex; align-items:center; justify-content:center; padding:0.75rem 1rem; border-radius:999px; border:1px solid rgba(20,40,29,0.16); background:rgba(255,255,255,0.82); text-decoration:none; font-weight:700;">
+        Shell overview
+      </a>
+    </div>
+  </header>
+
+  <%= if @queue_error do %>
+    <div style="padding:1rem 1.1rem; border-radius:1rem; border:1px solid rgba(184,76,42,0.28); background:rgba(184,76,42,0.08);">
+      <strong style="display:block; margin-bottom:0.35rem;">Queue unavailable</strong>
+      <span style="font-size:0.95rem; line-height:1.6;"><%= @queue_error %></span>
+    </div>
+  <% end %>
+
+  <section style="display:grid; gap:1rem; grid-template-columns:repeat(auto-fit, minmax(13rem, 1fr));">
+    <article style="padding:1.1rem 1.2rem; border-radius:1.1rem; border:1px solid rgba(20,40,29,0.14); background:rgba(255,255,255,0.82);">
+      <p style="margin:0 0 0.35rem; font-size:0.75rem; letter-spacing:0.14em; text-transform:uppercase; color:#7d3a21; font-weight:700;">
+        Visible items
+      </p>
+      <strong style="font-size:2rem;"><%= @queue_total_count || length(@queue_entries) %></strong>
+    </article>
+    <article style="padding:1.1rem 1.2rem; border-radius:1.1rem; border:1px solid rgba(20,40,29,0.14); background:rgba(255,255,255,0.82);">
+      <p style="margin:0 0 0.35rem; font-size:0.75rem; letter-spacing:0.14em; text-transform:uppercase; color:#7d3a21; font-weight:700;">
+        Active count
+      </p>
+      <strong style="font-size:2rem;"><%= Map.get(@queue_stats, :active_count, 0) %></strong>
+    </article>
+    <article style="padding:1.1rem 1.2rem; border-radius:1.1rem; border:1px solid rgba(20,40,29,0.14); background:rgba(255,255,255,0.82);">
+      <p style="margin:0 0 0.35rem; font-size:0.75rem; letter-spacing:0.14em; text-transform:uppercase; color:#7d3a21; font-weight:700;">
+        Running count
+      </p>
+      <strong style="font-size:2rem;"><%= Map.get(@queue_stats, :running_count, 0) %></strong>
+    </article>
+  </section>
+
+  <section style="display:grid; gap:1rem;">
+    <%= if @queue_entries == [] do %>
+      <article style="padding:1.4rem; border-radius:1.25rem; border:1px dashed rgba(20,40,29,0.2); background:rgba(255,255,255,0.6);">
+        <strong style="display:block; margin-bottom:0.35rem;">Queue is empty</strong>
+        <span style="font-size:0.95rem; line-height:1.6;">Seeded work objects will appear here once they flow through the core queue facade.</span>
+      </article>
+    <% else %>
+      <%= for entry <- @queue_entries do %>
+        <article style="display:grid; gap:0.8rem; padding:1.25rem; border-radius:1.25rem; border:1px solid rgba(20,40,29,0.14); background:rgba(255,255,255,0.82); box-shadow:0 24px 60px rgba(20,40,29,0.08);">
+          <div style="display:flex; flex-wrap:wrap; justify-content:space-between; gap:0.9rem; align-items:start;">
+            <div style="display:grid; gap:0.35rem;">
+              <strong style="font-size:1.1rem; line-height:1.35;"><%= entry.title %></strong>
+              <span style="font-size:0.95rem; line-height:1.6;"><%= entry.summary %></span>
+            </div>
+            <span style="display:inline-flex; align-items:center; padding:0.45rem 0.75rem; border-radius:999px; background:rgba(20,40,29,0.08); font-size:0.8rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em;">
+              <%= entry.lifecycle_state %>
+            </span>
+          </div>
+          <div style="display:flex; flex-wrap:wrap; gap:0.7rem; font-size:0.85rem; color:rgba(20,40,29,0.78);">
+            <span>Subject <code><%= entry.subject_ref.id %></code></span>
+            <%= if external_ref = Map.get(entry.payload, :external_ref) do %>
+              <span>External ref <code><%= external_ref %></code></span>
+            <% end %>
+          </div>
+        </article>
+      <% end %>
+    <% end %>
+  </section>
+
+  <%= if @queue_has_more? do %>
+    <p style="margin:0; font-size:0.9rem; color:rgba(20,40,29,0.78);">
+      More queue items are available. Resume with cursor <code><%= @queue_next_cursor %></code>.
+    </p>
+  <% end %>
+</section>

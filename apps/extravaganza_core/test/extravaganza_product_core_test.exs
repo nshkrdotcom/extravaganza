@@ -156,6 +156,48 @@ defmodule ExtravaganzaProductCoreTest do
     assert is_map(status.gate_status)
   end
 
+  test "product-local query facade lists the operator queue through app kit", %{
+    tenant_id: tenant_id,
+    pack_version: pack_version
+  } do
+    activate_fixture_registration!(tenant_id: tenant_id, pack_version: pack_version)
+
+    assert {:ok, _first} =
+             Workflows.start_run(
+               %{
+                 external_ref: "linear:ENG-505",
+                 title: "Queue item alpha",
+                 description: "First queue item",
+                 source_kind: "linear",
+                 payload: %{"issue_id" => "ENG-505"},
+                 normalized_payload: %{"issue_id" => "ENG-505"}
+               },
+               tenant_id: tenant_id,
+               pack_version: pack_version
+             )
+
+    assert {:ok, _second} =
+             Workflows.start_run(
+               %{
+                 external_ref: "linear:ENG-506",
+                 title: "Queue item beta",
+                 description: "Second queue item",
+                 source_kind: "linear",
+                 payload: %{"issue_id" => "ENG-506"},
+                 normalized_payload: %{"issue_id" => "ENG-506"}
+               },
+               tenant_id: tenant_id,
+               pack_version: pack_version
+             )
+
+    assert {:ok, queue} =
+             Queries.operator_queue(%{}, tenant_id: tenant_id, pack_version: pack_version)
+
+    assert Enum.any?(queue.page.entries, &(&1.title == "Queue item alpha"))
+    assert Enum.any?(queue.page.entries, &(&1.title == "Queue item beta"))
+    assert is_map(queue.stats)
+  end
+
   test "product-local review facade routes run review through the app kit path", %{
     tenant_id: tenant_id,
     pack_version: pack_version
