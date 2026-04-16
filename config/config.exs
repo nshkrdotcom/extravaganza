@@ -16,6 +16,14 @@ config :ash,
     Mezzanine.EvidenceLedger
   ]
 
+config :extravaganza_web, ExtravaganzaWeb.Endpoint,
+  url: [host: "localhost"],
+  adapter: Bandit.PhoenixAdapter,
+  render_errors: [formats: [html: ExtravaganzaWeb.ErrorHTML], layout: false],
+  pubsub_server: ExtravaganzaWeb.PubSub
+
+config :phoenix, :json_library, Jason
+
 config :extravaganza_core,
   ecto_repos: [
     Mezzanine.Audit.Repo,

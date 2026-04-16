@@ -66,3 +66,12 @@ config :mezzanine_ops_domain, Mezzanine.OpsDomain.Repo,
 config :extravaganza_core,
   bootstrap_on_start?: false,
   linear_polling_enabled?: false
+
+config :extravaganza_web, ExtravaganzaWeb.Endpoint,
+  http: [ip: {127, 0, 0, 1}, port: 4002],
+  secret_key_base: "7pN4vD2mL9xQ5rH1cK8sT3yB6uF0aW4jE7nR2qM5zP8vX1cL4tG9hJ6kS3dF0bN7",
+  server: false
+
+config :logger, level: :warning
+
+config :phoenix, :plug_init_mode, :runtime

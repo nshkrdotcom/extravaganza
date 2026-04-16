@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="csrf-token" content={get_csrf_token()} />
+    <title>Extravaganza Shell</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --paper: #f6f1e8;
+        --ink: #14281d;
+        --accent: #b84c2a;
+        --accent-soft: #d98f6d;
+        --line: rgba(20, 40, 29, 0.14);
+        --panel: rgba(255, 255, 255, 0.78);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, rgba(184, 76, 42, 0.18), transparent 34rem),
+          linear-gradient(180deg, #fbf7f0 0%, var(--paper) 48%, #efe6d8 100%);
+        font-family: "Avenir Next", "Segoe UI", sans-serif;
+      }
+
+      main {
+        max-width: 72rem;
+        margin: 0 auto;
+        padding: 3rem 1.5rem 4rem;
+      }
+
+      a {
+        color: inherit;
+      }
+    </style>
+  </head>
+  <body>
+    <main>{@inner_content}</main>
+  </body>
+</html>
