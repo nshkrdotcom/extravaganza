@@ -3,7 +3,18 @@ defmodule ExtravaganzaProductCoreTest do
 
   alias AppKit.Core.RunRef
   alias Ecto.Adapters.SQL.Sandbox
-  alias Extravaganza.{Config, LinearIntakeAdapter, ProductBootstrap, ProductPack, ThinHost}
+
+  alias Extravaganza.{
+    Config,
+    LinearIntakeAdapter,
+    ProductBootstrap,
+    ProductPack,
+    Queries,
+    Reviews,
+    ThinHost,
+    Workflows
+  }
+
   alias Mezzanine.ConfigRegistry.PackRegistration
   alias Mezzanine.OpsDomain.Repo
   alias Mezzanine.Pack.Compiler
@@ -112,14 +123,14 @@ defmodule ExtravaganzaProductCoreTest do
     assert second_subject.payload.external_ref == "linear:ENG-101"
   end
 
-  test "thin host starts a run through the mezzanine-backed app kit path", %{
+  test "product-local facades start a run and expose operator status through app kit", %{
     tenant_id: tenant_id,
     pack_version: pack_version
   } do
     activate_fixture_registration!(tenant_id: tenant_id, pack_version: pack_version)
 
     assert {:ok, result} =
-             ThinHost.start_run(
+             Workflows.start_run(
                %{
                  external_ref: "linear:ENG-202",
                  title: "Ship operator shell slice",
@@ -138,11 +149,75 @@ defmodule ExtravaganzaProductCoreTest do
     assert result.payload.run_ref.metadata.tenant_id == tenant_id
     assert is_binary(result.payload.work_object_id)
 
-    assert {:ok, status} = ThinHost.run_status(result.payload.run_ref, %{}, tenant_id: tenant_id)
+    assert {:ok, status} = Queries.run_status(result.payload.run_ref, %{}, tenant_id: tenant_id)
 
     assert status.work_object_id == result.payload.work_object_id
     assert is_list(status.timeline)
     assert is_map(status.gate_status)
+  end
+
+  test "product-local review facade routes run review through the app kit path", %{
+    tenant_id: tenant_id,
+    pack_version: pack_version
+  } do
+    activate_fixture_registration!(tenant_id: tenant_id, pack_version: pack_version)
+
+    assert {:ok, result} =
+             Workflows.start_run(
+               %{
+                 external_ref: "linear:ENG-303",
+                 title: "Review operator decision",
+                 description: "Drive the product-local review facade",
+                 source_kind: "linear",
+                 payload: %{"issue_id" => "ENG-303"},
+                 normalized_payload: %{"issue_id" => "ENG-303"}
+               },
+               tenant_id: tenant_id,
+               pack_version: pack_version
+             )
+
+    assert {:ok, review} =
+             Reviews.review_run(
+               result.payload.run_ref,
+               %{kind: :operator_note, summary: "safe to proceed"},
+               tenant_id: tenant_id
+             )
+
+    assert review.decision.state == :approved
+    assert review.review_unit.status == :accepted
+  end
+
+  test "thin host remains a compatibility wrapper over the product-local facades", %{
+    tenant_id: tenant_id,
+    pack_version: pack_version
+  } do
+    activate_fixture_registration!(tenant_id: tenant_id, pack_version: pack_version)
+
+    assert {:ok, result} =
+             ThinHost.start_run(
+               %{
+                 external_ref: "linear:ENG-404",
+                 title: "Legacy thin-host caller",
+                 description: "Confirm wrapper compatibility",
+                 source_kind: "linear",
+                 payload: %{"issue_id" => "ENG-404"},
+                 normalized_payload: %{"issue_id" => "ENG-404"}
+               },
+               tenant_id: tenant_id,
+               pack_version: pack_version
+             )
+
+    assert {:ok, status} = ThinHost.run_status(result.payload.run_ref, %{}, tenant_id: tenant_id)
+
+    assert {:ok, review} =
+             ThinHost.review_run(
+               result.payload.run_ref,
+               %{kind: :operator_note, summary: "legacy wrapper approval"},
+               tenant_id: tenant_id
+             )
+
+    assert status.work_object_id == result.payload.work_object_id
+    assert review.decision.state == :approved
   end
 
   defp activate_fixture_registration!(opts) do

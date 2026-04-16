@@ -44,8 +44,7 @@ defmodule ExtravaganzaCore.MixProject do
       {:app_kit_work_surface, path: "../../../app_kit/core/work_surface"},
       {:app_kit_work_control, path: "../../../app_kit/core/work_control"},
       {:app_kit_operator_surface, path: "../../../app_kit/core/operator_surface"},
-      {:mezzanine_program_surface, path: "../../../mezzanine/surfaces/program_surface"},
-      {:mezzanine_app_kit_bridge, path: "../../../mezzanine/bridges/app_kit_bridge"}
+      {:mezzanine_program_surface, path: "../../../mezzanine/surfaces/program_surface"}
     ]
   end
 
