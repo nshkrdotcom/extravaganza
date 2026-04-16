@@ -40,12 +40,11 @@ defmodule ExtravaganzaCore.MixProject do
 
   defp deps do
     [
+      {:app_kit_installation_surface, path: "../../../app_kit/core/installation_surface"},
+      {:app_kit_work_surface, path: "../../../app_kit/core/work_surface"},
       {:app_kit_work_control, path: "../../../app_kit/core/work_control"},
       {:app_kit_operator_surface, path: "../../../app_kit/core/operator_surface"},
       {:mezzanine_program_surface, path: "../../../mezzanine/surfaces/program_surface"},
-      {:mezzanine_work_surface, path: "../../../mezzanine/surfaces/work_surface"},
-      {:mezzanine_operator_surface, path: "../../../mezzanine/surfaces/operator_surface"},
-      {:mezzanine_review_surface, path: "../../../mezzanine/surfaces/review_surface"},
       {:mezzanine_app_kit_bridge, path: "../../../mezzanine/bridges/app_kit_bridge"}
     ]
   end

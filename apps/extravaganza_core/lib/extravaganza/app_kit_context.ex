@@ -1,0 +1,44 @@
+defmodule Extravaganza.AppKitContext do
+  @moduledoc """
+  Product-owned request-context helpers for northbound AppKit calls.
+  """
+
+  alias AppKit.Core.{InstallationRef, RequestContext}
+  alias Extravaganza.Config
+
+  @actor_ref %{id: "extravaganza_core", kind: :system, roles: ["product_core"]}
+
+  @spec bootstrap_context(Config.t()) :: RequestContext.t()
+  def bootstrap_context(%Config{} = config), do: context(config, "bootstrap")
+
+  @spec product_context(Config.t(), InstallationRef.t()) :: RequestContext.t()
+  def product_context(%Config{} = config, %InstallationRef{} = installation_ref),
+    do: context(config, "product", installation_ref)
+
+  @spec routing_metadata(Config.t()) :: map()
+  def routing_metadata(%Config{} = config) do
+    %{
+      program_slug: config.program_slug,
+      work_class_name: config.work_class_name,
+      product_family: config.product_family
+    }
+  end
+
+  @spec scope_id(Config.t()) :: String.t()
+  def scope_id(%Config{} = config), do: "program/#{config.program_slug}"
+
+  defp context(%Config{} = config, purpose, installation_ref \\ nil) do
+    case RequestContext.new(%{
+           trace_id: trace_id(purpose),
+           actor_ref: @actor_ref,
+           tenant_ref: %{id: config.tenant_id},
+           installation_ref: installation_ref,
+           metadata: routing_metadata(config)
+         }) do
+      {:ok, context} -> context
+      {:error, reason} -> raise ArgumentError, "invalid app kit context: #{inspect(reason)}"
+    end
+  end
+
+  defp trace_id(purpose), do: "extravaganza/#{purpose}/#{System.unique_integer([:positive])}"
+end

@@ -4,16 +4,17 @@ defmodule Extravaganza.ThinHost do
   mezzanine-backed adapters.
   """
 
-  alias AppKit.OperatorSurface
-  alias AppKit.WorkControl
-  alias Extravaganza.Config
-  alias Extravaganza.ProductBootstrap
-  alias Mezzanine.Surfaces.ProgramSurface
+  alias AppKit.Core.RunRequest
+  alias AppKit.{OperatorSurface, WorkControl, WorkSurface}
+  alias Extravaganza.{AppKitContext, Config, ProductBootstrap}
 
   @spec start_run(map(), keyword()) :: {:ok, AppKit.Core.Result.t()} | {:error, term()}
   def start_run(domain_call, opts \\ []) when is_map(domain_call) and is_list(opts) do
-    with {:ok, profile} <- ProductBootstrap.ensure_bootstrapped(opts) do
-      WorkControl.start_run(domain_call, app_kit_opts(profile, opts))
+    with {:ok, profile} <- ProductBootstrap.ensure_bootstrapped(opts),
+         context = AppKitContext.product_context(profile.config, profile.installation_ref),
+         {:ok, subject_ref} <- WorkSurface.ingest_subject(context, Map.new(domain_call)),
+         {:ok, run_request} <- RunRequest.new(%{subject_ref: subject_ref}) do
+      WorkControl.start_run(context, run_request, work_control_opts(profile.config, opts))
     end
   end
 
@@ -31,21 +32,15 @@ defmodule Extravaganza.ThinHost do
     OperatorSurface.review_run(run_ref, evidence_attrs, operator_opts(config, opts))
   end
 
-  defp app_kit_opts(%{config: config, program: program, work_class: work_class}, opts) do
-    program_id = ProgramSurface.program_id(program)
-    work_class_id = ProgramSurface.work_class_id(work_class)
-
-    Keyword.merge(
-      [
-        tenant_id: config.tenant_id,
-        program_id: program_id,
-        work_class_id: work_class_id,
-        scope_id: "program/#{program_id}",
-        work_backend: Mezzanine.AppKitBridge.WorkControlAdapter
-      ],
-      opts
-    )
-  end
+  defp work_control_opts(config, opts),
+    do:
+      Keyword.merge(
+        [
+          scope_id: AppKitContext.scope_id(config),
+          work_backend: Mezzanine.AppKitBridge.WorkControlService
+        ],
+        opts
+      )
 
   defp operator_opts(config, opts) do
     Keyword.merge(

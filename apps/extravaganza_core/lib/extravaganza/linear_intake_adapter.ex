@@ -1,30 +1,27 @@
 defmodule Extravaganza.LinearIntakeAdapter do
   @moduledoc """
-  Thin Linear issue normalization and ingestion into the Mezzanine work surface.
+  Thin Linear issue normalization and ingestion through the northbound AppKit
+  work surface.
   """
 
-  alias Extravaganza.ProductBootstrap
-  alias Mezzanine.Surfaces.ProgramSurface
-  alias Mezzanine.Surfaces.WorkSurface
+  alias AppKit.WorkSurface
+  alias Extravaganza.{AppKitContext, Config, ProductBootstrap}
 
-  @spec ingest_issue(map(), keyword()) :: {:ok, struct()} | {:error, term()}
+  @spec ingest_issue(map(), keyword()) :: {:ok, AppKit.Core.SubjectDetail.t()} | {:error, term()}
   def ingest_issue(issue, opts \\ []) when is_map(issue) do
-    with {:ok, profile} <- ProductBootstrap.ensure_bootstrapped(opts) do
-      issue
-      |> build_work_attrs(profile)
-      |> WorkSurface.ingest_work()
+    with {:ok, profile} <- ProductBootstrap.ensure_bootstrapped(opts),
+         context = AppKitContext.product_context(profile.config, profile.installation_ref),
+         attrs = build_subject_attrs(issue, profile.config),
+         {:ok, subject_ref} <- WorkSurface.ingest_subject(context, attrs) do
+      WorkSurface.get_subject(context, subject_ref)
     end
   end
 
-  @spec build_work_attrs(map(), map()) :: map()
-  def build_work_attrs(issue, %{config: config, program: program, work_class: work_class})
-      when is_map(issue) do
+  @spec build_subject_attrs(map(), Config.t()) :: map()
+  def build_subject_attrs(issue, %Config{} = config) when is_map(issue) do
     identifier = fetch(issue, :identifier) || fetch(issue, :id) || "unidentified"
 
     %{
-      tenant_id: config.tenant_id,
-      program_id: ProgramSurface.program_id(program),
-      work_class_id: ProgramSurface.work_class_id(work_class),
       external_ref: "linear:#{identifier}",
       title: fetch(issue, :title) || identifier,
       description: fetch(issue, :description),

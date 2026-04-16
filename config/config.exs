@@ -2,7 +2,7 @@ import Config
 
 config :ash,
   domains: [
-    Mezzanine.AuditDomain,
+    Mezzanine.Audit,
     Mezzanine.ConfigRegistry,
     Mezzanine.Objects,
     Mezzanine.Execution,
@@ -29,7 +29,7 @@ config :extravaganza_core,
 
 config :mezzanine_audit_engine,
   ecto_repos: [Mezzanine.Audit.Repo],
-  ash_domains: [Mezzanine.AuditDomain]
+  ash_domains: [Mezzanine.Audit]
 
 config :mezzanine_object_engine,
   ecto_repos: [Mezzanine.Objects.Repo],
@@ -78,11 +78,13 @@ config :extravaganza_core, Extravaganza.Config,
   program_slug: "extravaganza_coding_ops",
   program_name: "Extravaganza Coding Operations",
   product_family: "extravaganza",
+  pack_version: "1.0.0",
   policy_bundle_name: "default_coding_ops",
   policy_bundle_version: "1.0.0",
   work_class_name: "coding_operations",
   work_class_kind: "coding_task",
   placement_profile_id: "local_default",
+  execution_timeout_ms: 300_000,
   linear_source_kind: "linear",
   operator_surface_enabled?: true
 
