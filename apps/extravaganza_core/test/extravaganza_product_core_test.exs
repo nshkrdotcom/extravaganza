@@ -198,6 +198,57 @@ defmodule ExtravaganzaProductCoreTest do
     assert is_map(queue.stats)
   end
 
+  test "product-local review queue lists pending decisions and records acceptance", %{
+    tenant_id: tenant_id,
+    pack_version: pack_version
+  } do
+    activate_fixture_registration!(tenant_id: tenant_id, pack_version: pack_version)
+
+    assert {:ok, _run} =
+             Workflows.start_run(
+               %{
+                 external_ref: "linear:ENG-507",
+                 title: "Approve review queue item",
+                 description: "Drive the review queue facade",
+                 source_kind: "linear",
+                 payload: %{"issue_id" => "ENG-507"},
+                 normalized_payload: %{"issue_id" => "ENG-507"}
+               },
+               tenant_id: tenant_id,
+               pack_version: pack_version
+             )
+
+    assert {:ok, reviews_page} =
+             Queries.pending_reviews(%{}, tenant_id: tenant_id, pack_version: pack_version)
+
+    pending_review = hd(reviews_page.page.entries)
+
+    assert pending_review.summary == "Approve review queue item"
+
+    assert {:ok, action_result} =
+             Reviews.record_pending_decision(
+               %{
+                 id: pending_review.decision_ref.id,
+                 decision_kind: pending_review.decision_ref.decision_kind,
+                 subject_id: pending_review.subject_ref.id,
+                 subject_kind: pending_review.subject_ref.subject_kind
+               },
+               %{decision: :accept, reason: "accepted from product core test"},
+               tenant_id: tenant_id,
+               pack_version: pack_version
+             )
+
+    assert action_result.status == :completed
+
+    assert {:ok, after_page} =
+             Queries.pending_reviews(%{}, tenant_id: tenant_id, pack_version: pack_version)
+
+    refute Enum.any?(
+             after_page.page.entries,
+             &(&1.decision_ref.id == pending_review.decision_ref.id)
+           )
+  end
+
   test "product-local review facade routes run review through the app kit path", %{
     tenant_id: tenant_id,
     pack_version: pack_version

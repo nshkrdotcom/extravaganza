@@ -4,7 +4,7 @@ defmodule Extravaganza.Queries do
   """
 
   alias AppKit.Core.{PageRequest, SortSpec}
-  alias AppKit.{OperatorSurface, WorkSurface}
+  alias AppKit.{OperatorSurface, ReviewSurface, WorkSurface}
   alias Extravaganza.{Config, ProductSurface}
 
   @spec run_status(AppKit.Core.RunRef.t(), map(), keyword()) :: {:ok, map()} | {:error, term()}
@@ -16,7 +16,7 @@ defmodule Extravaganza.Queries do
   @spec operator_queue(map(), keyword()) :: {:ok, map()} | {:error, term()}
   def operator_queue(params \\ %{}, opts \\ []) when is_map(params) and is_list(opts) do
     with {:ok, %{config: config, context: context}} <- ProductSurface.bootstrapped_context(opts),
-         {:ok, page_request} <- queue_page_request(params),
+         {:ok, page_request} <- page_request(params, "updated_at", :desc),
          query_opts <- ProductSurface.work_query_opts(config, opts),
          {:ok, page} <- WorkSurface.list_subjects(context, page_request, query_opts),
          {:ok, stats} <- WorkSurface.queue_stats(context, page_request.filters, query_opts) do
@@ -24,21 +24,32 @@ defmodule Extravaganza.Queries do
     end
   end
 
-  defp queue_page_request(params) when is_map(params) do
+  @spec pending_reviews(map(), keyword()) :: {:ok, map()} | {:error, term()}
+  def pending_reviews(params \\ %{}, opts \\ []) when is_map(params) and is_list(opts) do
+    with {:ok, %{config: config, context: context}} <- ProductSurface.bootstrapped_context(opts),
+         {:ok, page_request} <- page_request(params, "required_by", :asc),
+         review_opts <- ProductSurface.operator_opts(config, opts),
+         {:ok, page} <- ReviewSurface.list_pending(context, page_request, review_opts) do
+      {:ok, %{page: page}}
+    end
+  end
+
+  defp page_request(params, sort_field, direction)
+       when is_map(params) and is_binary(sort_field) do
     PageRequest.new(%{
-      limit: queue_limit(params),
-      cursor: queue_cursor(params),
-      sort: [%SortSpec{field: "updated_at", direction: :desc, nulls: :last}]
+      limit: page_limit(params),
+      cursor: page_cursor(params),
+      sort: [%SortSpec{field: sort_field, direction: direction, nulls: :last}]
     })
   end
 
-  defp queue_limit(%{"limit" => value}), do: parsed_positive_integer(value, 25)
-  defp queue_limit(%{limit: value}), do: parsed_positive_integer(value, 25)
-  defp queue_limit(_params), do: 25
+  defp page_limit(%{"limit" => value}), do: parsed_positive_integer(value, 25)
+  defp page_limit(%{limit: value}), do: parsed_positive_integer(value, 25)
+  defp page_limit(_params), do: 25
 
-  defp queue_cursor(%{"cursor" => value}) when is_binary(value) and value != "", do: value
-  defp queue_cursor(%{cursor: value}) when is_binary(value) and value != "", do: value
-  defp queue_cursor(_params), do: nil
+  defp page_cursor(%{"cursor" => value}) when is_binary(value) and value != "", do: value
+  defp page_cursor(%{cursor: value}) when is_binary(value) and value != "", do: value
+  defp page_cursor(_params), do: nil
 
   defp parsed_positive_integer(value, _default) when is_integer(value) and value > 0, do: value
 

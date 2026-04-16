@@ -1,7 +1,7 @@
 defmodule ExtravaganzaWeb.PageController do
   use ExtravaganzaWeb, :controller
 
-  alias Extravaganza.Queries
+  alias Extravaganza.{Queries, Reviews}
 
   def home(conn, _params) do
     render(conn, :home,
@@ -34,6 +34,55 @@ defmodule ExtravaganzaWeb.PageController do
           queue_next_cursor: nil,
           queue_error: inspect(reason)
         )
+    end
+  end
+
+  def reviews(conn, params) do
+    case Queries.pending_reviews(params) do
+      {:ok, reviews_page} ->
+        render(conn, :reviews,
+          review_entries: reviews_page.page.entries,
+          review_total_count: reviews_page.page.total_count,
+          review_has_more?: reviews_page.page.has_more,
+          review_next_cursor: reviews_page.page.next_cursor,
+          review_error: nil
+        )
+
+      {:error, reason} ->
+        conn
+        |> put_status(:internal_server_error)
+        |> render(:reviews,
+          review_entries: [],
+          review_total_count: 0,
+          review_has_more?: false,
+          review_next_cursor: nil,
+          review_error: inspect(reason)
+        )
+    end
+  end
+
+  def accept_review(conn, %{"decision_id" => decision_id} = params) do
+    case Reviews.record_pending_decision(
+           %{
+             id: decision_id,
+             decision_kind: Map.get(params, "decision_kind"),
+             subject_id: Map.get(params, "subject_id"),
+             subject_kind: Map.get(params, "subject_kind")
+           },
+           %{
+             decision: :accept,
+             reason: Map.get(params, "reason")
+           }
+         ) do
+      {:ok, result} ->
+        conn
+        |> put_flash(:info, result.message || "Review accepted")
+        |> redirect(to: ~p"/reviews")
+
+      {:error, reason} ->
+        conn
+        |> put_flash(:error, "Review failed: #{inspect(reason)}")
+        |> redirect(to: ~p"/reviews")
     end
   end
 end

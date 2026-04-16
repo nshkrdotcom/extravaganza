@@ -15,5 +15,7 @@ defmodule ExtravaganzaWeb.Router do
 
     get("/", PageController, :home)
     get("/queue", PageController, :queue)
+    get("/reviews", PageController, :reviews)
+    post("/reviews/:decision_id/accept", PageController, :accept_review)
   end
 end

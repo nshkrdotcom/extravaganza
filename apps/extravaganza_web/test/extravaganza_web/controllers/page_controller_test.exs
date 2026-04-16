@@ -1,7 +1,7 @@
 defmodule ExtravaganzaWeb.PageControllerTest do
   use ExtravaganzaWeb.ConnCase, async: false
 
-  alias Extravaganza.{ProductPack, Workflows}
+  alias Extravaganza.{ProductPack, Queries, Workflows}
   alias Mezzanine.ConfigRegistry.PackRegistration
   alias Mezzanine.Pack.Compiler
 
@@ -38,6 +38,79 @@ defmodule ExtravaganzaWeb.PageControllerTest do
 
     assert body =~ "Operator Queue"
     assert body =~ "Render first operator queue"
+  end
+
+  test "GET /reviews renders the pending review queue", %{
+    conn: conn,
+    tenant_id: tenant_id,
+    pack_version: pack_version
+  } do
+    activate_fixture_registration!(tenant_id: tenant_id, pack_version: pack_version)
+
+    assert {:ok, _run} =
+             Workflows.start_run(
+               %{
+                 external_ref: "linear:ENG-701",
+                 title: "Render pending review queue",
+                 description: "Drive the reviews page through core",
+                 source_kind: "linear",
+                 payload: %{"issue_id" => "ENG-701"},
+                 normalized_payload: %{"issue_id" => "ENG-701"}
+               },
+               tenant_id: tenant_id,
+               pack_version: pack_version
+             )
+
+    conn = get(conn, ~p"/reviews")
+    body = html_response(conn, 200)
+
+    assert body =~ "Pending Reviews"
+    assert body =~ "Render pending review queue"
+  end
+
+  test "POST /reviews/:decision_id/accept completes a pending review through the web shell", %{
+    conn: conn,
+    tenant_id: tenant_id,
+    pack_version: pack_version
+  } do
+    activate_fixture_registration!(tenant_id: tenant_id, pack_version: pack_version)
+
+    assert {:ok, _run} =
+             Workflows.start_run(
+               %{
+                 external_ref: "linear:ENG-702",
+                 title: "Accept pending review from the web shell",
+                 description: "Drive the first review action",
+                 source_kind: "linear",
+                 payload: %{"issue_id" => "ENG-702"},
+                 normalized_payload: %{"issue_id" => "ENG-702"}
+               },
+               tenant_id: tenant_id,
+               pack_version: pack_version
+             )
+
+    assert {:ok, reviews_page} =
+             Queries.pending_reviews(%{}, tenant_id: tenant_id, pack_version: pack_version)
+
+    pending_review = hd(reviews_page.page.entries)
+
+    conn =
+      post(conn, ~p"/reviews/#{pending_review.decision_ref.id}/accept", %{
+        "decision_kind" => pending_review.decision_ref.decision_kind,
+        "subject_id" => pending_review.subject_ref.id,
+        "subject_kind" => to_string(pending_review.subject_ref.subject_kind),
+        "reason" => "accepted from controller test"
+      })
+
+    assert redirected_to(conn) == "/reviews"
+
+    assert {:ok, after_page} =
+             Queries.pending_reviews(%{}, tenant_id: tenant_id, pack_version: pack_version)
+
+    refute Enum.any?(
+             after_page.page.entries,
+             &(&1.decision_ref.id == pending_review.decision_ref.id)
+           )
   end
 
   defp activate_fixture_registration!(opts) do
