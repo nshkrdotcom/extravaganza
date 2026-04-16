@@ -1,0 +1,58 @@
+defmodule ExtravaganzaCore.MixProject do
+  use Mix.Project
+
+  @version "0.1.0"
+  @source_url "https://github.com/nshkrdotcom/extravaganza"
+
+  def project do
+    [
+      app: :extravaganza_core,
+      version: @version,
+      build_path: "../../_build",
+      config_path: "../../config/config.exs",
+      deps_path: "../../deps",
+      lockfile: "../../mix.lock",
+      elixir: "~> 1.19",
+      start_permanent: Mix.env() == :prod,
+      deps: deps(),
+      aliases: aliases(),
+      source_url: @source_url,
+      homepage_url: @source_url,
+      name: "Extravaganza Core",
+      description: "Product-core app for the Extravaganza proving-ground product"
+    ]
+  end
+
+  def application do
+    [
+      extra_applications: [:logger],
+      mod: {Extravaganza.Application, []}
+    ]
+  end
+
+  def cli do
+    [
+      preferred_envs: [
+        ci: :test
+      ]
+    ]
+  end
+
+  defp deps do
+    [
+      {:app_kit_work_control, path: "../../../app_kit/core/work_control"},
+      {:app_kit_operator_surface, path: "../../../app_kit/core/operator_surface"},
+      {:mezzanine_program_surface, path: "../../../mezzanine/surfaces/program_surface"},
+      {:mezzanine_work_surface, path: "../../../mezzanine/surfaces/work_surface"},
+      {:mezzanine_operator_surface, path: "../../../mezzanine/surfaces/operator_surface"},
+      {:mezzanine_review_surface, path: "../../../mezzanine/surfaces/review_surface"},
+      {:mezzanine_app_kit_bridge, path: "../../../mezzanine/bridges/app_kit_bridge"}
+    ]
+  end
+
+  defp aliases do
+    [
+      test: ["ash.setup --quiet", "test"]
+    ]
+  end
+end

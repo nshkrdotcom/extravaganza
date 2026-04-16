@@ -6,51 +6,61 @@ defmodule Extravaganza.MixProject do
 
   def project do
     [
-      app: :extravaganza,
+      apps_path: "apps",
       version: @version,
       elixir: "~> 1.19",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       aliases: aliases(),
+      dialyzer: dialyzer(),
       docs: docs(),
       source_url: @source_url,
       homepage_url: @source_url,
       name: "Extravaganza",
-      description:
-        "Thin proving-ground product app above AppKit and Mezzanine for distributed AI operations"
-    ]
-  end
-
-  def application do
-    [
-      extra_applications: [:logger],
-      mod: {Extravaganza.Application, []}
+      description: "Umbrella repo for the Extravaganza proving-ground product"
     ]
   end
 
   def cli do
     [
       preferred_envs: [
-        ci: :test
+        ci: :test,
+        test: :test
       ]
     ]
   end
 
   defp deps do
     [
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:ex_doc, "~> 0.40.1", only: [:dev, :test], runtime: false}
     ]
   end
 
   defp aliases do
     [
+      test: ["cmd --cd #{core_app_path()} env MIX_ENV=test mix ash.setup --quiet", "test"],
       ci: [
         "deps.get",
         "format --check-formatted",
         "compile --warnings-as-errors",
-        "test",
-        "docs"
+        "cmd env MIX_ENV=test mix test",
+        "credo --strict",
+        "dialyzer --force-check",
+        "docs --warnings-as-errors"
       ]
+    ]
+  end
+
+  defp core_app_path do
+    Path.expand("apps/extravaganza_core", __DIR__)
+  end
+
+  defp dialyzer do
+    [
+      plt_add_deps: :apps_tree,
+      plt_add_apps: [:mix, :ex_unit]
     ]
   end
 
@@ -68,12 +78,14 @@ defmodule Extravaganza.MixProject do
         "docs/overview.md",
         "docs/stack_position.md",
         "docs/product_direction.md",
+        "docs/product_profile.md",
         "CHANGELOG.md",
         "LICENSE"
       ],
       groups_for_extras: [
         Overview: ["README.md", "docs/overview.md"],
         Architecture: ["docs/stack_position.md", "docs/product_direction.md"],
+        Composition: ["docs/product_profile.md"],
         Project: ["CHANGELOG.md", "LICENSE"]
       ]
     ]
