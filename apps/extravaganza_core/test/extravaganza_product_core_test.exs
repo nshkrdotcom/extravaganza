@@ -16,16 +16,32 @@ defmodule ExtravaganzaProductCoreTest do
     Workflows
   }
 
+  alias Mezzanine.Audit.Repo, as: AuditRepo
   alias Mezzanine.ConfigRegistry.PackRegistration
+  alias Mezzanine.ConfigRegistry.Repo, as: ConfigRegistryRepo
+  alias Mezzanine.Decisions.Repo, as: DecisionsRepo
+  alias Mezzanine.EvidenceLedger.Repo, as: EvidenceRepo
+  alias Mezzanine.Execution.Repo, as: ExecutionRepo
   alias Mezzanine.OpsDomain.Repo
   alias Mezzanine.Pack.Compiler
 
   setup do
-    pid = Sandbox.start_owner!(Repo, shared: false)
-    tenant_id = "extravaganza-test-#{System.unique_integer([:positive])}"
+    owners = [
+      Sandbox.start_owner!(Repo, shared: false),
+      Sandbox.start_owner!(ConfigRegistryRepo, shared: true),
+      Sandbox.start_owner!(AuditRepo, shared: false),
+      Sandbox.start_owner!(ExecutionRepo, shared: false),
+      Sandbox.start_owner!(DecisionsRepo, shared: false),
+      Sandbox.start_owner!(EvidenceRepo, shared: false)
+    ]
+
+    [_ops_owner, config_owner | _rest] = owners
+    allow_registry_process(config_owner)
+
+    tenant_id = "extravaganza-test-#{Ecto.UUID.generate()}"
     pack_version = "1.0.0"
 
-    on_exit(fn -> Sandbox.stop_owner(pid) end)
+    on_exit(fn -> Enum.each(owners, &Sandbox.stop_owner/1) end)
 
     {:ok, tenant_id: tenant_id, pack_version: pack_version}
   end
@@ -341,6 +357,13 @@ defmodule ExtravaganzaProductCoreTest do
 
         registration = MezzanineConfigRegistry.register_pack!(compiled_pack)
         assert {:ok, %PackRegistration{status: :active}} = PackRegistration.activate(registration)
+    end
+  end
+
+  defp allow_registry_process(config_owner) do
+    case Process.whereis(Mezzanine.Pack.Registry) do
+      pid when is_pid(pid) -> Sandbox.allow(ConfigRegistryRepo, config_owner, pid)
+      _other -> :ok
     end
   end
 end
