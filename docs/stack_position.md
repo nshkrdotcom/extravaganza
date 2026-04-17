@@ -7,9 +7,9 @@ product surface:
 
 ```text
 Extravaganza
-  -> app_kit
-      -> outer_brain / Citadel
-          -> jido_integration
+  -> app_kit thin surfaces
+      -> mezzanine bridges and northbound surfaces
+          -> Citadel / outer_brain / jido_integration
               -> execution_plane
 ```
 

@@ -12,3 +12,11 @@ That means:
 
 Extravaganza should become the reference proving deployment for the broader
 system, not the home for generic infrastructure.
+
+Current composition rules:
+
+- use `Mezzanine.Surfaces.*` for durable product semantics
+- use `AppKit.*` only through thin generic northbound surfaces
+- do not call `jido_integration` directly from product business code
+- keep policy, work-class, and placement choices product-owned, but keep the
+  engines that interpret them below the product boundary

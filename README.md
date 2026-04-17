@@ -20,6 +20,23 @@ It is intentionally thin. The repo exists to prove a sophisticated operator
 surface above `app_kit`, while pushing reusable business semantics, workflow
 machinery, and configurable operational logic down into `mezzanine`.
 
+## Product Core
+
+The current product core is made of a small set of product-owned modules:
+
+- `Extravaganza.Config` for normalized product config
+- `Extravaganza.ProgramRegistry` for the default durable program profile
+- `Extravaganza.PolicyPresets` and `Extravaganza.WorkClasses.*` for product
+  defaults
+- `Extravaganza.ProductBootstrap` for idempotent durable bootstrap through
+  `Mezzanine.Surfaces.ProgramSurface`
+- `Extravaganza.LinearIntakeAdapter` for Linear-originated work ingestion
+- `Extravaganza.ThinHost` for `app_kit` surface entrypoints backed by
+  `mezzanine`
+
+The product does not own a workflow compiler, review engine, planner, or
+runtime bridge. Those concerns stay below the product boundary.
+
 ## Stack Position
 
 ```text
@@ -36,18 +53,44 @@ Extravaganza should own:
 - product identity, packaging, and host composition
 - safe defaults for local and single-user installs
 - configuration and policy choices for a proving deployment
+- product-specific program, placement, and work-class defaults
 
 Extravaganza should not own:
 
 - generic business-semantic workflow machinery
 - reusable operational state models
 - lower runtime, connector, or execution concerns
+- duplicate business orchestration already provided by `mezzanine`
 
 ## Status
 
-Initial Elixir application scaffold. The long-term intent is a thin,
-high-leverage proving ground that configures the reusable machinery built in
-`mezzanine`.
+The repo now contains the first thin product-core slice:
+
+- idempotent durable bootstrap into `mezzanine`
+- Linear issue normalization into `Mezzanine.Surfaces.WorkSurface`
+- thin-host run start through `AppKit.WorkControl`
+- operator projection access through `AppKit.OperatorSurface`
+
+The next major layer is the product operator shell.
+
+## Boot Flow
+
+```text
+Application start
+  -> Extravaganza.BootstrapWorker
+      -> Extravaganza.ProductBootstrap
+          -> Mezzanine.Surfaces.ProgramSurface
+
+Linear issue
+  -> Extravaganza.LinearIntakeAdapter
+      -> Mezzanine.Surfaces.WorkSurface
+
+Thin-host run
+  -> Extravaganza.ThinHost
+      -> AppKit.WorkControl / AppKit.OperatorSurface
+      -> Mezzanine.AppKitBridge
+      -> Mezzanine surfaces
+```
 
 ## Development
 
@@ -57,3 +100,10 @@ The project targets Elixir `~> 1.19` and Erlang/OTP `28`.
 mix deps.get
 mix ci
 ```
+
+See also:
+
+- [Overview](docs/overview.md)
+- [Stack Position](docs/stack_position.md)
+- [Product Direction](docs/product_direction.md)
+- [Product Profile](docs/product_profile.md)
