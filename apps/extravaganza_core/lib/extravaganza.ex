@@ -1,6 +1,10 @@
 defmodule Extravaganza do
   @moduledoc """
-  Thin proving-ground product surface above AppKit and Mezzanine.
+  Thin proving-ground product surface above AppKit.
+
+  Product-owned pack definitions remain part of the product, but they compile
+  against the pure pack-model contract instead of expanding the operational
+  runtime path below AppKit.
   """
 
   @doc """
@@ -12,7 +16,8 @@ defmodule Extravaganza do
       name: "Extravaganza",
       role: :proving_ground_product,
       posture: :thin_surface,
-      downstream: [:app_kit, :mezzanine]
+      downstream: [:app_kit],
+      pack_contract: :mezzanine_pack_model
     }
   end
 

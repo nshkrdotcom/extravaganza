@@ -3,12 +3,8 @@ defmodule Extravaganza.Application do
 
   use Application
 
-  alias Extravaganza.AppKitBackends
-
   @impl true
   def start(_type, _args) do
-    :ok = AppKitBackends.ensure_configured()
-
     children = [
       Extravaganza.BootstrapWorker
     ]

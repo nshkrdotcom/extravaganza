@@ -54,6 +54,55 @@ defmodule ExtravaganzaProductCoreTest do
            end)
   end
 
+  test "extravaganza core declares the pure pack-model contract without widening runtime deps" do
+    deps = CoreMixProject.project()[:deps]
+
+    assert Enum.any?(deps, fn
+             {:mezzanine_pack_model, _opts} -> true
+             {:mezzanine_pack_model, _req, _opts} -> true
+             _other -> false
+           end)
+
+    refute Enum.any?(deps, fn
+             {:mezzanine_pack_compiler, _opts} -> true
+             {:mezzanine_pack_compiler, _req, _opts} -> true
+             {:mezzanine_config_registry, _opts} -> true
+             {:mezzanine_config_registry, _req, _opts} -> true
+             {:mezzanine_execution_engine, _opts} -> true
+             {:mezzanine_execution_engine, _req, _opts} -> true
+             {:mezzanine_integration_bridge, _opts} -> true
+             {:mezzanine_integration_bridge, _req, _opts} -> true
+             _other -> false
+           end)
+  end
+
+  test "product identity reports app kit as the operational downstream path" do
+    assert %{
+             downstream: [:app_kit],
+             pack_contract: :mezzanine_pack_model,
+             posture: :thin_surface,
+             role: :proving_ground_product
+           } = Extravaganza.identity()
+  end
+
+  test "product runtime does not hardcode app kit bridge implementations" do
+    refute File.exists?(Path.expand("../lib/extravaganza/app_kit_backends.ex", __DIR__))
+
+    [
+      Path.expand("../lib/extravaganza/application.ex", __DIR__),
+      Path.expand("../lib/extravaganza/product_surface.ex", __DIR__)
+    ]
+    |> Enum.each(fn path ->
+      contents = File.read!(path)
+
+      refute contents =~ "AppKit.Bridges.MezzanineBridge",
+             "#{path} still hardcodes the AppKit mezzanine bridge"
+
+      refute contents =~ "AppKitBackends.ensure_configured",
+             "#{path} still configures AppKit backends from product code"
+    end)
+  end
+
   test "loads normalized config and applies overrides" do
     config =
       Config.load(

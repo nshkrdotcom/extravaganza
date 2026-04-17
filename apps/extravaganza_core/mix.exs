@@ -40,6 +40,7 @@ defmodule ExtravaganzaCore.MixProject do
 
   defp deps do
     [
+      {:mezzanine_pack_model, path: "../../../mezzanine/core/pack_model"},
       {:app_kit_installation_surface, path: "../../../app_kit/core/installation_surface"},
       {:app_kit_work_surface, path: "../../../app_kit/core/work_surface"},
       {:app_kit_work_control, path: "../../../app_kit/core/work_control"},

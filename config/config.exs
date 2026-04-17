@@ -1,5 +1,12 @@
 import Config
 
+config :app_kit,
+  installation_backend: AppKit.Bridges.MezzanineBridge,
+  work_query_backend: AppKit.Bridges.MezzanineBridge,
+  work_backend: AppKit.Bridges.MezzanineBridge,
+  operator_backend: AppKit.Bridges.MezzanineBridge,
+  review_backend: AppKit.Bridges.MezzanineBridge
+
 config :extravaganza_web, ExtravaganzaWeb.Endpoint,
   url: [host: "localhost"],
   adapter: Bandit.PhoenixAdapter,
