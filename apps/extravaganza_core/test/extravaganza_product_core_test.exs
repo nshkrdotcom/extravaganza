@@ -22,12 +22,12 @@ defmodule ExtravaganzaProductCoreTest do
   alias Mezzanine.Decisions.Repo, as: DecisionsRepo
   alias Mezzanine.EvidenceLedger.Repo, as: EvidenceRepo
   alias Mezzanine.Execution.Repo, as: ExecutionRepo
-  alias Mezzanine.OpsDomain.Repo
+  alias Mezzanine.Execution.RuntimeStack
   alias Mezzanine.Pack.Compiler
 
   setup do
     owners = [
-      Sandbox.start_owner!(Repo, shared: false),
+      Sandbox.start_owner!(RuntimeStack.ops_domain_repo(), shared: false),
       Sandbox.start_owner!(ConfigRegistryRepo, shared: true),
       Sandbox.start_owner!(AuditRepo, shared: false),
       Sandbox.start_owner!(ExecutionRepo, shared: false),

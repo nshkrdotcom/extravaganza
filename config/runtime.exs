@@ -1,5 +1,43 @@
 import Config
 
+runtime_stack = Mezzanine.Execution.RuntimeStack
+
+config :ash, domains: runtime_stack.ash_domains()
+
+config :extravaganza_core,
+  ecto_repos: runtime_stack.repo_modules()
+
+config :mezzanine_ops_domain,
+  ecto_repos: [runtime_stack.ops_domain_repo()],
+  ash_domains: runtime_stack.ops_domain_ash_domains()
+
+config :app_kit_mezzanine_bridge,
+  ecto_repos: runtime_stack.repo_modules()
+
+case config_env() do
+  :dev ->
+    config :mezzanine_ops_domain, runtime_stack.ops_domain_repo(),
+      username: "postgres",
+      password: "postgres",
+      hostname: "localhost",
+      database: "mezzanine_ops_domain_dev",
+      show_sensitive_data_on_connection_error: true,
+      pool_size: 10
+
+  :test ->
+    config :mezzanine_ops_domain, runtime_stack.ops_domain_repo(),
+      username: "postgres",
+      password: "postgres",
+      hostname: "localhost",
+      database: "mezzanine_ops_domain_test",
+      pool: Ecto.Adapters.SQL.Sandbox,
+      pool_size: 10,
+      show_sensitive_data_on_connection_error: true
+
+  _other ->
+    :ok
+end
+
 if System.get_env("PHX_SERVER") do
   config :extravaganza_web, ExtravaganzaWeb.Endpoint, server: true
 end

@@ -1,21 +1,5 @@
 import Config
 
-config :ash,
-  domains: [
-    Mezzanine.Audit,
-    Mezzanine.ConfigRegistry,
-    Mezzanine.Objects,
-    Mezzanine.Execution,
-    Mezzanine.Decisions,
-    Mezzanine.Programs,
-    Mezzanine.Work,
-    Mezzanine.Runs,
-    Mezzanine.Review,
-    Mezzanine.Evidence,
-    Mezzanine.Control,
-    Mezzanine.EvidenceLedger
-  ]
-
 config :extravaganza_web, ExtravaganzaWeb.Endpoint,
   url: [host: "localhost"],
   adapter: Bandit.PhoenixAdapter,
@@ -23,17 +7,6 @@ config :extravaganza_web, ExtravaganzaWeb.Endpoint,
   pubsub_server: ExtravaganzaWeb.PubSub
 
 config :phoenix, :json_library, Jason
-
-config :extravaganza_core,
-  ecto_repos: [
-    Mezzanine.Audit.Repo,
-    Mezzanine.ConfigRegistry.Repo,
-    Mezzanine.Objects.Repo,
-    Mezzanine.Execution.Repo,
-    Mezzanine.Decisions.Repo,
-    Mezzanine.EvidenceLedger.Repo,
-    Mezzanine.OpsDomain.Repo
-  ]
 
 config :mezzanine_audit_engine,
   ecto_repos: [Mezzanine.Audit.Repo],
@@ -58,28 +31,6 @@ config :mezzanine_evidence_engine,
 config :mezzanine_config_registry,
   ecto_repos: [Mezzanine.ConfigRegistry.Repo],
   ash_domains: [Mezzanine.ConfigRegistry]
-
-config :mezzanine_ops_domain,
-  ecto_repos: [Mezzanine.OpsDomain.Repo],
-  ash_domains: [
-    Mezzanine.Programs,
-    Mezzanine.Work,
-    Mezzanine.Runs,
-    Mezzanine.Review,
-    Mezzanine.Evidence,
-    Mezzanine.Control
-  ]
-
-config :mezzanine_app_kit_bridge,
-  ecto_repos: [
-    Mezzanine.Audit.Repo,
-    Mezzanine.ConfigRegistry.Repo,
-    Mezzanine.Objects.Repo,
-    Mezzanine.Execution.Repo,
-    Mezzanine.Decisions.Repo,
-    Mezzanine.EvidenceLedger.Repo,
-    Mezzanine.OpsDomain.Repo
-  ]
 
 config :extravaganza_core, Extravaganza.Config,
   tenant_id: "extravaganza",

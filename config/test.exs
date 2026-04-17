@@ -54,15 +54,6 @@ config :mezzanine_evidence_engine, Mezzanine.EvidenceLedger.Repo,
   pool_size: 10,
   show_sensitive_data_on_connection_error: true
 
-config :mezzanine_ops_domain, Mezzanine.OpsDomain.Repo,
-  username: "postgres",
-  password: "postgres",
-  hostname: "localhost",
-  database: "mezzanine_ops_domain_test",
-  pool: Ecto.Adapters.SQL.Sandbox,
-  pool_size: 10,
-  show_sensitive_data_on_connection_error: true
-
 config :extravaganza_core,
   bootstrap_on_start?: false,
   linear_polling_enabled?: false

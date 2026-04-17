@@ -1,13 +1,5 @@
 import Config
 
-config :mezzanine_ops_domain, Mezzanine.OpsDomain.Repo,
-  username: "postgres",
-  password: "postgres",
-  hostname: "localhost",
-  database: "mezzanine_ops_domain_dev",
-  show_sensitive_data_on_connection_error: true,
-  pool_size: 10
-
 config :extravaganza_web, ExtravaganzaWeb.Endpoint,
   http: [ip: {127, 0, 0, 1}, port: String.to_integer(System.get_env("PORT") || "4000")],
   check_origin: false,

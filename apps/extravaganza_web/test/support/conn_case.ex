@@ -5,7 +5,7 @@ defmodule ExtravaganzaWeb.ConnCase do
 
   alias Ecto.Adapters.SQL.Sandbox
   alias Extravaganza.Config
-  alias Mezzanine.OpsDomain.Repo
+  alias Mezzanine.Execution.RuntimeStack
 
   using do
     quote do
@@ -19,7 +19,10 @@ defmodule ExtravaganzaWeb.ConnCase do
   end
 
   setup tags do
-    sandbox_owner = Sandbox.start_owner!(Repo, shared: not tags[:async])
+    sandbox_owners =
+      RuntimeStack.repo_modules()
+      |> Enum.map(&Sandbox.start_owner!(&1, shared: not tags[:async]))
+
     tenant_id = "extravaganza-web-test-#{System.unique_integer([:positive])}"
     pack_version = "1.0.0"
     previous_config = Application.get_env(:extravaganza_core, Config, [])
@@ -32,7 +35,7 @@ defmodule ExtravaganzaWeb.ConnCase do
 
     on_exit(fn ->
       Application.put_env(:extravaganza_core, Config, previous_config)
-      Sandbox.stop_owner(sandbox_owner)
+      Enum.each(sandbox_owners, &Sandbox.stop_owner/1)
     end)
 
     {:ok, conn: Phoenix.ConnTest.build_conn(), tenant_id: tenant_id, pack_version: pack_version}
