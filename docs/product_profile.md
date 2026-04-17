@@ -33,11 +33,12 @@ Extravaganza currently ships one default durable product profile.
 ## Product Entry Paths
 
 - durable bootstrap:
-  `Extravaganza.ProductBootstrap -> Mezzanine.Surfaces.ProgramSurface`
+  `Extravaganza.ProductBootstrap -> AppKit.InstallationSurface`
 - intake:
-  `Extravaganza.LinearIntakeAdapter -> Mezzanine.Surfaces.WorkSurface`
+  `Extravaganza.LinearIntakeAdapter -> AppKit.WorkSurface`
 - thin-host run path:
   `Extravaganza.ThinHost -> AppKit.* -> Mezzanine.AppKitBridge`
+  `AppKit` owns the bounded lower runtime hydration needed during coexistence
 
 ## Ownership Boundary
 

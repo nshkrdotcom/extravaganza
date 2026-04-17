@@ -3,6 +3,7 @@ defmodule ExtravaganzaProductCoreTest do
 
   alias AppKit.Core.RunRef
   alias Ecto.Adapters.SQL.Sandbox
+  alias ExtravaganzaCore.MixProject, as: CoreMixProject
 
   alias Extravaganza.{
     Config,
@@ -27,6 +28,14 @@ defmodule ExtravaganzaProductCoreTest do
     on_exit(fn -> Sandbox.stop_owner(pid) end)
 
     {:ok, tenant_id: tenant_id, pack_version: pack_version}
+  end
+
+  test "extravaganza core no longer depends on mezzanine program surface" do
+    refute Enum.any?(CoreMixProject.project()[:deps], fn
+             {:mezzanine_program_surface, _opts} -> true
+             {:mezzanine_program_surface, _req, _opts} -> true
+             _other -> false
+           end)
   end
 
   test "loads normalized config and applies overrides" do

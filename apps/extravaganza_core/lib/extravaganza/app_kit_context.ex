@@ -4,16 +4,17 @@ defmodule Extravaganza.AppKitContext do
   """
 
   alias AppKit.Core.{InstallationRef, RequestContext}
-  alias Extravaganza.Config
+  alias Extravaganza.{Config, RuntimeProfile}
 
   @actor_ref %{id: "extravaganza_core", kind: :system, roles: ["product_core"]}
 
   @spec bootstrap_context(Config.t()) :: RequestContext.t()
-  def bootstrap_context(%Config{} = config), do: context(config, "bootstrap")
+  def bootstrap_context(%Config{} = config),
+    do: context(config, "bootstrap", nil, bootstrap_metadata(config))
 
   @spec product_context(Config.t(), InstallationRef.t()) :: RequestContext.t()
   def product_context(%Config{} = config, %InstallationRef{} = installation_ref),
-    do: context(config, "product", installation_ref)
+    do: context(config, "product", installation_ref, routing_metadata(config))
 
   @spec routing_metadata(Config.t()) :: map()
   def routing_metadata(%Config{} = config) do
@@ -27,13 +28,18 @@ defmodule Extravaganza.AppKitContext do
   @spec scope_id(Config.t()) :: String.t()
   def scope_id(%Config{} = config), do: "program/#{config.program_slug}"
 
-  defp context(%Config{} = config, purpose, installation_ref \\ nil) do
+  defp bootstrap_metadata(%Config{} = config) do
+    routing_metadata(config)
+    |> Map.put(:runtime_profile, RuntimeProfile.profile(config))
+  end
+
+  defp context(%Config{} = config, purpose, installation_ref, metadata) do
     case RequestContext.new(%{
            trace_id: trace_id(purpose),
            actor_ref: @actor_ref,
            tenant_ref: %{id: config.tenant_id},
            installation_ref: installation_ref,
-           metadata: routing_metadata(config)
+           metadata: metadata
          }) do
       {:ok, context} -> context
       {:error, reason} -> raise ArgumentError, "invalid app kit context: #{inspect(reason)}"

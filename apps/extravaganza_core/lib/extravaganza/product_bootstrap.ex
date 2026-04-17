@@ -10,8 +10,7 @@ defmodule Extravaganza.ProductBootstrap do
     AppKitContext,
     Config,
     ProductInstallTemplate,
-    ProductPack,
-    RuntimeProvisioner
+    ProductPack
   }
 
   @spec ensure_bootstrapped(keyword() | map()) ::
@@ -29,8 +28,7 @@ defmodule Extravaganza.ProductBootstrap do
     config = Config.load(overrides)
     install_template = ProductInstallTemplate.default(config)
 
-    with {:ok, _runtime_surface} <- RuntimeProvisioner.ensure_runtime_surface(config),
-         {:ok, install_result} <-
+    with {:ok, install_result} <-
            InstallationSurface.create_installation(
              AppKitContext.bootstrap_context(config),
              install_template
