@@ -1,7 +1,7 @@
 <section style="display:grid; gap:2rem;">
   <header style="display:grid; gap:0.9rem;">
     <p style="margin:0; letter-spacing:0.18em; text-transform:uppercase; font-size:0.72rem; font-weight:700; color:#7d3a21;">
-      Phase 5.3.3
+      Stage 10.3
     </p>
     <div style="display:flex; flex-wrap:wrap; justify-content:space-between; gap:1rem; align-items:end;">
       <div style="display:grid; gap:0.45rem;">
@@ -9,7 +9,7 @@
           Pending Reviews
         </h1>
         <p style="margin:0; max-width:42rem; font-size:1rem; line-height:1.7;">
-          The first web-side review action runs through <code>extravaganza_core</code> and the northbound review surface.
+          Review decisions now route through <code>extravaganza_core</code> and the governed northbound review surface.
         </p>
       </div>
       <div style="display:flex; flex-wrap:wrap; gap:0.75rem;">
@@ -66,16 +66,28 @@
             <% end %>
           </div>
 
-          <form action={~p"/reviews/#{entry.decision_ref.id}/accept"} method="post" style="display:flex; flex-wrap:wrap; gap:0.75rem; align-items:center;">
-            <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
-            <input type="hidden" name="decision_kind" value={entry.decision_ref.decision_kind} />
-            <input type="hidden" name="subject_id" value={entry.subject_ref.id} />
-            <input type="hidden" name="subject_kind" value={entry.subject_ref.subject_kind} />
-            <input type="hidden" name="reason" value="accepted from review queue" />
-            <button type="submit" style="border:0; border-radius:999px; padding:0.8rem 1.1rem; background:#14281d; color:#fbf7f0; font-weight:700; cursor:pointer;">
-              Accept review
-            </button>
-          </form>
+          <div style="display:flex; flex-wrap:wrap; gap:0.75rem; align-items:center;">
+            <a href={~p"/subjects/#{entry.subject_ref.id}"} style="display:inline-flex; align-items:center; justify-content:center; padding:0.72rem 1rem; border-radius:999px; border:1px solid rgba(20,40,29,0.16); background:rgba(255,255,255,0.82); text-decoration:none; font-weight:700;">
+              Open subject detail
+            </a>
+
+            <%= for {decision, reason, label, style} <- [
+              {"accept", "accepted from review queue", "Accept review", "background:#14281d; color:#fbf7f0;"},
+              {"reject", "rejected from review queue", "Reject review", "background:#8f2f21; color:#fbf7f0;"},
+              {"waive", "waived from review queue", "Waive review", "background:#7d5b16; color:#fbf7f0;"}
+            ] do %>
+              <form action={~p"/reviews/#{entry.decision_ref.id}/decisions/#{decision}"} method="post" style="display:inline-flex;">
+                <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+                <input type="hidden" name="decision_kind" value={entry.decision_ref.decision_kind} />
+                <input type="hidden" name="subject_id" value={entry.subject_ref.id} />
+                <input type="hidden" name="subject_kind" value={entry.subject_ref.subject_kind} />
+                <input type="hidden" name="reason" value={reason} />
+                <button type="submit" style={"border:0; border-radius:999px; padding:0.8rem 1.1rem; font-weight:700; cursor:pointer; " <> style}>
+                  <%= label %>
+                </button>
+              </form>
+            <% end %>
+          </div>
         </article>
       <% end %>
     <% end %>

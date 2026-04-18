@@ -19,9 +19,9 @@ defmodule Extravaganza.Reviews do
     )
   end
 
-  @spec record_pending_decision(DecisionRef.t() | map(), map(), keyword()) ::
+  @spec record_review_decision(DecisionRef.t() | map(), map(), keyword()) ::
           {:ok, map()} | {:error, term()}
-  def record_pending_decision(review_identity, attrs \\ %{}, opts \\ [])
+  def record_review_decision(review_identity, attrs \\ %{}, opts \\ [])
       when is_map(attrs) and is_list(opts) do
     config = Config.load(opts)
 

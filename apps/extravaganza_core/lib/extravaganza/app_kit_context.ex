@@ -3,8 +3,8 @@ defmodule Extravaganza.AppKitContext do
   Product-owned request-context helpers for northbound AppKit calls.
   """
 
-  alias AppKit.Core.{InstallationRef, RequestContext}
-  alias Extravaganza.{Config, RuntimeProfile}
+  alias AppKit.Core.{InstallationRef, RequestContext, TraceIdentity}
+  alias Extravaganza.{Config, ProductProfile}
 
   @actor_ref %{id: "extravaganza_core", kind: :system, roles: ["product_core"]}
 
@@ -30,7 +30,7 @@ defmodule Extravaganza.AppKitContext do
 
   defp bootstrap_metadata(%Config{} = config) do
     routing_metadata(config)
-    |> Map.put(:runtime_profile, RuntimeProfile.profile(config))
+    |> Map.put(:runtime_profile, ProductProfile.profile(config))
   end
 
   defp context(%Config{} = config, purpose, installation_ref, metadata) do
@@ -46,5 +46,5 @@ defmodule Extravaganza.AppKitContext do
     end
   end
 
-  defp trace_id(purpose), do: "extravaganza/#{purpose}/#{System.unique_integer([:positive])}"
+  defp trace_id(_purpose), do: TraceIdentity.mint()
 end

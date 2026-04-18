@@ -15,7 +15,11 @@ defmodule ExtravaganzaWeb.Router do
 
     get("/", PageController, :home)
     get("/queue", PageController, :queue)
+    get("/subjects/:subject_id", PageController, :subject)
+    post("/subjects/:subject_id/actions/:action", PageController, :apply_subject_action)
+    post("/subjects/:subject_id/read-lease", PageController, :issue_read_lease)
+    post("/subjects/:subject_id/stream-attach-lease", PageController, :issue_stream_attach_lease)
     get("/reviews", PageController, :reviews)
-    post("/reviews/:decision_id/accept", PageController, :accept_review)
+    post("/reviews/:decision_id/decisions/:decision", PageController, :record_review_decision)
   end
 end

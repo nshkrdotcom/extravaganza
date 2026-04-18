@@ -5,11 +5,11 @@ defmodule ExtravaganzaTest do
     assert %{
              name: "Extravaganza",
              role: :proving_ground_product,
-             posture: :thin_surface
+             posture: :operator_proving_ground
            } = Extravaganza.identity()
   end
 
-  test "states a thin-surface mission" do
-    assert Extravaganza.mission() =~ "operator surface"
+  test "states an operator-surface mission" do
+    assert Extravaganza.mission() =~ "operator product surface"
   end
 end

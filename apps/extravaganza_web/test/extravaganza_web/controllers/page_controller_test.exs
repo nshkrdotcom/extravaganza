@@ -1,7 +1,8 @@
 defmodule ExtravaganzaWeb.PageControllerTest do
   use ExtravaganzaWeb.ConnCase, async: false
 
-  alias Extravaganza.{ProductPack, Queries, Workflows}
+  alias Extravaganza.{ProductBootstrap, ProductHost, ProductPack, Queries, Workflows}
+  alias Extravaganza.TestSupport.ExecutionTraceFixture
   alias Mezzanine.ConfigRegistry.PackRegistration
   alias Mezzanine.Pack.Compiler
 
@@ -12,7 +13,7 @@ defmodule ExtravaganzaWeb.PageControllerTest do
     assert html_response(conn, 200) =~ "proving-ground product"
   end
 
-  test "GET /queue renders the first core-backed operator queue", %{
+  test "GET /queue renders the core-backed operator queue", %{
     conn: conn,
     tenant_id: tenant_id,
     pack_version: pack_version
@@ -23,7 +24,7 @@ defmodule ExtravaganzaWeb.PageControllerTest do
              Workflows.start_run(
                %{
                  external_ref: "linear:ENG-601",
-                 title: "Render first operator queue",
+                 title: "Render operator queue",
                  description: "Drive the queue page through core",
                  source_kind: "linear",
                  payload: %{"issue_id" => "ENG-601"},
@@ -37,7 +38,8 @@ defmodule ExtravaganzaWeb.PageControllerTest do
     body = html_response(conn, 200)
 
     assert body =~ "Operator Queue"
-    assert body =~ "Render first operator queue"
+    assert body =~ "Render operator queue"
+    assert body =~ "Open subject detail"
   end
 
   test "GET /reviews renders the pending review queue", %{
@@ -66,13 +68,235 @@ defmodule ExtravaganzaWeb.PageControllerTest do
 
     assert body =~ "Pending Reviews"
     assert body =~ "Render pending review queue"
+    assert body =~ "Reject review"
+    assert body =~ "Waive review"
   end
 
-  test "POST /reviews/:decision_id/accept completes a pending review through the web shell", %{
+  test "GET /subjects/:subject_id renders the subject detail proving ground", %{
     conn: conn,
     tenant_id: tenant_id,
     pack_version: pack_version
   } do
+    activate_fixture_registration!(tenant_id: tenant_id, pack_version: pack_version)
+
+    assert {:ok, result} =
+             ProductHost.start_run(
+               %{
+                 external_ref: "linear:ENG-710",
+                 title: "Render subject detail",
+                 description: "Drive the subject detail surface",
+                 source_kind: "linear",
+                 payload: %{"issue_id" => "ENG-710"},
+                 normalized_payload: %{"issue_id" => "ENG-710"}
+               },
+               tenant_id: tenant_id,
+               pack_version: pack_version
+             )
+
+    conn = get(conn, ~p"/subjects/#{result.payload.work_object_id}")
+    body = html_response(conn, 200)
+
+    assert body =~ "Render subject detail"
+    assert body =~ "Operator controls"
+    assert body =~ "Unified trace"
+    assert body =~ "Issue read lease"
+  end
+
+  test "POST /subjects/:subject_id/actions/:action drives operator controls through the web shell",
+       %{
+         conn: conn,
+         tenant_id: tenant_id,
+         pack_version: pack_version
+       } do
+    activate_fixture_registration!(tenant_id: tenant_id, pack_version: pack_version)
+
+    assert {:ok, result} =
+             ProductHost.start_run(
+               %{
+                 external_ref: "linear:ENG-711",
+                 title: "Pause from subject detail",
+                 description: "Drive a real operator action",
+                 source_kind: "linear",
+                 payload: %{"issue_id" => "ENG-711"},
+                 normalized_payload: %{"issue_id" => "ENG-711"}
+               },
+               tenant_id: tenant_id,
+               pack_version: pack_version
+             )
+
+    conn =
+      post(conn, ~p"/subjects/#{result.payload.work_object_id}/actions/pause", %{
+        "reason" => "paused from controller test"
+      })
+
+    assert redirected_to(conn) == "/subjects/#{result.payload.work_object_id}"
+
+    conn = get(recycle(conn), ~p"/subjects/#{result.payload.work_object_id}")
+    body = html_response(conn, 200)
+
+    assert body =~ "Resume"
+  end
+
+  test "POST /subjects/:subject_id/read-lease renders issued lease details", %{
+    conn: conn,
+    tenant_id: tenant_id,
+    pack_version: pack_version
+  } do
+    activate_fixture_registration!(tenant_id: tenant_id, pack_version: pack_version)
+
+    assert {:ok, result} =
+             ProductHost.start_run(
+               %{
+                 external_ref: "linear:ENG-712",
+                 title: "Issue read lease",
+                 description: "Drive leased lower-read issuance",
+                 source_kind: "linear",
+                 payload: %{"issue_id" => "ENG-712"},
+                 normalized_payload: %{"issue_id" => "ENG-712"}
+               },
+               tenant_id: tenant_id,
+               pack_version: pack_version
+             )
+
+    installation_id =
+      bootstrapped_installation_id!(tenant_id: tenant_id, pack_version: pack_version)
+
+    ExecutionTraceFixture.seed_execution_trace!(
+      tenant_id: tenant_id,
+      installation_id: installation_id,
+      subject_id: result.payload.work_object_id
+    )
+
+    conn = post(conn, ~p"/subjects/#{result.payload.work_object_id}/read-lease", %{})
+    body = html_response(conn, 200)
+
+    assert body =~ "Read lease issued"
+    assert body =~ "Allowed ops"
+  end
+
+  test "POST /subjects/:subject_id/stream-attach-lease renders issued lease details", %{
+    conn: conn,
+    tenant_id: tenant_id,
+    pack_version: pack_version
+  } do
+    activate_fixture_registration!(tenant_id: tenant_id, pack_version: pack_version)
+
+    assert {:ok, result} =
+             ProductHost.start_run(
+               %{
+                 external_ref: "linear:ENG-713",
+                 title: "Issue stream attach lease",
+                 description: "Drive leased stream issuance",
+                 source_kind: "linear",
+                 payload: %{"issue_id" => "ENG-713"},
+                 normalized_payload: %{"issue_id" => "ENG-713"}
+               },
+               tenant_id: tenant_id,
+               pack_version: pack_version
+             )
+
+    installation_id =
+      bootstrapped_installation_id!(tenant_id: tenant_id, pack_version: pack_version)
+
+    ExecutionTraceFixture.seed_execution_trace!(
+      tenant_id: tenant_id,
+      installation_id: installation_id,
+      subject_id: result.payload.work_object_id
+    )
+
+    conn = post(conn, ~p"/subjects/#{result.payload.work_object_id}/stream-attach-lease", %{})
+    body = html_response(conn, 200)
+
+    assert body =~ "Stream attach lease issued"
+    assert body =~ "Reconnect cursor"
+  end
+
+  test "GET /subjects/:subject_id keeps latest execution lineage visible after cancel", %{
+    conn: conn,
+    tenant_id: tenant_id,
+    pack_version: pack_version
+  } do
+    activate_fixture_registration!(tenant_id: tenant_id, pack_version: pack_version)
+
+    assert {:ok, result} =
+             ProductHost.start_run(
+               %{
+                 external_ref: "linear:ENG-716",
+                 title: "Cancelled lineage in the product shell",
+                 description: "Expose terminal execution lineage through the real web surface",
+                 source_kind: "linear",
+                 payload: %{"issue_id" => "ENG-716"},
+                 normalized_payload: %{"issue_id" => "ENG-716"}
+               },
+               tenant_id: tenant_id,
+               pack_version: pack_version
+             )
+
+    installation_id =
+      bootstrapped_installation_id!(tenant_id: tenant_id, pack_version: pack_version)
+
+    barrier_id = Ecto.UUID.generate()
+
+    ExecutionTraceFixture.seed_execution_trace!(
+      tenant_id: tenant_id,
+      installation_id: installation_id,
+      subject_id: result.payload.work_object_id,
+      execution_attrs: %{
+        supersedes_execution_id: Ecto.UUID.generate(),
+        barrier_id: barrier_id,
+        last_reconcile_wave_id: "wave-1"
+      },
+      extra_audit_facts: [
+        %{
+          fact_kind: "execution_recovered",
+          payload: %{
+            "classification" => "reconciled",
+            "last_reconcile_wave_id" => "wave-1"
+          }
+        },
+        %{
+          fact_kind: "execution_joined",
+          payload: %{
+            "join_step_ref" => "triage_join",
+            "completed_children" => 2,
+            "expected_children" => 2,
+            "barrier_id" => barrier_id
+          }
+        }
+      ]
+    )
+
+    assert {:ok, _read_lease} =
+             ProductHost.issue_read_lease(result.payload.work_object_id,
+               tenant_id: tenant_id,
+               pack_version: pack_version
+             )
+
+    conn =
+      post(conn, ~p"/subjects/#{result.payload.work_object_id}/actions/cancel", %{
+        "reason" => "cancel from lineage controller test"
+      })
+
+    assert redirected_to(conn) == "/subjects/#{result.payload.work_object_id}"
+
+    conn = get(recycle(conn), ~p"/subjects/#{result.payload.work_object_id}")
+    body = html_response(conn, 200)
+
+    assert body =~ "Live lineage posture"
+    assert body =~ "Dispatch state"
+    assert body =~ "cancelled"
+    assert body =~ "Invalidated leases"
+    assert body =~ "Reconcile wave"
+    assert body =~ "Join step"
+    assert body =~ "triage_join"
+  end
+
+  test "POST /reviews/:decision_id/decisions/:decision completes a pending review through the web shell",
+       %{
+         conn: conn,
+         tenant_id: tenant_id,
+         pack_version: pack_version
+       } do
     activate_fixture_registration!(tenant_id: tenant_id, pack_version: pack_version)
 
     assert {:ok, _run} =
@@ -95,7 +319,7 @@ defmodule ExtravaganzaWeb.PageControllerTest do
     pending_review = hd(reviews_page.page.entries)
 
     conn =
-      post(conn, ~p"/reviews/#{pending_review.decision_ref.id}/accept", %{
+      post(conn, ~p"/reviews/#{pending_review.decision_ref.id}/decisions/accept", %{
         "decision_kind" => pending_review.decision_ref.decision_kind,
         "subject_id" => pending_review.subject_ref.id,
         "subject_kind" => to_string(pending_review.subject_ref.subject_kind),
@@ -111,6 +335,73 @@ defmodule ExtravaganzaWeb.PageControllerTest do
              after_page.page.entries,
              &(&1.decision_ref.id == pending_review.decision_ref.id)
            )
+  end
+
+  test "POST /reviews/:decision_id/decisions/:decision supports reject and waive through the web shell",
+       %{
+         conn: conn,
+         tenant_id: tenant_id,
+         pack_version: pack_version
+       } do
+    activate_fixture_registration!(tenant_id: tenant_id, pack_version: pack_version)
+
+    assert {:ok, _run} =
+             Workflows.start_run(
+               %{
+                 external_ref: "linear:ENG-714",
+                 title: "Reject review from the web shell",
+                 description: "Drive reject and waive review actions",
+                 source_kind: "linear",
+                 payload: %{"issue_id" => "ENG-714"},
+                 normalized_payload: %{"issue_id" => "ENG-714"}
+               },
+               tenant_id: tenant_id,
+               pack_version: pack_version
+             )
+
+    assert {:ok, reviews_page} =
+             Queries.pending_reviews(%{}, tenant_id: tenant_id, pack_version: pack_version)
+
+    reject_review = hd(reviews_page.page.entries)
+
+    conn =
+      post(conn, ~p"/reviews/#{reject_review.decision_ref.id}/decisions/reject", %{
+        "decision_kind" => reject_review.decision_ref.decision_kind,
+        "subject_id" => reject_review.subject_ref.id,
+        "subject_kind" => to_string(reject_review.subject_ref.subject_kind),
+        "reason" => "rejected from controller test"
+      })
+
+    assert redirected_to(conn) == "/reviews"
+
+    assert {:ok, _run} =
+             Workflows.start_run(
+               %{
+                 external_ref: "linear:ENG-715",
+                 title: "Waive review from the web shell",
+                 description: "Drive waive review action",
+                 source_kind: "linear",
+                 payload: %{"issue_id" => "ENG-715"},
+                 normalized_payload: %{"issue_id" => "ENG-715"}
+               },
+               tenant_id: tenant_id,
+               pack_version: pack_version
+             )
+
+    assert {:ok, after_reject_page} =
+             Queries.pending_reviews(%{}, tenant_id: tenant_id, pack_version: pack_version)
+
+    waive_review = hd(after_reject_page.page.entries)
+
+    conn =
+      post(recycle(conn), ~p"/reviews/#{waive_review.decision_ref.id}/decisions/waive", %{
+        "decision_kind" => waive_review.decision_ref.decision_kind,
+        "subject_id" => waive_review.subject_ref.id,
+        "subject_kind" => to_string(waive_review.subject_ref.subject_kind),
+        "reason" => "waived from controller test"
+      })
+
+    assert redirected_to(conn) == "/reviews"
   end
 
   defp activate_fixture_registration!(opts) do
@@ -133,5 +424,10 @@ defmodule ExtravaganzaWeb.PageControllerTest do
         registration = MezzanineConfigRegistry.register_pack!(compiled_pack)
         assert {:ok, %PackRegistration{status: :active}} = PackRegistration.activate(registration)
     end
+  end
+
+  defp bootstrapped_installation_id!(opts) do
+    assert {:ok, profile} = ProductBootstrap.ensure_bootstrapped(opts)
+    profile.installation_ref.id
   end
 end

@@ -25,14 +25,14 @@ machinery, and configurable operational logic down into `mezzanine`.
 The current product core is made of a small set of product-owned modules:
 
 - `Extravaganza.Config` for normalized product config
-- `Extravaganza.ProgramRegistry` for the default durable program profile
+- `Extravaganza.ProductProfile` for the default install and routing profile
 - `Extravaganza.PolicyPresets` and `Extravaganza.WorkClasses.*` for product
   defaults
 - `Extravaganza.ProductBootstrap` for idempotent durable bootstrap through
-  `Mezzanine.Surfaces.ProgramSurface`
+  `AppKit.InstallationSurface`
 - `Extravaganza.LinearIntakeAdapter` for Linear-originated work ingestion
-- `Extravaganza.ThinHost` for `app_kit` surface entrypoints backed by
-  `mezzanine`
+- `Extravaganza.ProductHost` for product-local AppKit entrypoints backed by
+  the current northbound bridge path
 
 The product does not own a workflow compiler, review engine, planner, or
 runtime bridge. Those concerns stay below the product boundary.
@@ -67,7 +67,7 @@ Extravaganza should not own:
 The repo now contains the first thin product-core slice:
 
 - idempotent durable bootstrap into `mezzanine`
-- Linear issue normalization into `Mezzanine.Surfaces.WorkSurface`
+- Linear issue normalization into `AppKit.WorkSurface`
 - thin-host run start through `AppKit.WorkControl`
 - operator projection access through `AppKit.OperatorSurface`
 
@@ -79,17 +79,17 @@ The next major layer is the product operator shell.
 Application start
   -> Extravaganza.BootstrapWorker
       -> Extravaganza.ProductBootstrap
-          -> Mezzanine.Surfaces.ProgramSurface
+          -> AppKit.InstallationSurface
 
 Linear issue
   -> Extravaganza.LinearIntakeAdapter
-      -> Mezzanine.Surfaces.WorkSurface
+      -> AppKit.WorkSurface
 
-Thin-host run
-  -> Extravaganza.ThinHost
+Product-host run
+  -> Extravaganza.ProductHost
       -> AppKit.WorkControl / AppKit.OperatorSurface
       -> Mezzanine.AppKitBridge
-      -> Mezzanine surfaces
+      -> Mezzanine services
 ```
 
 ## Development

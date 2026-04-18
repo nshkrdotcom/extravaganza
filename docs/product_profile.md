@@ -36,9 +36,9 @@ Extravaganza currently ships one default durable product profile.
   `Extravaganza.ProductBootstrap -> AppKit.InstallationSurface`
 - intake:
   `Extravaganza.LinearIntakeAdapter -> AppKit.WorkSurface`
-- thin-host run path:
-  `Extravaganza.ThinHost -> AppKit.* -> Mezzanine.AppKitBridge`
-  `AppKit` owns the bounded lower runtime hydration needed during coexistence
+- product-host run path:
+  `Extravaganza.ProductHost -> AppKit.* -> Mezzanine.AppKitBridge`
+  `AppKit` owns the governed northbound contract and lower bridge hydration
 
 ## Ownership Boundary
 

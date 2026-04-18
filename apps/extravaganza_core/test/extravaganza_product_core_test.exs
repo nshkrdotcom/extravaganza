@@ -9,12 +9,14 @@ defmodule ExtravaganzaProductCoreTest do
     Config,
     LinearIntakeAdapter,
     ProductBootstrap,
+    ProductHost,
     ProductPack,
     Queries,
     Reviews,
-    ThinHost,
     Workflows
   }
+
+  alias Extravaganza.TestSupport.ExecutionTraceFixture
 
   alias Mezzanine.Audit.Repo, as: AuditRepo
   alias Mezzanine.ConfigRegistry.PackRegistration
@@ -80,7 +82,7 @@ defmodule ExtravaganzaProductCoreTest do
     assert %{
              downstream: [:app_kit],
              pack_contract: :mezzanine_pack_model,
-             posture: :thin_surface,
+             posture: :operator_proving_ground,
              role: :proving_ground_product
            } = Extravaganza.identity()
   end
@@ -208,7 +210,7 @@ defmodule ExtravaganzaProductCoreTest do
                %{
                  external_ref: "linear:ENG-202",
                  title: "Ship operator shell slice",
-                 description: "Drive the thin-host path",
+                 description: "Drive the operator-host path",
                  source_kind: "linear",
                  payload: %{"issue_id" => "ENG-202"},
                  normalized_payload: %{"issue_id" => "ENG-202"}
@@ -272,7 +274,7 @@ defmodule ExtravaganzaProductCoreTest do
     assert is_map(queue.stats)
   end
 
-  test "product-local review queue lists pending decisions and records acceptance", %{
+  test "product-local review queue lists pending decisions and records decisions", %{
     tenant_id: tenant_id,
     pack_version: pack_version
   } do
@@ -300,7 +302,7 @@ defmodule ExtravaganzaProductCoreTest do
     assert pending_review.summary == "Approve review queue item"
 
     assert {:ok, action_result} =
-             Reviews.record_pending_decision(
+             Reviews.record_review_decision(
                %{
                  id: pending_review.decision_ref.id,
                  decision_kind: pending_review.decision_ref.decision_kind,
@@ -321,6 +323,263 @@ defmodule ExtravaganzaProductCoreTest do
              after_page.page.entries,
              &(&1.decision_ref.id == pending_review.decision_ref.id)
            )
+  end
+
+  test "product-local operator detail exposes actions, trace, and leased read surfaces", %{
+    tenant_id: tenant_id,
+    pack_version: pack_version
+  } do
+    activate_fixture_registration!(tenant_id: tenant_id, pack_version: pack_version)
+
+    assert {:ok, _run} =
+             ProductHost.start_run(
+               %{
+                 external_ref: "linear:ENG-808",
+                 title: "Inspect operator detail",
+                 description: "Drive subject detail and lease issuance",
+                 source_kind: "linear",
+                 payload: %{"issue_id" => "ENG-808"},
+                 normalized_payload: %{"issue_id" => "ENG-808"}
+               },
+               tenant_id: tenant_id,
+               pack_version: pack_version
+             )
+
+    assert {:ok, queue} =
+             ProductHost.operator_queue(%{}, tenant_id: tenant_id, pack_version: pack_version)
+
+    subject_id = hd(queue.page.entries).subject_ref.id
+
+    installation_id =
+      bootstrapped_installation_id!(tenant_id: tenant_id, pack_version: pack_version)
+
+    %{execution_id: execution_id} =
+      ExecutionTraceFixture.seed_execution_trace!(
+        tenant_id: tenant_id,
+        installation_id: installation_id,
+        subject_id: subject_id
+      )
+
+    assert {:ok, detail} =
+             ProductHost.subject_detail(subject_id,
+               tenant_id: tenant_id,
+               pack_version: pack_version
+             )
+
+    assert detail.subject.title == "Inspect operator detail"
+    assert detail.subject.current_execution_ref.id == execution_id
+    assert Enum.any?(detail.actions, &(&1.action_ref.action_kind == "pause"))
+    assert Enum.any?(detail.timeline, &(&1.event_kind == "run_scheduled"))
+    assert detail.trace_error == nil
+    assert is_binary(detail.unified_trace.trace_id)
+
+    assert {:ok, read_lease} =
+             ProductHost.issue_read_lease(subject_id,
+               tenant_id: tenant_id,
+               pack_version: pack_version
+             )
+
+    assert read_lease.lease_ref.execution_ref.id == detail.subject.current_execution_ref.id
+    assert "fetch_run" in read_lease.allowed_operations
+
+    assert {:ok, stream_attach_lease} =
+             ProductHost.issue_stream_attach_lease(subject_id,
+               tenant_id: tenant_id,
+               pack_version: pack_version
+             )
+
+    assert stream_attach_lease.lease_ref.execution_ref.id ==
+             detail.subject.current_execution_ref.id
+
+    assert stream_attach_lease.reconnect_cursor >= 0
+  end
+
+  test "subject detail keeps latest execution lineage visible after terminal operator control", %{
+    tenant_id: tenant_id,
+    pack_version: pack_version
+  } do
+    activate_fixture_registration!(tenant_id: tenant_id, pack_version: pack_version)
+
+    assert {:ok, _run} =
+             ProductHost.start_run(
+               %{
+                 external_ref: "linear:ENG-810",
+                 title: "Explain cancelled lineage",
+                 description: "Keep trace and lineage visible after operator cancellation",
+                 source_kind: "linear",
+                 payload: %{"issue_id" => "ENG-810"},
+                 normalized_payload: %{"issue_id" => "ENG-810"}
+               },
+               tenant_id: tenant_id,
+               pack_version: pack_version
+             )
+
+    assert {:ok, queue} =
+             ProductHost.operator_queue(%{}, tenant_id: tenant_id, pack_version: pack_version)
+
+    subject_id = hd(queue.page.entries).subject_ref.id
+
+    installation_id =
+      bootstrapped_installation_id!(tenant_id: tenant_id, pack_version: pack_version)
+
+    supersedes_execution_id = Ecto.UUID.generate()
+    barrier_id = Ecto.UUID.generate()
+
+    seeded_trace =
+      ExecutionTraceFixture.seed_execution_trace!(
+        tenant_id: tenant_id,
+        installation_id: installation_id,
+        subject_id: subject_id,
+        execution_attrs: %{
+          supersedes_execution_id: supersedes_execution_id,
+          barrier_id: barrier_id,
+          last_reconcile_wave_id: "wave-1"
+        },
+        extra_audit_facts: [
+          %{
+            fact_kind: "execution_recovered",
+            payload: %{
+              "classification" => "reconciled",
+              "last_reconcile_wave_id" => "wave-1"
+            }
+          },
+          %{
+            fact_kind: "execution_joined",
+            payload: %{
+              "join_step_ref" => "triage_join",
+              "completed_children" => 2,
+              "expected_children" => 2,
+              "barrier_id" => barrier_id
+            }
+          }
+        ]
+      )
+
+    assert {:ok, _read_lease} =
+             ProductHost.issue_read_lease(subject_id,
+               tenant_id: tenant_id,
+               pack_version: pack_version
+             )
+
+    assert {:ok, cancel_result} =
+             ProductHost.apply_subject_action(
+               subject_id,
+               :cancel,
+               %{reason: "cancel with lineage proof"},
+               tenant_id: tenant_id,
+               pack_version: pack_version
+             )
+
+    assert cancel_result.status == :completed
+
+    assert {:ok, detail} =
+             ProductHost.subject_detail(subject_id,
+               tenant_id: tenant_id,
+               pack_version: pack_version
+             )
+
+    assert detail.subject.lifecycle_state == "cancelled"
+    assert detail.subject.current_execution_ref == nil
+    assert detail.unified_trace.trace_id == seeded_trace.trace_id
+    assert detail.lineage_summary.current_dispatch_state == "cancelled"
+
+    assert has_lineage_marker?(detail.lineage_summary.markers, "Classification", "accepted")
+    assert has_lineage_marker?(detail.lineage_summary.markers, "Classification", "reconciled")
+
+    assert has_lineage_marker?(
+             detail.lineage_summary.markers,
+             "Classification",
+             "operator_cancelled"
+           )
+
+    assert has_lineage_marker?(
+             detail.lineage_summary.markers,
+             "Supersedes execution",
+             supersedes_execution_id
+           )
+
+    assert has_lineage_marker?(detail.lineage_summary.markers, "Join barrier", barrier_id)
+    assert has_lineage_marker?(detail.lineage_summary.markers, "Join step", "triage_join")
+    assert has_lineage_marker?(detail.lineage_summary.markers, "Join progress", "2/2")
+    assert has_lineage_marker?(detail.lineage_summary.markers, "Invalidated leases", "1")
+    assert has_lineage_marker?(detail.lineage_summary.markers, "Reconcile wave", "wave-1")
+  end
+
+  test "product host applies operator actions and exposes resumed control posture", %{
+    tenant_id: tenant_id,
+    pack_version: pack_version
+  } do
+    activate_fixture_registration!(tenant_id: tenant_id, pack_version: pack_version)
+
+    assert {:ok, _run} =
+             ProductHost.start_run(
+               %{
+                 external_ref: "linear:ENG-809",
+                 title: "Pause and resume work",
+                 description: "Drive operator controls through the product host",
+                 source_kind: "linear",
+                 payload: %{"issue_id" => "ENG-809"},
+                 normalized_payload: %{"issue_id" => "ENG-809"}
+               },
+               tenant_id: tenant_id,
+               pack_version: pack_version
+             )
+
+    assert {:ok, queue} =
+             ProductHost.operator_queue(%{}, tenant_id: tenant_id, pack_version: pack_version)
+
+    subject_id = hd(queue.page.entries).subject_ref.id
+
+    assert {:ok, pause_result} =
+             ProductHost.apply_subject_action(
+               subject_id,
+               :pause,
+               %{reason: "pause from product host"},
+               tenant_id: tenant_id,
+               pack_version: pack_version
+             )
+
+    assert pause_result.status == :completed
+
+    assert {:ok, paused_detail} =
+             ProductHost.subject_detail(subject_id,
+               tenant_id: tenant_id,
+               pack_version: pack_version
+             )
+
+    assert paused_detail.subject.payload.control_mode == "paused"
+    assert Enum.any?(paused_detail.actions, &(&1.action_ref.action_kind == "resume"))
+
+    assert {:ok, resume_result} =
+             ProductHost.apply_subject_action(
+               subject_id,
+               :resume,
+               %{reason: "resume from product host"},
+               tenant_id: tenant_id,
+               pack_version: pack_version
+             )
+
+    assert resume_result.status == :completed
+
+    assert {:ok, resumed_detail} =
+             ProductHost.subject_detail(subject_id,
+               tenant_id: tenant_id,
+               pack_version: pack_version
+             )
+
+    refute resumed_detail.subject.payload.control_mode == "paused"
+    assert Enum.any?(resumed_detail.actions, &(&1.action_ref.action_kind == "pause"))
+
+    assert {:ok, cancel_result} =
+             ProductHost.apply_subject_action(
+               subject_id,
+               :cancel,
+               %{reason: "cancel from product host"},
+               tenant_id: tenant_id,
+               pack_version: pack_version
+             )
+
+    assert cancel_result.status == :completed
   end
 
   test "product-local review facade routes run review through the app kit path", %{
@@ -354,18 +613,18 @@ defmodule ExtravaganzaProductCoreTest do
     assert review.review_unit.status == :accepted
   end
 
-  test "thin host remains a compatibility wrapper over the product-local facades", %{
+  test "product host routes the current product-local facades through app kit", %{
     tenant_id: tenant_id,
     pack_version: pack_version
   } do
     activate_fixture_registration!(tenant_id: tenant_id, pack_version: pack_version)
 
     assert {:ok, result} =
-             ThinHost.start_run(
+             ProductHost.start_run(
                %{
                  external_ref: "linear:ENG-404",
-                 title: "Legacy thin-host caller",
-                 description: "Confirm wrapper compatibility",
+                 title: "Product-host caller",
+                 description: "Confirm the current product-host surface",
                  source_kind: "linear",
                  payload: %{"issue_id" => "ENG-404"},
                  normalized_payload: %{"issue_id" => "ENG-404"}
@@ -374,17 +633,23 @@ defmodule ExtravaganzaProductCoreTest do
                pack_version: pack_version
              )
 
-    assert {:ok, status} = ThinHost.run_status(result.payload.run_ref, %{}, tenant_id: tenant_id)
+    assert {:ok, status} =
+             ProductHost.run_status(result.payload.run_ref, %{}, tenant_id: tenant_id)
 
     assert {:ok, review} =
-             ThinHost.review_run(
+             ProductHost.review_run(
                result.payload.run_ref,
-               %{kind: :operator_note, summary: "legacy wrapper approval"},
+               %{kind: :operator_note, summary: "product-host approval"},
                tenant_id: tenant_id
              )
 
     assert status.work_object_id == result.payload.work_object_id
     assert review.decision.state == :approved
+
+    assert {:ok, queue} =
+             ProductHost.operator_queue(%{}, tenant_id: tenant_id, pack_version: pack_version)
+
+    assert Enum.any?(queue.page.entries, &(&1.subject_ref.id == result.payload.work_object_id))
   end
 
   defp activate_fixture_registration!(opts) do
@@ -407,6 +672,15 @@ defmodule ExtravaganzaProductCoreTest do
         registration = MezzanineConfigRegistry.register_pack!(compiled_pack)
         assert {:ok, %PackRegistration{status: :active}} = PackRegistration.activate(registration)
     end
+  end
+
+  defp bootstrapped_installation_id!(opts) do
+    assert {:ok, profile} = ProductBootstrap.ensure_bootstrapped(opts)
+    profile.installation_ref.id
+  end
+
+  defp has_lineage_marker?(markers, label, value) do
+    Enum.any?(markers, &(&1.label == label and &1.value == value))
   end
 
   defp allow_registry_process(config_owner) do

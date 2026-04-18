@@ -1,7 +1,7 @@
 <section style="display:grid; gap:2rem;">
   <header style="display:grid; gap:0.9rem;">
     <p style="margin:0; letter-spacing:0.18em; text-transform:uppercase; font-size:0.72rem; font-weight:700; color:#7d3a21;">
-      Phase 5.3.2
+      Stage 10.2
     </p>
     <div style="display:flex; flex-wrap:wrap; justify-content:space-between; gap:1rem; align-items:end;">
       <div style="display:grid; gap:0.45rem;">
@@ -9,7 +9,7 @@
           Operator Queue
         </h1>
         <p style="margin:0; max-width:42rem; font-size:1rem; line-height:1.7;">
-          The first web queue path reads governed work summaries through <code>extravaganza_core</code> only.
+          The queue now leads into the real operator-detail surface through <code>extravaganza_core</code> only.
         </p>
       </div>
       <div style="display:flex; flex-wrap:wrap; gap:0.75rem;">
@@ -74,6 +74,11 @@
             <%= if external_ref = Map.get(entry.payload, :external_ref) do %>
               <span>External ref <code><%= external_ref %></code></span>
             <% end %>
+          </div>
+          <div>
+            <a href={~p"/subjects/#{entry.subject_ref.id}"} style="display:inline-flex; align-items:center; justify-content:center; padding:0.72rem 1rem; border-radius:999px; background:#14281d; color:#fbf7f0; text-decoration:none; font-weight:700;">
+              Open subject detail
+            </a>
           </div>
         </article>
       <% end %>

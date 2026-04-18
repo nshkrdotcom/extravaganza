@@ -1,6 +1,6 @@
-defmodule Extravaganza.RuntimeProfile do
+defmodule Extravaganza.ProductProfile do
   @moduledoc """
-  Product-owned legacy runtime profile payload for bounded coexistence bootstrap.
+  Product-owned install and runtime profile payload for governed bootstrap.
   """
 
   alias Extravaganza.{
@@ -22,7 +22,7 @@ defmodule Extravaganza.RuntimeProfile do
         configuration: %{
           "default_work_class" => config.work_class_name,
           "intake" => %{"source_kind" => config.linear_source_kind},
-          "thin_host" => %{"operator_surface" => config.operator_surface_enabled?},
+          "product_surface" => %{"operator_surface" => config.operator_surface_enabled?},
           "app_kit" => %{
             "pack_slug" => ProductPack.pack_slug(config),
             "pack_version" => ProductPack.pack_version(config),

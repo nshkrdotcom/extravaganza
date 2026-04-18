@@ -1,0 +1,277 @@
+<section style="display:grid; gap:2rem;">
+  <header style="display:grid; gap:0.9rem;">
+    <p style="margin:0; letter-spacing:0.18em; text-transform:uppercase; font-size:0.72rem; font-weight:700; color:#7d3a21;">
+      Stage 10.4
+    </p>
+    <div style="display:flex; flex-wrap:wrap; justify-content:space-between; gap:1rem; align-items:end;">
+      <div style="display:grid; gap:0.45rem;">
+        <h1 style="margin:0; font-family:'Iowan Old Style','Palatino Linotype',serif; font-size:clamp(2.1rem, 5vw, 4rem); line-height:0.96;">
+          <%= @subject.title || "Subject Detail" %>
+        </h1>
+        <p style="margin:0; max-width:44rem; font-size:1rem; line-height:1.7;">
+          <%= @subject.description || "Operator detail, control, trace, and leased-read surface through extravaganza_core only." %>
+        </p>
+      </div>
+      <div style="display:flex; flex-wrap:wrap; gap:0.75rem;">
+        <a href={~p"/queue"} style="display:inline-flex; align-items:center; justify-content:center; padding:0.75rem 1rem; border-radius:999px; border:1px solid rgba(20,40,29,0.16); background:rgba(255,255,255,0.82); text-decoration:none; font-weight:700;">
+          Back to queue
+        </a>
+        <a href={~p"/reviews"} style="display:inline-flex; align-items:center; justify-content:center; padding:0.75rem 1rem; border-radius:999px; border:1px solid rgba(20,40,29,0.16); background:rgba(255,255,255,0.82); text-decoration:none; font-weight:700;">
+          Pending reviews
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <section style="display:grid; gap:1rem; grid-template-columns:repeat(auto-fit, minmax(14rem, 1fr));">
+    <article style="padding:1.1rem 1.2rem; border-radius:1.1rem; border:1px solid rgba(20,40,29,0.14); background:rgba(255,255,255,0.82);">
+      <p style="margin:0 0 0.35rem; font-size:0.75rem; letter-spacing:0.14em; text-transform:uppercase; color:#7d3a21; font-weight:700;">
+        Lifecycle state
+      </p>
+      <strong style="font-size:1.55rem;"><%= @subject.lifecycle_state %></strong>
+    </article>
+    <article style="padding:1.1rem 1.2rem; border-radius:1.1rem; border:1px solid rgba(20,40,29,0.14); background:rgba(255,255,255,0.82);">
+      <p style="margin:0 0 0.35rem; font-size:0.75rem; letter-spacing:0.14em; text-transform:uppercase; color:#7d3a21; font-weight:700;">
+        Control mode
+      </p>
+      <strong style="font-size:1.55rem;"><%= Map.get(@subject.payload, :control_mode, "live") %></strong>
+    </article>
+    <article style="padding:1.1rem 1.2rem; border-radius:1.1rem; border:1px solid rgba(20,40,29,0.14); background:rgba(255,255,255,0.82);">
+      <p style="margin:0 0 0.35rem; font-size:0.75rem; letter-spacing:0.14em; text-transform:uppercase; color:#7d3a21; font-weight:700;">
+        Pending obligations
+      </p>
+      <strong style="font-size:1.55rem;"><%= Enum.count(@subject.pending_obligations) %></strong>
+    </article>
+    <article style="padding:1.1rem 1.2rem; border-radius:1.1rem; border:1px solid rgba(20,40,29,0.14); background:rgba(255,255,255,0.82);">
+      <p style="margin:0 0 0.35rem; font-size:0.75rem; letter-spacing:0.14em; text-transform:uppercase; color:#7d3a21; font-weight:700;">
+        Blocking conditions
+      </p>
+      <strong style="font-size:1.55rem;"><%= Enum.count(@subject.blocking_conditions) %></strong>
+    </article>
+  </section>
+
+  <section style="display:grid; gap:1rem; grid-template-columns:repeat(auto-fit, minmax(19rem, 1fr));">
+    <article style="display:grid; gap:0.9rem; padding:1.25rem; border-radius:1.25rem; border:1px solid rgba(20,40,29,0.14); background:rgba(255,255,255,0.82); box-shadow:0 24px 60px rgba(20,40,29,0.08);">
+      <div style="display:grid; gap:0.35rem;">
+        <strong style="font-size:1.05rem;">Subject state</strong>
+        <span style="font-size:0.92rem; color:rgba(20,40,29,0.78);">Subject <code><%= @subject.subject_ref.id %></code></span>
+        <%= if execution_ref = @subject.current_execution_ref do %>
+          <span style="font-size:0.92rem; color:rgba(20,40,29,0.78);">Execution <code><%= execution_ref.id %></code></span>
+        <% end %>
+        <%= if dispatch_state = @lineage_summary[:current_dispatch_state] do %>
+          <span style="font-size:0.92rem; color:rgba(20,40,29,0.78);">Dispatch state <code><%= dispatch_state %></code></span>
+        <% end %>
+        <%= if trace_id = @lineage_summary[:trace_id] do %>
+          <span style="font-size:0.92rem; color:rgba(20,40,29,0.78);">Trace anchor <code><%= trace_id %></code></span>
+        <% end %>
+        <%= if external_ref = Map.get(@subject.payload, :external_ref) do %>
+          <span style="font-size:0.92rem; color:rgba(20,40,29,0.78);">External ref <code><%= external_ref %></code></span>
+        <% end %>
+      </div>
+
+      <%= if preview = @subject.next_step_preview do %>
+        <div style="display:grid; gap:0.25rem;">
+          <strong>Next step</strong>
+          <span><%= preview.step_kind %> (<%= preview.status %>)</span>
+          <%= if preview.summary do %>
+            <span style="font-size:0.92rem; color:rgba(20,40,29,0.78);"><%= preview.summary %></span>
+          <% end %>
+        </div>
+      <% end %>
+
+      <%= if @subject.pending_obligations != [] do %>
+        <div style="display:grid; gap:0.55rem;">
+          <strong>Pending obligations</strong>
+          <%= for obligation <- @subject.pending_obligations do %>
+            <div style="padding:0.8rem 0.9rem; border-radius:1rem; background:rgba(20,40,29,0.06);">
+              <div><code><%= obligation.obligation_kind %></code> · <%= obligation.status %></div>
+              <%= if obligation.summary do %>
+                <div style="font-size:0.92rem; color:rgba(20,40,29,0.78);"><%= obligation.summary %></div>
+              <% end %>
+            </div>
+          <% end %>
+        </div>
+      <% end %>
+
+      <%= if @subject.blocking_conditions != [] do %>
+        <div style="display:grid; gap:0.55rem;">
+          <strong>Blocking conditions</strong>
+          <%= for blocker <- @subject.blocking_conditions do %>
+            <div style="padding:0.8rem 0.9rem; border-radius:1rem; background:rgba(143,47,33,0.08);">
+              <div><code><%= blocker.blocker_kind %></code> · <%= blocker.status %></div>
+              <%= if blocker.summary do %>
+                <div style="font-size:0.92rem; color:rgba(20,40,29,0.78);"><%= blocker.summary %></div>
+              <% end %>
+            </div>
+          <% end %>
+        </div>
+      <% end %>
+    </article>
+
+    <article style="display:grid; gap:1rem; padding:1.25rem; border-radius:1.25rem; border:1px solid rgba(20,40,29,0.14); background:rgba(255,255,255,0.82); box-shadow:0 24px 60px rgba(20,40,29,0.08);">
+      <div style="display:grid; gap:0.35rem;">
+        <strong style="font-size:1.05rem;">Operator controls</strong>
+        <span style="font-size:0.92rem; color:rgba(20,40,29,0.78);">Live mutations still route through the governed northbound control path.</span>
+      </div>
+
+      <div style="display:flex; flex-wrap:wrap; gap:0.55rem;">
+        <%= for action <- @subject_actions do %>
+          <span style="display:inline-flex; align-items:center; padding:0.45rem 0.75rem; border-radius:999px; background:rgba(20,40,29,0.08); font-size:0.8rem; font-weight:700;">
+            <%= action.label || action.action_ref.action_kind %>
+          </span>
+        <% end %>
+      </div>
+
+      <div style="display:flex; flex-wrap:wrap; gap:0.75rem;">
+        <%= for action <- Enum.filter(@subject_actions, &(&1.action_ref.action_kind in ["pause", "resume", "cancel"])) do %>
+          <form action={~p"/subjects/#{@subject.subject_ref.id}/actions/#{action.action_ref.action_kind}"} method="post" style="display:inline-flex;">
+            <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+            <input type="hidden" name="reason" value={"#{action.action_ref.action_kind} from subject detail"} />
+            <button type="submit" style={
+              "border:0; border-radius:999px; padding:0.8rem 1.1rem; font-weight:700; cursor:pointer; " <>
+                if(action.action_ref.action_kind == "cancel",
+                  do: "background:#8f2f21; color:#fbf7f0;",
+                  else: "background:#14281d; color:#fbf7f0;"
+                )
+            }>
+              <%= action.label || String.capitalize(action.action_ref.action_kind) %>
+            </button>
+          </form>
+        <% end %>
+      </div>
+
+      <div style="display:grid; gap:0.65rem;">
+        <strong>Leased lower reads</strong>
+        <div style="display:flex; flex-wrap:wrap; gap:0.75rem;">
+          <form action={~p"/subjects/#{@subject.subject_ref.id}/read-lease"} method="post" style="display:inline-flex;">
+            <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+            <button type="submit" style="border:0; border-radius:999px; padding:0.8rem 1.1rem; background:#14281d; color:#fbf7f0; font-weight:700; cursor:pointer;">
+              Issue read lease
+            </button>
+          </form>
+          <form action={~p"/subjects/#{@subject.subject_ref.id}/stream-attach-lease"} method="post" style="display:inline-flex;">
+            <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+            <button type="submit" style="border:0; border-radius:999px; padding:0.8rem 1.1rem; background:#2f4f4f; color:#fbf7f0; font-weight:700; cursor:pointer;">
+              Issue stream attach lease
+            </button>
+          </form>
+        </div>
+
+        <%= if @read_lease do %>
+          <div style="padding:0.95rem 1rem; border-radius:1rem; background:rgba(20,40,29,0.06);">
+            <strong>Read lease issued</strong>
+            <div style="font-size:0.92rem; line-height:1.7;">Lease <code><%= @read_lease.lease_ref.id %></code></div>
+            <div style="font-size:0.92rem; line-height:1.7;">Execution <code><%= @read_lease.lease_ref.execution_ref.id %></code></div>
+            <div style="font-size:0.92rem; line-height:1.7;">Trace <code><%= @read_lease.trace_id %></code></div>
+            <div style="font-size:0.92rem; line-height:1.7;">Allowed ops <code><%= Enum.join(Enum.map(@read_lease.allowed_operations, &to_string/1), ", ") %></code></div>
+          </div>
+        <% end %>
+
+        <%= if @stream_attach_lease do %>
+          <div style="padding:0.95rem 1rem; border-radius:1rem; background:rgba(20,40,29,0.06);">
+            <strong>Stream attach lease issued</strong>
+            <div style="font-size:0.92rem; line-height:1.7;">Lease <code><%= @stream_attach_lease.lease_ref.id %></code></div>
+            <div style="font-size:0.92rem; line-height:1.7;">Execution <code><%= @stream_attach_lease.lease_ref.execution_ref.id %></code></div>
+            <div style="font-size:0.92rem; line-height:1.7;">Trace <code><%= @stream_attach_lease.trace_id %></code></div>
+            <div style="font-size:0.92rem; line-height:1.7;">Reconnect cursor <code><%= @stream_attach_lease.reconnect_cursor %></code></div>
+          </div>
+        <% end %>
+      </div>
+    </article>
+  </section>
+
+  <section style="display:grid; gap:1rem; grid-template-columns:repeat(auto-fit, minmax(20rem, 1fr));">
+    <article style="display:grid; gap:0.9rem; padding:1.25rem; border-radius:1.25rem; border:1px solid rgba(20,40,29,0.14); background:rgba(255,255,255,0.82); box-shadow:0 24px 60px rgba(20,40,29,0.08);">
+      <div style="display:grid; gap:0.35rem;">
+        <strong style="font-size:1.05rem;">Unified trace</strong>
+        <%= if @unified_trace do %>
+          <span style="font-size:0.92rem; color:rgba(20,40,29,0.78);">Trace <code><%= @unified_trace.trace_id %></code></span>
+        <% else %>
+          <span style="font-size:0.92rem; color:rgba(20,40,29,0.78);">No current execution trace is available yet.</span>
+        <% end %>
+      </div>
+
+      <%= if @trace_error do %>
+        <div style="padding:0.95rem 1rem; border-radius:1rem; background:rgba(184,76,42,0.08);">
+          <strong>Trace read degraded</strong>
+          <div style="font-size:0.92rem; line-height:1.7;"><%= inspect(@trace_error) %></div>
+        </div>
+      <% end %>
+
+      <% markers = Map.get(@lineage_summary, :markers, []) %>
+      <%= if markers != [] do %>
+        <div style="display:grid; gap:0.65rem;">
+          <strong>Live lineage posture</strong>
+          <div style="display:flex; flex-wrap:wrap; gap:0.55rem;">
+            <%= for marker <- markers do %>
+              <span style="display:inline-flex; align-items:center; gap:0.45rem; padding:0.45rem 0.75rem; border-radius:999px; background:rgba(20,40,29,0.08); font-size:0.82rem;">
+                <strong><%= marker.label %></strong>
+                <code><%= marker.value %></code>
+              </span>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+
+      <%= if @unified_trace do %>
+        <div style="display:grid; gap:0.5rem;">
+          <strong>Join keys</strong>
+          <%= for {key, value} <- @unified_trace.join_keys do %>
+            <div style="font-size:0.92rem; line-height:1.7;"><code><%= key %></code> = <code><%= value %></code></div>
+          <% end %>
+        </div>
+
+        <div style="display:grid; gap:0.65rem;">
+          <strong>Trace steps</strong>
+          <%= for step <- @unified_trace.steps do %>
+            <div style="padding:0.9rem 1rem; border-radius:1rem; background:rgba(20,40,29,0.06);">
+              <div style="display:flex; flex-wrap:wrap; gap:0.6rem; align-items:center;">
+                <strong><%= to_string(step.source) %></strong>
+                <span><code><%= step.ref %></code></span>
+                <%= if step.freshness do %>
+                  <span style="font-size:0.85rem;"><%= to_string(step.freshness) %></span>
+                <% end %>
+              </div>
+              <%= if step.trace_id do %>
+                <div style="font-size:0.9rem; line-height:1.7;">Trace <code><%= step.trace_id %></code></div>
+              <% end %>
+              <%= if step.occurred_at do %>
+                <div style="font-size:0.9rem; line-height:1.7;">Occurred <code><%= DateTime.to_iso8601(step.occurred_at) %></code></div>
+              <% end %>
+            </div>
+          <% end %>
+        </div>
+      <% end %>
+    </article>
+
+    <article style="display:grid; gap:0.9rem; padding:1.25rem; border-radius:1.25rem; border:1px solid rgba(20,40,29,0.14); background:rgba(255,255,255,0.82); box-shadow:0 24px 60px rgba(20,40,29,0.08);">
+      <div style="display:grid; gap:0.35rem;">
+        <strong style="font-size:1.05rem;">Timeline</strong>
+        <span style="font-size:0.92rem; color:rgba(20,40,29,0.78);">Operator-visible live lineage and receipt state.</span>
+      </div>
+
+      <%= if @subject_timeline == [] do %>
+        <div style="padding:0.95rem 1rem; border-radius:1rem; background:rgba(20,40,29,0.06);">
+          No timeline events yet.
+        </div>
+      <% else %>
+        <%= for event <- @subject_timeline do %>
+          <div style="padding:0.95rem 1rem; border-radius:1rem; background:rgba(20,40,29,0.06);">
+            <div style="display:flex; flex-wrap:wrap; gap:0.6rem; align-items:center;">
+              <strong><%= event.event_kind %></strong>
+              <%= if event.ref do %>
+                <span><code><%= event.ref %></code></span>
+              <% end %>
+            </div>
+            <%= if event.summary do %>
+              <div style="font-size:0.92rem; line-height:1.7;"><%= event.summary %></div>
+            <% end %>
+            <%= if event.occurred_at do %>
+              <div style="font-size:0.9rem; line-height:1.7;">Occurred <code><%= DateTime.to_iso8601(event.occurred_at) %></code></div>
+            <% end %>
+          </div>
+        <% end %>
+      <% end %>
+    </article>
+  </section>
+</section>

@@ -36,6 +36,16 @@ config :mezzanine_execution_engine, Mezzanine.Execution.Repo,
   pool_size: 10,
   show_sensitive_data_on_connection_error: true
 
+config :mezzanine_execution_engine, Oban,
+  name: Mezzanine.Execution.Oban,
+  repo: Mezzanine.Execution.Repo,
+  engine: Oban.Engines.Basic,
+  notifier: Oban.Notifiers.Postgres,
+  peer: false,
+  queues: false,
+  plugins: false,
+  testing: :manual
+
 config :mezzanine_decision_engine, Mezzanine.Decisions.Repo,
   username: "postgres",
   password: "postgres",
