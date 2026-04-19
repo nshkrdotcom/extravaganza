@@ -228,8 +228,8 @@
               <div style="display:flex; flex-wrap:wrap; gap:0.6rem; align-items:center;">
                 <strong><%= to_string(step.source) %></strong>
                 <span><code><%= step.ref %></code></span>
-                <%= if step.freshness do %>
-                  <span style="font-size:0.85rem;"><%= to_string(step.freshness) %></span>
+                <%= if step.staleness_class do %>
+                  <span style="font-size:0.85rem;"><%= to_string(step.staleness_class) %></span>
                 <% end %>
               </div>
               <%= if step.trace_id do %>

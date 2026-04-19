@@ -49,9 +49,9 @@ defmodule Extravaganza.LineageSummary do
          %UnifiedTrace{} = unified_trace,
          trace_id
        ) do
-    freshness_values =
+    staleness_values =
       unified_trace.steps
-      |> Enum.map(&normalize_value(&1.freshness))
+      |> Enum.map(&normalize_value(&1.staleness_class))
       |> Enum.reject(&is_nil/1)
       |> Enum.uniq()
 
@@ -63,7 +63,7 @@ defmodule Extravaganza.LineageSummary do
       marker("Lifecycle state", normalize_value(subject.lifecycle_state)),
       marker("Dispatch state", execution_ref && normalize_value(execution_ref.dispatch_state)),
       marker("Trace anchor", trace_id)
-      | Enum.map(freshness_values, &marker("Freshness", &1))
+      | Enum.map(staleness_values, &marker("Staleness class", &1))
     ]
     |> Kernel.++(payload_markers)
     |> Kernel.++(timeline_markers(timeline))
