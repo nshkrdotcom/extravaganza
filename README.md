@@ -37,6 +37,13 @@ The current product core is made of a small set of product-owned modules:
 The product does not own a workflow compiler, review engine, planner, or
 runtime bridge. Those concerns stay below the product boundary.
 
+The product boundary is AppKit. Extravaganza may author the pure
+`Mezzanine.Pack` model contract for its product pack, but runtime bootstrap,
+intake, queue/detail reads, reviews, operator pause/resume/cancel, trace lookup,
+semantic assist, and lower-backed read leases all go through AppKit surfaces.
+Direct product imports into Mezzanine runtime services, Citadel, Jido
+Integration, or Execution Plane are not allowed.
+
 ## Stack Position
 
 ```text
@@ -70,6 +77,11 @@ The repo now contains the first thin product-core slice:
 - Linear issue normalization into `AppKit.WorkSurface`
 - thin-host run start through `AppKit.WorkControl`
 - operator projection access through `AppKit.OperatorSurface`
+- review accept/reject/waive through `AppKit.ReviewSurface`
+- operator pause/resume/cancel and unified/archived trace lookup through
+  `AppKit.OperatorSurface`
+- CI-enforced product and hazmat no-bypass scans via
+  `mix app_kit.no_bypass`
 
 The next major layer is the product operator shell.
 
@@ -101,9 +113,29 @@ mix deps.get
 mix ci
 ```
 
+`mix ci` runs the AppKit-owned boundary scanner before the normal quality
+sequence:
+
+```bash
+mix app_kit.no_bypass --root . \
+  --profile product \
+  --profile hazmat \
+  --include "apps/extravaganza_core/lib/**/*.ex" \
+  --include "apps/extravaganza_web/lib/**/*.ex"
+```
+
+The gate requires product code to stay on AppKit for governed platform behavior
+and separately proves there is no direct Execution Plane bypass.
+
 See also:
 
 - [Overview](docs/overview.md)
 - [Stack Position](docs/stack_position.md)
 - [Product Direction](docs/product_direction.md)
 - [Product Profile](docs/product_profile.md)
+
+## Temporal developer environment
+
+Temporal CLI is expected to be available as `temporal` on this developer workstation for local durable-workflow development. Current provisioning is machine-level dotfiles setup, not a repo-local dependency.
+
+TODO: make Temporal ergonomics explicit for developers by adding repo-local setup scripts, version expectations, and fallback instructions so the tool is not silently assumed from the workstation.
