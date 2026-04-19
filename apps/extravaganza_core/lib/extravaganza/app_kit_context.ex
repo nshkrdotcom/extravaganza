@@ -14,7 +14,7 @@ defmodule Extravaganza.AppKitContext do
 
   @spec product_context(Config.t(), InstallationRef.t()) :: RequestContext.t()
   def product_context(%Config{} = config, %InstallationRef{} = installation_ref),
-    do: context(config, "product", installation_ref, routing_metadata(config))
+    do: context(config, "product", installation_ref, product_metadata(config, installation_ref))
 
   @spec routing_metadata(Config.t()) :: map()
   def routing_metadata(%Config{} = config) do
@@ -31,6 +31,14 @@ defmodule Extravaganza.AppKitContext do
   defp bootstrap_metadata(%Config{} = config) do
     routing_metadata(config)
     |> Map.put(:runtime_profile, ProductProfile.profile(config))
+  end
+
+  defp product_metadata(%Config{} = config, %InstallationRef{} = installation_ref) do
+    config
+    |> routing_metadata()
+    |> Map.put(:installation_revision, installation_ref.compiled_pack_revision || 1)
+    |> Map.put(:activation_epoch, 1)
+    |> Map.put(:lease_epoch, 1)
   end
 
   defp context(%Config{} = config, purpose, installation_ref, metadata) do
