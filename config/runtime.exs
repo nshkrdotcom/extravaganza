@@ -1,18 +1,20 @@
 import Config
 
 runtime_stack = Mezzanine.Execution.RuntimeStack
+runtime_repos = Enum.uniq(runtime_stack.repo_modules() ++ [Mezzanine.Archival.Repo])
+runtime_domains = Enum.uniq(runtime_stack.ash_domains() ++ [Mezzanine.Archival])
 
-config :ash, domains: runtime_stack.ash_domains()
+config :ash, domains: runtime_domains
 
 config :extravaganza_core,
-  ecto_repos: runtime_stack.repo_modules()
+  ecto_repos: runtime_repos
 
 config :mezzanine_ops_domain,
   ecto_repos: [runtime_stack.ops_domain_repo()],
   ash_domains: runtime_stack.ops_domain_ash_domains()
 
 config :app_kit_mezzanine_bridge,
-  ecto_repos: runtime_stack.repo_modules()
+  ecto_repos: runtime_repos
 
 case config_env() do
   :dev ->

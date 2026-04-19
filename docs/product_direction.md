@@ -15,8 +15,13 @@ system, not the home for generic infrastructure.
 
 Current composition rules:
 
-- use `Mezzanine.Surfaces.*` for durable product semantics
-- use `AppKit.*` only through thin generic northbound surfaces
+- use `AppKit.*` as the only governed product boundary
+- allow direct `Mezzanine.Pack` use only for pure product pack authoring
 - do not call `jido_integration` directly from product business code
+- do not call Citadel, Mezzanine runtime services, or Execution Plane directly
+  from product business code
 - keep policy, work-class, and placement choices product-owned, but keep the
   engines that interpret them below the product boundary
+
+The CI boundary gate enforces these rules through `mix app_kit.no_bypass` with
+both `product` and `hazmat` profiles.

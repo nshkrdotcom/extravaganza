@@ -13,6 +13,7 @@ defmodule ExtravaganzaCore.MixProject do
       deps_path: "../../deps",
       lockfile: "../../mix.lock",
       elixir: "~> 1.19",
+      elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       aliases: aliases(),
@@ -48,6 +49,9 @@ defmodule ExtravaganzaCore.MixProject do
       {:app_kit_operator_surface, path: "../../../app_kit/core/operator_surface"}
     ]
   end
+
+  defp elixirc_paths(:test), do: ["lib", "test/support"]
+  defp elixirc_paths(_env), do: ["lib"]
 
   defp aliases do
     [

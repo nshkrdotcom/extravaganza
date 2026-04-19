@@ -39,6 +39,12 @@ Extravaganza currently ships one default durable product profile.
 - product-host run path:
   `Extravaganza.ProductHost -> AppKit.* -> Mezzanine.AppKitBridge`
   `AppKit` owns the governed northbound contract and lower bridge hydration
+- review decisions:
+  `Extravaganza.Reviews -> AppKit.ReviewSurface`
+- operator controls:
+  `Extravaganza.Operators -> AppKit.OperatorSurface`
+- trace and readback:
+  `Extravaganza.Operators -> AppKit.OperatorSurface`
 
 ## Ownership Boundary
 
@@ -55,3 +61,12 @@ Extravaganza does not own:
 - review gating
 - audit assembly
 - lower runtime dispatch
+- lower facts readback
+- execution-plane write paths
+
+## AppKit Boundary Gate
+
+`mix ci` runs the AppKit scanner over product source with the `product` and
+`hazmat` profiles. The `product` profile blocks direct lower governed-write
+imports while allowing the pure `Mezzanine.Pack` contract. The `hazmat` profile
+separately blocks direct Execution Plane usage.

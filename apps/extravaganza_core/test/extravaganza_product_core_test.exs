@@ -274,25 +274,20 @@ defmodule ExtravaganzaProductCoreTest do
     assert is_map(queue.stats)
   end
 
-  test "product-local review queue lists pending decisions and records decisions", %{
-    tenant_id: tenant_id,
-    pack_version: pack_version
-  } do
+  test "product-local review queue lists pending decisions and records accept, reject, and waive decisions",
+       %{
+         tenant_id: tenant_id,
+         pack_version: pack_version
+       } do
     activate_fixture_registration!(tenant_id: tenant_id, pack_version: pack_version)
 
-    assert {:ok, _run} =
-             Workflows.start_run(
-               %{
-                 external_ref: "linear:ENG-507",
-                 title: "Approve review queue item",
-                 description: "Drive the review queue facade",
-                 source_kind: "linear",
-                 payload: %{"issue_id" => "ENG-507"},
-                 normalized_payload: %{"issue_id" => "ENG-507"}
-               },
-               tenant_id: tenant_id,
-               pack_version: pack_version
-             )
+    review_opts = [tenant_id: tenant_id, pack_version: pack_version]
+
+    start_reviewable_work!(
+      "linear:ENG-507",
+      "Approve review queue item",
+      review_opts
+    )
 
     assert {:ok, reviews_page} =
              Queries.pending_reviews(%{}, tenant_id: tenant_id, pack_version: pack_version)
@@ -301,27 +296,65 @@ defmodule ExtravaganzaProductCoreTest do
 
     assert pending_review.summary == "Approve review queue item"
 
-    assert {:ok, action_result} =
+    assert {:ok, accept_result} =
              Reviews.record_review_decision(
-               %{
-                 id: pending_review.decision_ref.id,
-                 decision_kind: pending_review.decision_ref.decision_kind,
-                 subject_id: pending_review.subject_ref.id,
-                 subject_kind: pending_review.subject_ref.subject_kind
-               },
+               review_identity(pending_review),
                %{decision: :accept, reason: "accepted from product core test"},
                tenant_id: tenant_id,
                pack_version: pack_version
              )
 
-    assert action_result.status == :completed
+    assert accept_result.status == :completed
+    assert accept_result.action_ref.action_kind == "review_accept"
+
+    reject_review =
+      start_reviewable_work!(
+        "linear:ENG-508",
+        "Reject review queue item",
+        review_opts
+      )
+
+    assert {:ok, reject_result} =
+             Reviews.record_review_decision(
+               review_identity(reject_review),
+               %{decision: :reject, reason: "rejected from product core test"},
+               tenant_id: tenant_id,
+               pack_version: pack_version
+             )
+
+    assert reject_result.status == :completed
+    assert reject_result.action_ref.action_kind == "review_reject"
+
+    waive_review =
+      start_reviewable_work!(
+        "linear:ENG-509",
+        "Waive review queue item",
+        review_opts
+      )
+
+    assert {:ok, waive_result} =
+             Reviews.record_review_decision(
+               review_identity(waive_review),
+               %{decision: :waive, reason: "waived from product core test"},
+               tenant_id: tenant_id,
+               pack_version: pack_version
+             )
+
+    assert waive_result.status == :completed
+    assert waive_result.action_ref.action_kind == "review_waive"
 
     assert {:ok, after_page} =
              Queries.pending_reviews(%{}, tenant_id: tenant_id, pack_version: pack_version)
 
+    closed_review_ids = [
+      pending_review.decision_ref.id,
+      reject_review.decision_ref.id,
+      waive_review.decision_ref.id
+    ]
+
     refute Enum.any?(
              after_page.page.entries,
-             &(&1.decision_ref.id == pending_review.decision_ref.id)
+             &(&1.decision_ref.id in closed_review_ids)
            )
   end
 
@@ -677,6 +710,35 @@ defmodule ExtravaganzaProductCoreTest do
   defp bootstrapped_installation_id!(opts) do
     assert {:ok, profile} = ProductBootstrap.ensure_bootstrapped(opts)
     profile.installation_ref.id
+  end
+
+  defp start_reviewable_work!(external_ref, title, opts) do
+    assert {:ok, _run} =
+             Workflows.start_run(
+               %{
+                 external_ref: external_ref,
+                 title: title,
+                 description: "Drive the review queue facade",
+                 source_kind: "linear",
+                 payload: %{"issue_id" => external_ref},
+                 normalized_payload: %{"issue_id" => external_ref}
+               },
+               opts
+             )
+
+    assert {:ok, reviews_page} = Queries.pending_reviews(%{}, opts)
+
+    Enum.find(reviews_page.page.entries, &(&1.summary == title)) ||
+      flunk("expected pending review for #{inspect(title)}")
+  end
+
+  defp review_identity(pending_review) do
+    %{
+      id: pending_review.decision_ref.id,
+      decision_kind: pending_review.decision_ref.decision_kind,
+      subject_id: pending_review.subject_ref.id,
+      subject_kind: pending_review.subject_ref.subject_kind
+    }
   end
 
   defp has_lineage_marker?(markers, label, value) do

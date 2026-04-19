@@ -15,3 +15,8 @@ Extravaganza
 
 The repo should prove the end-user and operator experience while resisting the
 temptation to absorb lower reusable machinery.
+
+The phase-3 proof target is stricter than thin composition: product runtime code
+must not bypass AppKit for governed writes, lower reads, review actions, trace
+lookup, semantic assist, or execution effects. `mix ci` runs the AppKit
+no-bypass scanner so that this is an enforced boundary instead of a convention.

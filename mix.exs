@@ -43,6 +43,7 @@ defmodule Extravaganza.MixProject do
       test: ["cmd --cd #{core_app_path()} env MIX_ENV=test mix ash.setup --quiet", "test"],
       ci: [
         "deps.get",
+        no_bypass_gate(),
         "format --check-formatted",
         "compile --warnings-as-errors",
         "cmd env MIX_ENV=test mix test",
@@ -55,6 +56,17 @@ defmodule Extravaganza.MixProject do
 
   defp core_app_path do
     Path.expand("apps/extravaganza_core", __DIR__)
+  end
+
+  defp app_kit_path do
+    System.get_env("EXTRAVAGANZA_APP_KIT_PATH", Path.expand("../app_kit", __DIR__))
+  end
+
+  defp no_bypass_gate do
+    "cmd --cd #{app_kit_path()} mix app_kit.no_bypass --root #{__DIR__} " <>
+      "--profile product --profile hazmat " <>
+      "--include apps/extravaganza_core/lib/**/*.ex " <>
+      "--include apps/extravaganza_web/lib/**/*.ex"
   end
 
   defp dialyzer do

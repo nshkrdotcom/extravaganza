@@ -1,6 +1,6 @@
 import Config
 
-config :app_kit,
+config :app_kit_core,
   installation_backend: AppKit.Bridges.MezzanineBridge,
   work_query_backend: AppKit.Bridges.MezzanineBridge,
   work_backend: AppKit.Bridges.MezzanineBridge,
@@ -43,6 +43,19 @@ config :mezzanine_decision_engine,
 config :mezzanine_evidence_engine,
   ecto_repos: [Mezzanine.EvidenceLedger.Repo],
   ash_domains: [Mezzanine.EvidenceLedger]
+
+config :mezzanine_archival_engine,
+  ecto_repos: [Mezzanine.Archival.Repo],
+  ash_domains: [Mezzanine.Archival],
+  start_runtime_children?: true,
+  cold_store: [
+    module: Mezzanine.Archival.FileSystemColdStore,
+    root: Path.join(System.tmp_dir!(), "extravaganza_archival_store")
+  ],
+  scheduler: [
+    enabled?: false,
+    interval_ms: :timer.minutes(5)
+  ]
 
 config :mezzanine_config_registry,
   ecto_repos: [Mezzanine.ConfigRegistry.Repo],
