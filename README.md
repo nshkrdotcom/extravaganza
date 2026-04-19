@@ -127,6 +127,12 @@ mix app_kit.no_bypass --root . \
 The gate requires product code to stay on AppKit for governed platform behavior
 and separately proves there is no direct Execution Plane bypass.
 
+Extravaganza does not treat Oban as a durable workflow engine. Product-host
+configuration only permits Mezzanine's retained local Oban duties:
+workflow-start outbox, workflow-signal outbox, and claim-check garbage
+collection. Live orchestration state is projected from Mezzanine workflow facts
+through AppKit surfaces.
+
 See also:
 
 - [Overview](docs/overview.md)
