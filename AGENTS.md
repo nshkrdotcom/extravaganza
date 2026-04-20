@@ -1,3 +1,9 @@
+# Monorepo Project Map
+
+- `./apps/extravaganza_core/mix.exs`: Product-core app for the Extravaganza proving-ground product
+- `./apps/extravaganza_web/mix.exs`: Phoenix web shell app for the Extravaganza umbrella
+- `./mix.exs`: Umbrella repo for the Extravaganza proving-ground product
+
 # AGENTS.md
 
 ## Temporal developer environment
