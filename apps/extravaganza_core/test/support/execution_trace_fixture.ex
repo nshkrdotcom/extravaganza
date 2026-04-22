@@ -12,7 +12,7 @@ defmodule Extravaganza.TestSupport.ExecutionTraceFixture do
     subject_id = Keyword.fetch!(opts, :subject_id)
     recipe_ref = Keyword.get(opts, :recipe_ref, "triage_ticket")
     now = Keyword.get(opts, :occurred_at, ~U[2026-04-15 10:00:00Z])
-    dispatch_state = Keyword.get(opts, :dispatch_state, "awaiting_receipt")
+    dispatch_state = Keyword.get(opts, :dispatch_state, "accepted_active")
 
     execution_attrs =
       opts
@@ -107,6 +107,7 @@ defmodule Extravaganza.TestSupport.ExecutionTraceFixture do
           id: dump_uuid!(Ecto.UUID.generate()),
           trace_id: trace_id,
           causation_id: causation_id,
+          tenant_id: tenant_id,
           installation_id: installation_id,
           subject_id: subject_id,
           execution_id: execution_id,
