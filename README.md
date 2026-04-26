@@ -76,6 +76,9 @@ The repo now contains the first thin product-core slice:
 - product-owned Mezzanine pack defaults for the Linear source binding,
   workpad source publishing, Codex prompt/tool policy, sandbox policy, and
   workspace root
+- product-owned review/evidence defaults requiring GitHub PR, Codex session,
+  and source workpad evidence before operator review completion
+- product operator action declarations for pause, resume, cancel, and rework
 - credential-free source fixture coverage through `AppKit.WorkSurface`
 - thin-host run start through `AppKit.WorkControl`
 - operator projection access through `AppKit.OperatorSurface`

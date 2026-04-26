@@ -47,6 +47,22 @@ Extravaganza currently ships one default durable product profile.
 - turn budget: 12
 - stall timeout: 300 seconds
 
+## Default Review And Evidence Policy
+
+- review gate: `operator_review`
+- required evidence kinds: `github_pr`, `codex_session`, and `source_workpad`
+- allowed review decisions: accept, reject, waive, and expire
+- source workpad evidence is collected when the subject enters review
+- GitHub PR and Codex session evidence is collected from execution completion
+  receipts
+
+## Default Operator Actions
+
+- pause execution while submitted, in review, or awaiting retry
+- resume execution while submitted, in review, or awaiting retry
+- cancel the active execution while submitted, in review, or awaiting retry
+- request rework from review
+
 ## Product Entry Paths
 
 - durable bootstrap:

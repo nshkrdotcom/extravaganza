@@ -142,6 +142,33 @@ defmodule ExtravaganzaProductCoreTest do
     assert recipe.max_turns == 12
     assert recipe.stall_timeout_ms == 300_000
 
+    review_gate = compiled_pack.decision_specs_by_kind["operator_review"]
+
+    assert review_gate.required_evidence_kinds == [
+             "codex_session",
+             "github_pr",
+             "source_workpad"
+           ]
+
+    assert review_gate.allowed_decisions == [:accept, :expired, :reject, :waive]
+
+    assert compiled_pack.evidence_specs_by_kind["github_pr"].collector_ref == "github_pr_ref"
+
+    assert compiled_pack.evidence_specs_by_kind["codex_session"].collector_ref ==
+             "codex_session_ref"
+
+    assert compiled_pack.evidence_specs_by_kind["source_workpad"].collector_ref ==
+             "linear_workpad_ref"
+
+    assert compiled_pack.operator_actions_by_kind["pause_execution"].effect == :pause_execution
+    assert compiled_pack.operator_actions_by_kind["resume_execution"].effect == :resume_execution
+
+    assert compiled_pack.operator_actions_by_kind["cancel_execution"].effect ==
+             :cancel_active_execution
+
+    assert compiled_pack.operator_actions_by_kind["request_rework"].effect ==
+             {:advance_lifecycle, "retry_submission"}
+
     install_template = ProductInstallTemplate.default(config)
 
     assert get_in(install_template.default_bindings, [

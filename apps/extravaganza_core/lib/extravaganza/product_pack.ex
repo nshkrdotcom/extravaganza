@@ -9,9 +9,11 @@ defmodule Extravaganza.ProductPack do
 
   alias Mezzanine.Pack.{
     DecisionSpec,
+    EvidenceSpec,
     ExecutionRecipeSpec,
     LifecycleSpec,
     Manifest,
+    OperatorActionSpec,
     ProjectionSpec,
     SourceBindingSpec,
     SourceKindSpec,
@@ -105,6 +107,11 @@ defmodule Extravaganza.ProductPack do
             },
             %{
               from: :awaiting_review,
+              to: :completed,
+              trigger: {:decision_made, :operator_review, :waive}
+            },
+            %{
+              from: :awaiting_review,
               to: :rejected,
               trigger: {:decision_made, :operator_review, :reject}
             },
@@ -148,10 +155,66 @@ defmodule Extravaganza.ProductPack do
           decision_kind: :operator_review,
           description: "Operator review gate for Extravaganza coding tasks",
           trigger: {:after_execution_completed, recipe_ref},
-          required_evidence_kinds: [],
+          required_evidence_kinds: [:github_pr, :codex_session, :source_workpad],
           authorized_actors: [:operator],
-          allowed_decisions: [:accept, :reject, :expired],
+          allowed_decisions: [:accept, :reject, :waive, :expired],
           required_within_hours: 72
+        }
+      ],
+      evidence_specs: [
+        %EvidenceSpec{
+          evidence_kind: :github_pr,
+          description: "GitHub pull request or PR-attempt evidence for the coding task",
+          collector_ref: :github_pr_ref,
+          collection_strategy: :automatic,
+          collected_on: {:execution_completed, recipe_ref},
+          schema: %{url: :string, number: :integer, state: :string}
+        },
+        %EvidenceSpec{
+          evidence_kind: :codex_session,
+          description: "Codex session, transcript, and token/rate evidence",
+          collector_ref: :codex_session_ref,
+          collection_strategy: :automatic,
+          collected_on: {:execution_completed, recipe_ref},
+          schema: %{session_id: :string, transcript_ref: :string}
+        },
+        %EvidenceSpec{
+          evidence_kind: :source_workpad,
+          description: "Linear workpad/progress comment evidence",
+          collector_ref: :linear_workpad_ref,
+          collection_strategy: :automatic,
+          collected_on: {:subject_entered_state, :awaiting_review},
+          schema: %{comment_id: :string, url: :string}
+        }
+      ],
+      operator_action_specs: [
+        %OperatorActionSpec{
+          action_kind: :pause_execution,
+          description: "Pause the active coding execution for operator review",
+          applicable_states: [:submitted, :awaiting_review, :retry_submission],
+          authorized_roles: [:operator],
+          effect: :pause_execution
+        },
+        %OperatorActionSpec{
+          action_kind: :resume_execution,
+          description: "Resume a paused coding execution",
+          applicable_states: [:submitted, :awaiting_review, :retry_submission],
+          authorized_roles: [:operator],
+          effect: :resume_execution
+        },
+        %OperatorActionSpec{
+          action_kind: :cancel_execution,
+          description: "Cancel the active coding execution",
+          applicable_states: [:submitted, :awaiting_review, :retry_submission],
+          authorized_roles: [:operator],
+          effect: :cancel_active_execution
+        },
+        %OperatorActionSpec{
+          action_kind: :request_rework,
+          description: "Return the coding task to retry submission for rework",
+          applicable_states: [:awaiting_review],
+          authorized_roles: [:operator],
+          effect: {:advance_lifecycle, :retry_submission}
         }
       ],
       projection_specs: [
