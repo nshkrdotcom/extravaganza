@@ -23,14 +23,23 @@ defmodule ExtravaganzaWeb.ConnCase do
       RuntimeStack.repo_modules()
       |> Enum.map(&Sandbox.start_owner!(&1, shared: not tags[:async]))
 
-    tenant_id = "extravaganza-web-test-#{System.unique_integer([:positive])}"
-    pack_version = "1.0.0"
+    test_suffix = "#{System.system_time(:nanosecond)}_#{System.unique_integer([:positive])}"
+    version_suffix = String.replace(test_suffix, "_", ".")
+    tenant_id = "extravaganza-web-test-#{Ecto.UUID.generate()}"
+    pack_version = "1.0.0-test.#{version_suffix}"
+    work_class_name = "coding_operations_#{test_suffix}"
+    work_class_kind = "coding_task_#{test_suffix}"
     previous_config = Application.get_env(:extravaganza_core, Config, [])
 
     Application.put_env(
       :extravaganza_core,
       Config,
-      Keyword.merge(previous_config, tenant_id: tenant_id, pack_version: pack_version)
+      Keyword.merge(previous_config,
+        tenant_id: tenant_id,
+        pack_version: pack_version,
+        work_class_name: work_class_name,
+        work_class_kind: work_class_kind
+      )
     )
 
     on_exit(fn ->

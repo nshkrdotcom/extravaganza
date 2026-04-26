@@ -73,6 +73,9 @@ Extravaganza should not own:
 The repo now contains the first thin product-core slice:
 
 - idempotent durable bootstrap into `mezzanine`
+- product-owned Mezzanine pack defaults for the Linear source binding,
+  workpad source publishing, Codex prompt/tool policy, sandbox policy, and
+  workspace root
 - credential-free source fixture coverage through `AppKit.WorkSurface`
 - thin-host run start through `AppKit.WorkControl`
 - operator projection access through `AppKit.OperatorSurface`

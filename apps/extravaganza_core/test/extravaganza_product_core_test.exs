@@ -9,6 +9,7 @@ defmodule ExtravaganzaProductCoreTest do
     Config,
     ProductBootstrap,
     ProductHost,
+    ProductInstallTemplate,
     ProductPack,
     Queries,
     Reviews,
@@ -28,6 +29,24 @@ defmodule ExtravaganzaProductCoreTest do
   alias Mezzanine.Pack.Compiler
 
   setup do
+    base_config = Application.fetch_env!(:extravaganza_core, Config)
+
+    test_suffix = "#{System.system_time(:nanosecond)}_#{System.unique_integer([:positive])}"
+    version_suffix = String.replace(test_suffix, "_", ".")
+    work_class_name = "coding_operations_#{test_suffix}"
+    work_class_kind = "coding_task_#{test_suffix}"
+    pack_version = "1.0.0-test.#{version_suffix}"
+
+    Application.put_env(
+      :extravaganza_core,
+      Config,
+      Keyword.merge(base_config,
+        work_class_name: work_class_name,
+        work_class_kind: work_class_kind,
+        pack_version: pack_version
+      )
+    )
+
     owners = [
       Sandbox.start_owner!(RuntimeStack.ops_domain_repo(), shared: false),
       Sandbox.start_owner!(ConfigRegistryRepo, shared: true),
@@ -41,9 +60,11 @@ defmodule ExtravaganzaProductCoreTest do
     allow_registry_process(config_owner)
 
     tenant_id = "extravaganza-test-#{Ecto.UUID.generate()}"
-    pack_version = "1.0.0"
 
-    on_exit(fn -> Enum.each(owners, &Sandbox.stop_owner/1) end)
+    on_exit(fn ->
+      Application.put_env(:extravaganza_core, Config, base_config)
+      Enum.each(owners, &Sandbox.stop_owner/1)
+    end)
 
     {:ok, tenant_id: tenant_id, pack_version: pack_version}
   end
@@ -85,6 +106,55 @@ defmodule ExtravaganzaProductCoreTest do
              posture: :operator_proving_ground,
              role: :proving_ground_product
            } = Extravaganza.identity()
+  end
+
+  test "product pack declares Linear source bindings, source publishing, and runtime policy" do
+    config = Config.load()
+
+    assert {:ok, compiled_pack} =
+             config
+             |> ProductPack.manifest()
+             |> Compiler.compile()
+
+    source_binding = compiled_pack.source_bindings_by_ref["linear_primary"]
+
+    assert source_binding.provider == "linear"
+    assert source_binding.connection_ref == "linear_primary"
+    assert source_binding.source_kind == "linear"
+    assert source_binding.subject_kind == config.work_class_kind
+    assert source_binding.state_mapping["awaiting_review"] == ["In Review"]
+    assert source_binding.source_write_policy.claim_state == "In Progress"
+
+    source_publisher = compiled_pack.source_publishers_by_ref["linear_workpad_review"]
+
+    assert source_publisher.source_binding_ref == "linear_primary"
+    assert source_publisher.trigger == {:subject_entered_state, "awaiting_review"}
+    assert source_publisher.operation == :update_comment
+    assert source_publisher.template_ref == "operator_review_workpad"
+
+    recipe = compiled_pack.recipes_by_ref[ProductPack.execution_recipe_ref(config)]
+
+    assert recipe.workspace_policy.root_ref == "extravaganza_workspaces"
+    assert recipe.sandbox_policy_ref == "standard_coding_ops"
+    assert recipe.prompt_refs == ["coding_agent_system"]
+    assert recipe.dynamic_tool_manifest.tools == ["linear.comment.update", "github.pr.create"]
+    assert recipe.hook_stages == [:prepare_workspace, :after_turn]
+    assert recipe.max_turns == 12
+    assert recipe.stall_timeout_ms == 300_000
+
+    install_template = ProductInstallTemplate.default(config)
+
+    assert get_in(install_template.default_bindings, [
+             "source_bindings",
+             "linear_primary",
+             "provider"
+           ]) == "linear"
+
+    assert get_in(install_template.default_bindings, [
+             "source_bindings",
+             "linear_primary",
+             "connection_ref"
+           ]) == "linear_primary"
   end
 
   test "product runtime does not hardcode app kit bridge implementations" do
@@ -151,7 +221,12 @@ defmodule ExtravaganzaProductCoreTest do
 
     assert get_in(
              second.install_result.metadata.installation.bindings,
-             ["execution_bindings", "coding_operations", "execution_params", "timeout_ms"]
+             [
+               "execution_bindings",
+               ProductPack.execution_binding_key(Config.load()),
+               "execution_params",
+               "timeout_ms"
+             ]
            ) == 180_000
   end
 

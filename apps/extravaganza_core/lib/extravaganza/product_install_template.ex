@@ -30,6 +30,13 @@ defmodule Extravaganza.ProductInstallTemplate do
           "placement_ref" => config.placement_profile_id,
           "execution_params" => %{"timeout_ms" => config.execution_timeout_ms}
         }
+      },
+      "source_bindings" => %{
+        (config.linear_source_kind <> "_primary") => %{
+          "provider" => "linear",
+          "connection_ref" => "linear_primary",
+          "source_kind" => config.linear_source_kind
+        }
       }
     }
   end

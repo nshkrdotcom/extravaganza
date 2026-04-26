@@ -13,7 +13,9 @@ defmodule Extravaganza.ProductPack do
     LifecycleSpec,
     Manifest,
     ProjectionSpec,
+    SourceBindingSpec,
     SourceKindSpec,
+    SourcePublishSpec,
     SubjectKindSpec
   }
 
@@ -24,6 +26,7 @@ defmodule Extravaganza.ProductPack do
   def manifest(%Config{} = config) do
     subject_kind = subject_kind(config)
     source_kind = source_kind(config)
+    source_binding_ref = source_binding_ref(config)
     recipe_ref = execution_recipe_ref_atom(config)
 
     %Manifest{
@@ -42,6 +45,36 @@ defmodule Extravaganza.ProductPack do
           name: source_kind,
           subject_kind: subject_kind,
           description: "Linear-backed coding task intake"
+        }
+      ],
+      source_binding_specs: [
+        %SourceBindingSpec{
+          binding_ref: source_binding_ref,
+          source_kind: source_kind,
+          subject_kind: subject_kind,
+          provider: :linear,
+          connection_ref: :linear_primary,
+          state_mapping: %{
+            submitted: ["Todo", "Backlog"],
+            awaiting_review: ["In Review"],
+            retry_submission: ["Todo"],
+            completed: ["Done", "Completed"],
+            rejected: ["Canceled", "Cancelled", "Duplicate"],
+            expired: ["Canceled", "Cancelled"]
+          },
+          candidate_filters: %{source_kind: config.linear_source_kind},
+          cursor_policy: %{poll_every_ms: 60_000},
+          source_write_policy: %{workpad: :update_existing, claim_state: "In Progress"}
+        }
+      ],
+      source_publish_specs: [
+        %SourcePublishSpec{
+          publish_ref: :linear_workpad_review,
+          source_binding_ref: source_binding_ref,
+          trigger: {:subject_entered_state, :awaiting_review},
+          operation: :update_comment,
+          template_ref: :operator_review_workpad,
+          idempotency_scope: :subject
         }
       ],
       lifecycle_specs: [
@@ -94,7 +127,18 @@ defmodule Extravaganza.ProductPack do
             backoff: :linear,
             retry_on: [:transient_failure, :timeout]
           },
-          workspace_policy: %{strategy: :per_subject, reuse: true, cleanup: :on_terminal},
+          workspace_policy: %{
+            strategy: :per_subject,
+            reuse: true,
+            cleanup: :on_terminal,
+            root_ref: :extravaganza_workspaces
+          },
+          sandbox_policy_ref: :standard_coding_ops,
+          prompt_refs: [:coding_agent_system],
+          dynamic_tool_manifest: %{tools: ["linear.comment.update", "github.pr.create"]},
+          hook_stages: [:prepare_workspace, :after_turn],
+          max_turns: 12,
+          stall_timeout_ms: 300_000,
           execution_params: %{timeout_ms: config.execution_timeout_ms},
           applicable_to: [subject_kind]
         }
@@ -143,6 +187,7 @@ defmodule Extravaganza.ProductPack do
 
   defp subject_kind(%Config{} = config), do: String.to_atom(config.work_class_kind)
   defp source_kind(%Config{} = config), do: String.to_atom(config.linear_source_kind)
+  defp source_binding_ref(%Config{} = config), do: :"#{config.linear_source_kind}_primary"
   defp execution_recipe_ref_atom(%Config{} = config), do: String.to_atom(config.work_class_name)
   defp placement_ref(%Config{} = config), do: String.to_atom(config.placement_profile_id)
 end

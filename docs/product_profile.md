@@ -23,12 +23,29 @@ Extravaganza currently ships one default durable product profile.
 - review posture: operator approval required
 - run posture: Codex session execution
 
+## Default Source Binding
+
+- binding ref: `linear_primary`
+- provider: `linear`
+- source kind: `linear`
+- state mapping: submitted/backlog, review, retry, completed, rejected, and expired
+- source publish: update the existing Linear workpad comment when work enters review
+
 ## Default Placement
 
 - profile id: `local_default`
 - strategy: `affinity`
 - runtime driver preference: `jido_session`
 - workspace posture: per-work strict sandbox
+
+## Default Runtime Policy
+
+- workspace root ref: `extravaganza_workspaces`
+- sandbox policy ref: `standard_coding_ops`
+- prompt refs: `coding_agent_system`
+- dynamic tools: Linear comment update and GitHub PR create
+- turn budget: 12
+- stall timeout: 300 seconds
 
 ## Product Entry Paths
 
