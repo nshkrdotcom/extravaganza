@@ -83,6 +83,11 @@ The repo now contains the first thin product-core slice:
 - CI-enforced product and hazmat no-bypass scans via
   `mix app_kit.no_bypass`
 
+Dependency health is current for the generalized Symphony lane. `erlexec` is
+locked at `2.3.0`, satisfying the lower runtime dependency constraint, and the
+root `mix ci` gate passes with format, compile, tests, no-bypass, Credo,
+Dialyzer, and docs generation.
+
 The next major layer is the product operator shell.
 
 ## Boot Flow
