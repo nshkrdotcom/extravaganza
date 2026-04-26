@@ -3,6 +3,8 @@ defmodule Extravaganza.PolicyPresets.DefaultCodingOps do
   Default workflow-style policy bundle for Extravaganza coding operations.
   """
 
+  alias Extravaganza.CodingOpsTemplates
+
   @spec workflow_body() :: String.t()
   def workflow_body do
     """
@@ -50,7 +52,7 @@ defmodule Extravaganza.PolicyPresets.DefaultCodingOps do
       - capability_id: github.pull_request.write
         mode: allow
     ---
-    # Operator Prompt
+    #{CodingOpsTemplates.system_prompt()}
     """
   end
 end

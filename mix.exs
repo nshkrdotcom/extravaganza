@@ -59,7 +59,7 @@ defmodule Extravaganza.MixProject do
   end
 
   defp app_kit_path do
-    System.get_env("EXTRAVAGANZA_APP_KIT_PATH", Path.expand("../app_kit", __DIR__))
+    Path.expand("../app_kit", __DIR__)
   end
 
   defp no_bypass_gate do

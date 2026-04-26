@@ -8,11 +8,12 @@ defmodule Extravaganza.Operators do
     OperatorActionRef,
     OperatorActionRequest,
     RequestContext,
-    SubjectRef
+    SubjectRef,
+    SubjectRuntimeProjection
   }
 
   alias AppKit.{OperatorSurface, WorkSurface}
-  alias Extravaganza.{LineageSummary, ProductSurface}
+  alias Extravaganza.{CodingOpsTemplates, LineageSummary, ProductSurface}
 
   @spec subject_detail(String.t(), keyword()) :: {:ok, map()} | {:error, term()}
   def subject_detail(subject_id, opts \\ []) when is_binary(subject_id) and is_list(opts) do
@@ -42,6 +43,26 @@ defmodule Extravaganza.Operators do
          }}
       end
     end)
+  end
+
+  @spec runtime_projection(String.t(), keyword()) ::
+          {:ok, SubjectRuntimeProjection.t()} | {:error, term()}
+  def runtime_projection(subject_id, opts \\ []) when is_binary(subject_id) and is_list(opts) do
+    with_bootstrapped_subject(subject_id, opts, fn config, context, subject_ref ->
+      WorkSurface.get_runtime_projection(
+        context,
+        subject_ref,
+        ProductSurface.work_query_opts(config, opts)
+      )
+    end)
+  end
+
+  @spec source_publication_preview(String.t(), keyword()) :: {:ok, map()} | {:error, term()}
+  def source_publication_preview(subject_id, opts \\ [])
+      when is_binary(subject_id) and is_list(opts) do
+    with {:ok, projection} <- runtime_projection(subject_id, opts) do
+      {:ok, CodingOpsTemplates.source_publication_preview(projection)}
+    end
   end
 
   @spec apply_action(String.t(), atom() | String.t(), map(), keyword()) ::

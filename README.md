@@ -79,6 +79,9 @@ The repo now contains the first thin product-core slice:
 - product-owned review/evidence defaults requiring GitHub PR, Codex session,
   and source workpad evidence before operator review completion
 - product operator action declarations for pause, resume, cancel, and rework
+- product-owned coding-agent prompt text and operator review workpad rendering
+- runtime projection and source-publication preview/readback through typed
+  AppKit DTOs; provider source writes remain workflow-owned below AppKit
 - credential-free source fixture coverage through `AppKit.WorkSurface`
 - thin-host run start through `AppKit.WorkControl`
 - operator projection access through `AppKit.OperatorSurface`
@@ -105,7 +108,7 @@ Application start
 
 Product-host run
   -> Extravaganza.ProductHost
-      -> AppKit.WorkControl / AppKit.OperatorSurface
+      -> AppKit.WorkControl / AppKit.WorkSurface / AppKit.OperatorSurface
       -> Mezzanine.AppKitBridge
       -> Mezzanine services
 ```
@@ -114,6 +117,9 @@ Real Linear source events are not ingested by product-owned adapters. The
 generalized Symphony lane routes provider source admission through Jido
 Integration and Mezzanine source admission, with Extravaganza owning only
 coding-ops source defaults and test fixtures for credential-free coverage.
+Source publication writes are likewise owned by the workflow/source-publisher
+path. Extravaganza renders the product workpad body and reads publication,
+evidence, receipt, and review state through `AppKit.WorkSurface` projections.
 
 ## Development
 
@@ -123,6 +129,9 @@ The project targets Elixir `~> 1.19` and Erlang/OTP `28`.
 mix deps.get
 mix ci
 ```
+
+The umbrella resolves the sibling `app_kit` checkout by repository path. It
+does not expose a process-environment override for dependency selection.
 
 `mix ci` runs the AppKit-owned boundary scanner before the normal quality
 sequence:

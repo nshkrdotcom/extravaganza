@@ -31,6 +31,18 @@ defmodule Extravaganza.ProductHost do
     Operators.subject_detail(subject_id, opts)
   end
 
+  @spec runtime_projection(String.t(), keyword()) ::
+          {:ok, AppKit.Core.SubjectRuntimeProjection.t()} | {:error, term()}
+  def runtime_projection(subject_id, opts \\ []) when is_binary(subject_id) and is_list(opts) do
+    Operators.runtime_projection(subject_id, opts)
+  end
+
+  @spec source_publication_preview(String.t(), keyword()) :: {:ok, map()} | {:error, term()}
+  def source_publication_preview(subject_id, opts \\ [])
+      when is_binary(subject_id) and is_list(opts) do
+    Operators.source_publication_preview(subject_id, opts)
+  end
+
   @spec apply_subject_action(String.t(), atom() | String.t(), map(), keyword()) ::
           {:ok, AppKit.Core.ActionResult.t()} | {:error, term()}
   def apply_subject_action(subject_id, action_kind, attrs \\ %{}, opts \\ [])

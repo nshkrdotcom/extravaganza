@@ -19,6 +19,12 @@ trace lookup, semantic assist, and read/stream leases are product-facing AppKit
 calls. Extravaganza's only direct Mezzanine coupling is the pure
 `Mezzanine.Pack` model contract used to author its product pack.
 
+Extravaganza owns the coding-ops prompt and operator review workpad templates.
+It renders source-publication preview/readback from AppKit runtime projection
+DTOs. Actual source publication writes remain workflow-owned below AppKit and
+use refs carried by source admission, workflow state, provider create/list
+output, or durable receipts.
+
 Credential-free source fixture helpers live under test support only. Production
 Linear/GitHub/Codex integrations enter below the product boundary through
 AppKit, Mezzanine, and Jido Integration.

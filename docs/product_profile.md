@@ -4,7 +4,7 @@ Extravaganza currently ships one default durable product profile.
 
 ## Default Program
 
-- tenant id: configured per environment, default `extravaganza`
+- tenant id: configured per installation, default `extravaganza`
 - program slug: `extravaganza_coding_ops`
 - program family: `extravaganza`
 - default intake source kind: `linear`
@@ -30,6 +30,17 @@ Extravaganza currently ships one default durable product profile.
 - source kind: `linear`
 - state mapping: submitted/backlog, review, retry, completed, rejected, and expired
 - source publish: update the existing Linear workpad comment when work enters review
+
+## Default Prompt And Workpad
+
+- prompt ref: `coding_agent_system`
+- workpad template ref: `operator_review_workpad`
+- prompt and workpad copy live in `Extravaganza.CodingOpsTemplates`
+- provider identity is read from source admission, provider create/list output,
+  workflow state, or durable receipts
+- the product renders source-publication preview/readback from
+  `AppKit.Core.SubjectRuntimeProjection`; it does not write provider source
+  comments directly
 
 ## Default Placement
 
@@ -72,6 +83,8 @@ Extravaganza currently ships one default durable product profile.
 - product-host run path:
   `Extravaganza.ProductHost -> AppKit.* -> Mezzanine.AppKitBridge`
   `AppKit` owns the governed northbound contract and lower bridge hydration
+- runtime projection and workpad readback:
+  `Extravaganza.ProductHost -> AppKit.WorkSurface.get_runtime_projection/3`
 - review decisions:
   `Extravaganza.Reviews -> AppKit.ReviewSurface`
 - operator controls:

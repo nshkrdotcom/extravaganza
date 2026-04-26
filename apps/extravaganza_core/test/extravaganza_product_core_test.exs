@@ -1,12 +1,29 @@
 defmodule ExtravaganzaProductCoreTest do
   use ExUnit.Case, async: false
 
-  alias AppKit.Core.RunRef
+  alias AppKit.Core.{
+    DecisionRef,
+    EvidenceProjection,
+    ExecutionRef,
+    ExecutionStateProjection,
+    LowerReceiptSummary,
+    ReviewProjection,
+    RunRef,
+    RuntimeEventSummary,
+    RuntimeFactsProjection,
+    SourceBindingProjection,
+    SubjectRef,
+    SubjectRuntimeProjection,
+    WorkspaceRef
+  }
+
   alias Ecto.Adapters.SQL.Sandbox
   alias ExtravaganzaCore.MixProject, as: CoreMixProject
 
   alias Extravaganza.{
+    CodingOpsTemplates,
     Config,
+    PolicyPresets,
     ProductBootstrap,
     ProductHost,
     ProductInstallTemplate,
@@ -27,6 +44,126 @@ defmodule ExtravaganzaProductCoreTest do
   alias Mezzanine.Execution.Repo, as: ExecutionRepo
   alias Mezzanine.Execution.RuntimeStack
   alias Mezzanine.Pack.Compiler
+
+  defmodule FakeRuntimeProjectionBackend do
+    def get_runtime_projection(_context, %SubjectRef{} = subject_ref, _opts) do
+      {:ok, runtime_projection(subject_ref)}
+    end
+
+    defp runtime_projection(%SubjectRef{} = subject_ref) do
+      {:ok, source_binding} =
+        SourceBindingProjection.new(%{
+          binding_ref: "linear_primary",
+          source_ref: "source://linear/discovered-task",
+          source_kind: "linear",
+          external_system: "linear",
+          source_state: "In Review",
+          source_url: "https://linear.app/example/issue/ENG-900",
+          workpad_refs: ["source-workpad://linear/discovered-task"]
+        })
+
+      {:ok, workspace_ref} =
+        WorkspaceRef.new(%{
+          id: "workspace://extravaganza/discovered-task",
+          tenant_id: "tenant-runtime-preview"
+        })
+
+      {:ok, execution_ref} =
+        ExecutionRef.new(%{
+          id: "execution://extravaganza/discovered-task",
+          subject_ref: subject_ref,
+          recipe_ref: "coding_operations",
+          dispatch_state: "terminal_success"
+        })
+
+      {:ok, execution_state} =
+        ExecutionStateProjection.new(%{
+          execution_ref: execution_ref,
+          lifecycle_state: "awaiting_review",
+          dispatch_state: "terminal_success"
+        })
+
+      {:ok, lower_receipt} =
+        LowerReceiptSummary.new(%{
+          receipt_ref: "receipt://terminal-success",
+          receipt_state: "succeeded",
+          lower_receipt_ref: "lower_receipt://terminal-success",
+          run_ref: "lower-run://terminal-success",
+          attempt_ref: "lower-attempt://terminal-success",
+          execution_ref: execution_ref
+        })
+
+      {:ok, runtime_event} =
+        RuntimeEventSummary.new(%{
+          event_kind: "codex.session.completed",
+          count: 1,
+          latest_event_ref: "runtime-event://terminal-success"
+        })
+
+      {:ok, runtime} =
+        RuntimeFactsProjection.new(%{
+          token_totals: %{"input" => 1200, "output" => 400},
+          rate_limit: %{"status" => "ok"},
+          events: [runtime_event]
+        })
+
+      evidence =
+        [
+          evidence!("github_pr", "evidence://github-pr", "github-pr://dynamic-result"),
+          evidence!(
+            "codex_session",
+            "evidence://codex-session",
+            "codex-session://dynamic-result"
+          ),
+          evidence!(
+            "source_workpad",
+            "evidence://source-workpad",
+            "source-workpad://linear/discovered-task"
+          )
+        ]
+
+      {:ok, decision_ref} =
+        DecisionRef.new(%{
+          id: "decision://operator-review",
+          decision_kind: "operator_review",
+          subject_ref: subject_ref
+        })
+
+      {:ok, review} =
+        ReviewProjection.new(%{
+          status: "pending",
+          pending_decision_refs: [decision_ref]
+        })
+
+      {:ok, projection} =
+        SubjectRuntimeProjection.new(%{
+          subject_ref: subject_ref,
+          lifecycle_state: "awaiting_review",
+          source_bindings: [source_binding],
+          workspace_ref: workspace_ref,
+          execution_state: execution_state,
+          lower_receipts: [lower_receipt],
+          runtime: runtime,
+          evidence: evidence,
+          review: review,
+          updated_at: ~U[2026-04-25 12:00:00Z]
+        })
+
+      projection
+    end
+
+    defp evidence!(kind, evidence_ref, content_ref) do
+      {:ok, evidence} =
+        EvidenceProjection.new(%{
+          evidence_ref: evidence_ref,
+          evidence_kind: kind,
+          status: "present",
+          content_ref: content_ref
+        })
+
+      evidence
+    end
+  end
 
   setup do
     base_config = Application.fetch_env!(:extravaganza_core, Config)
@@ -182,6 +319,51 @@ defmodule ExtravaganzaProductCoreTest do
              "linear_primary",
              "connection_ref"
            ]) == "linear_primary"
+  end
+
+  test "product prompt and source workpad preview render from app kit runtime projection", %{
+    tenant_id: tenant_id,
+    pack_version: pack_version
+  } do
+    activate_fixture_registration!(tenant_id: tenant_id, pack_version: pack_version)
+
+    workflow_body = PolicyPresets.default_coding_ops().body
+    normalized_workflow_body = Regex.replace(~r/\s+/, workflow_body, " ")
+
+    assert workflow_body =~ CodingOpsTemplates.prompt_ref()
+    assert normalized_workflow_body =~ "provider refs must come from"
+    assert normalized_workflow_body =~ "durable receipts"
+    refute workflow_body =~ "TODO"
+
+    assert {:ok, preview} =
+             ProductHost.source_publication_preview(
+               "subject-runtime-preview",
+               tenant_id: tenant_id,
+               pack_version: pack_version,
+               work_query_backend: FakeRuntimeProjectionBackend
+             )
+
+    assert preview.publish_ref == "linear_workpad_review"
+    assert preview.template_ref == CodingOpsTemplates.workpad_template_ref()
+    assert preview.operation == :update_comment
+    assert preview.source_binding_ref == "linear_primary"
+    assert preview.lifecycle_state == "awaiting_review"
+    assert preview.lower_receipt_refs == ["receipt://terminal-success"]
+
+    assert preview.evidence_refs == [
+             "evidence://github-pr",
+             "evidence://codex-session",
+             "evidence://source-workpad"
+           ]
+
+    assert preview.pending_decision_refs == ["decision://operator-review"]
+    assert preview.body =~ "Operator Review Workpad"
+    assert preview.body =~ "source://linear/discovered-task"
+    assert preview.body =~ "lower_receipt://terminal-success"
+    assert preview.body =~ "github_pr"
+    assert preview.body =~ "codex.session.completed=1"
+    refute preview.body =~ "github_issue_number"
+    refute preview.body =~ "linear_issue_id"
   end
 
   test "product runtime does not hardcode app kit bridge implementations" do
