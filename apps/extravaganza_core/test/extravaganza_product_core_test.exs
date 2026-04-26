@@ -7,7 +7,6 @@ defmodule ExtravaganzaProductCoreTest do
 
   alias Extravaganza.{
     Config,
-    LinearIntakeAdapter,
     ProductBootstrap,
     ProductHost,
     ProductPack,
@@ -17,6 +16,7 @@ defmodule ExtravaganzaProductCoreTest do
   }
 
   alias Extravaganza.TestSupport.ExecutionTraceFixture
+  alias Extravaganza.TestSupport.LinearIssueFixture
 
   alias Mezzanine.Audit.Repo, as: AuditRepo
   alias Mezzanine.ConfigRegistry.PackRegistration
@@ -155,7 +155,7 @@ defmodule ExtravaganzaProductCoreTest do
            ) == 180_000
   end
 
-  test "linear intake upserts a single work object per external reference", %{
+  test "fixture source ingest upserts a single subject per external reference", %{
     tenant_id: tenant_id,
     pack_version: pack_version
   } do
@@ -173,7 +173,7 @@ defmodule ExtravaganzaProductCoreTest do
     }
 
     assert {:ok, first_subject} =
-             LinearIntakeAdapter.ingest_issue(
+             LinearIssueFixture.ingest_issue(
                issue,
                tenant_id: tenant_id,
                pack_version: pack_version
@@ -188,7 +188,7 @@ defmodule ExtravaganzaProductCoreTest do
       |> Map.put(:labels, ["ops", "incident"])
 
     assert {:ok, second_subject} =
-             LinearIntakeAdapter.ingest_issue(
+             LinearIssueFixture.ingest_issue(
                updated_issue,
                tenant_id: tenant_id,
                pack_version: pack_version

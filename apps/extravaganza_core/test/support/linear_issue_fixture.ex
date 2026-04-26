@@ -1,8 +1,5 @@
-defmodule Extravaganza.LinearIntakeAdapter do
-  @moduledoc """
-  Thin Linear issue normalization and ingestion through the northbound AppKit
-  work surface.
-  """
+defmodule Extravaganza.TestSupport.LinearIssueFixture do
+  @moduledoc false
 
   alias AppKit.WorkSurface
   alias Extravaganza.{AppKitContext, Config, ProductBootstrap}

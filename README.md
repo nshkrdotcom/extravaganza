@@ -30,7 +30,6 @@ The current product core is made of a small set of product-owned modules:
   defaults
 - `Extravaganza.ProductBootstrap` for idempotent durable bootstrap through
   `AppKit.InstallationSurface`
-- `Extravaganza.LinearIntakeAdapter` for Linear-originated work ingestion
 - `Extravaganza.ProductHost` for product-local AppKit entrypoints backed by
   the current northbound bridge path
 
@@ -74,7 +73,7 @@ Extravaganza should not own:
 The repo now contains the first thin product-core slice:
 
 - idempotent durable bootstrap into `mezzanine`
-- Linear issue normalization into `AppKit.WorkSurface`
+- credential-free source fixture coverage through `AppKit.WorkSurface`
 - thin-host run start through `AppKit.WorkControl`
 - operator projection access through `AppKit.OperatorSurface`
 - review accept/reject/waive through `AppKit.ReviewSurface`
@@ -98,16 +97,17 @@ Application start
       -> Extravaganza.ProductBootstrap
           -> AppKit.InstallationSurface
 
-Linear issue
-  -> Extravaganza.LinearIntakeAdapter
-      -> AppKit.WorkSurface
-
 Product-host run
   -> Extravaganza.ProductHost
       -> AppKit.WorkControl / AppKit.OperatorSurface
       -> Mezzanine.AppKitBridge
       -> Mezzanine services
 ```
+
+Real Linear source events are not ingested by product-owned adapters. The
+generalized Symphony lane routes provider source admission through Jido
+Integration and Mezzanine source admission, with Extravaganza owning only
+coding-ops source defaults and test fixtures for credential-free coverage.
 
 ## Development
 

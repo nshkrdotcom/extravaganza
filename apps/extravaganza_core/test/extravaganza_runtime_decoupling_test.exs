@@ -17,6 +17,11 @@ defmodule Extravaganza.RuntimeDecouplingTest do
     "apps/extravaganza_web/lib/**/*.ex",
     "apps/extravaganza_web/test/support/**/*.ex"
   ]
+  @active_product_patterns [
+    "config/*.exs",
+    "apps/extravaganza_core/lib/**/*.ex",
+    "apps/extravaganza_web/lib/**/*.ex"
+  ]
 
   test "product config and test support do not directly reference legacy mezzanine runtime modules" do
     root = Path.expand("../../..", __DIR__)
@@ -24,6 +29,18 @@ defmodule Extravaganza.RuntimeDecouplingTest do
     Enum.each(@forbidden_legacy_refs, fn pattern ->
       assert_refutes_file_patterns(root, @scan_patterns, pattern)
     end)
+  end
+
+  test "active product code does not expose fake source adapters or old subject aliases" do
+    root = Path.expand("../../..", __DIR__)
+
+    assert_refutes_file_patterns(root, @active_product_patterns, ~r/LinearIntakeAdapter/)
+
+    assert_refutes_file_patterns(
+      root,
+      @active_product_patterns,
+      ~r/subject_kind:\s*"work_object"/
+    )
   end
 
   defp assert_refutes_file_patterns(root, patterns, pattern) do

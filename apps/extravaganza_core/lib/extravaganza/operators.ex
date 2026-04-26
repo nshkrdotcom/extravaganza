@@ -115,7 +115,8 @@ defmodule Extravaganza.Operators do
 
   defp with_bootstrapped_subject(subject_id, opts, callback) when is_function(callback, 3) do
     with {:ok, %{config: config, context: context}} <- ProductSurface.bootstrapped_context(opts),
-         {:ok, subject_ref} <- SubjectRef.new(%{id: subject_id, subject_kind: "work_object"}) do
+         {:ok, subject_ref} <-
+           SubjectRef.new(%{id: subject_id, subject_kind: config.work_class_kind}) do
       callback.(config, context, subject_ref)
     end
   end

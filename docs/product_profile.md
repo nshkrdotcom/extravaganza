@@ -34,8 +34,8 @@ Extravaganza currently ships one default durable product profile.
 
 - durable bootstrap:
   `Extravaganza.ProductBootstrap -> AppKit.InstallationSurface`
-- intake:
-  `Extravaganza.LinearIntakeAdapter -> AppKit.WorkSurface`
+- credential-free fixture ingest:
+  `Extravaganza.TestSupport.LinearIssueFixture -> AppKit.WorkSurface`
 - product-host run path:
   `Extravaganza.ProductHost -> AppKit.* -> Mezzanine.AppKitBridge`
   `AppKit` owns the governed northbound contract and lower bridge hydration
@@ -70,3 +70,7 @@ Extravaganza does not own:
 `hazmat` profiles. The `product` profile blocks direct lower governed-write
 imports while allowing the pure `Mezzanine.Pack` contract. The `hazmat` profile
 separately blocks direct Execution Plane usage.
+
+Real Linear provider admission is intentionally outside the active product code
+path. It belongs to the Jido Integration connector and Mezzanine source
+admission lane; Extravaganza owns source defaults and test-only fixture helpers.
