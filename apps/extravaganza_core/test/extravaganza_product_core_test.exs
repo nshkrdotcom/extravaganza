@@ -146,7 +146,9 @@ defmodule ExtravaganzaProductCoreTest do
           runtime: runtime,
           evidence: evidence,
           review: review,
-          updated_at: ~U[2026-04-25 12:00:00Z]
+          updated_at: ~U[2026-04-25 12:00:00Z],
+          schema_ref: "app_kit.subject_runtime_projection.v1",
+          schema_version: 1
         })
 
       projection
