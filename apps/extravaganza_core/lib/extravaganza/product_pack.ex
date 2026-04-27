@@ -35,6 +35,7 @@ defmodule Extravaganza.ProductPack do
       pack_slug: pack_slug(config),
       version: pack_version(config),
       description: "#{config.program_name} product pack",
+      profile_slots: profile_slots(config),
       subject_kind_specs: [
         %SubjectKindSpec{
           name: subject_kind,
@@ -247,6 +248,22 @@ defmodule Extravaganza.ProductPack do
   @spec execution_recipe_ref(Config.t() | keyword() | map()) :: String.t()
   def execution_recipe_ref(%Config{} = config), do: config.work_class_name
   def execution_recipe_ref(overrides), do: overrides |> Config.load() |> execution_recipe_ref()
+
+  @spec profile_slots(Config.t() | keyword() | map()) :: map()
+  def profile_slots(%Config{}) do
+    %{
+      source_profile_ref: :linear_coding_task,
+      runtime_profile_ref: :codex_session,
+      tool_scope_ref: :coding_ops_v1,
+      evidence_profile_ref: :github_pr_plus_workpad,
+      publication_profile_ref: :linear_workpad_review,
+      review_profile_ref: :human_operator,
+      memory_profile_ref: :none,
+      projection_profile_ref: :coding_ops_projection_v1
+    }
+  end
+
+  def profile_slots(overrides), do: overrides |> Config.load() |> profile_slots()
 
   defp subject_kind(%Config{} = config), do: String.to_atom(config.work_class_kind)
   defp source_kind(%Config{} = config), do: String.to_atom(config.linear_source_kind)

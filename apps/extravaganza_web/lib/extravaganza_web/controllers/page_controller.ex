@@ -1,6 +1,7 @@
 defmodule ExtravaganzaWeb.PageController do
   use ExtravaganzaWeb, :controller
 
+  alias Extravaganza.Presenters.{ReviewPresenter, StatePresenter, SubjectPresenter}
   alias Extravaganza.ProductHost
 
   def home(conn, _params) do
@@ -14,12 +15,14 @@ defmodule ExtravaganzaWeb.PageController do
   def queue(conn, params) do
     case ProductHost.operator_queue(params) do
       {:ok, queue} ->
+        presented = StatePresenter.present_queue(queue)
+
         render(conn, :queue,
-          queue_entries: queue.page.entries,
-          queue_stats: queue.stats,
-          queue_total_count: queue.page.total_count,
-          queue_has_more?: queue.page.has_more,
-          queue_next_cursor: queue.page.next_cursor,
+          queue_entries: presented.entries,
+          queue_stats: presented.stats,
+          queue_total_count: presented.total_count,
+          queue_has_more?: presented.has_more?,
+          queue_next_cursor: presented.next_cursor,
           queue_error: nil
         )
 
@@ -40,11 +43,14 @@ defmodule ExtravaganzaWeb.PageController do
   def reviews(conn, params) do
     case ProductHost.pending_reviews(params) do
       {:ok, reviews_page} ->
+        presented = ReviewPresenter.present_page(reviews_page)
+        page = presented["data"]["page"]
+
         render(conn, :reviews,
           review_entries: reviews_page.page.entries,
-          review_total_count: reviews_page.page.total_count,
+          review_total_count: page["total_entries"],
           review_has_more?: reviews_page.page.has_more,
-          review_next_cursor: reviews_page.page.next_cursor,
+          review_next_cursor: page["cursor"],
           review_error: nil
         )
 
@@ -134,20 +140,18 @@ defmodule ExtravaganzaWeb.PageController do
   defp render_subject(conn, subject_id, extra_assigns) when is_map(extra_assigns) do
     case ProductHost.subject_detail(subject_id) do
       {:ok, detail} ->
-        assigns =
-          Map.merge(
-            %{
-              subject: detail.subject,
-              subject_actions: detail.actions,
-              subject_timeline: detail.timeline,
-              unified_trace: detail.unified_trace,
-              lineage_summary: Map.get(detail, :lineage_summary, %{}),
-              trace_error: detail.trace_error,
-              read_lease: nil,
-              stream_attach_lease: nil
-            },
-            extra_assigns
-          )
+        presented = SubjectPresenter.present(detail, extra_assigns: extra_assigns)
+
+        assigns = %{
+          subject: presented.subject,
+          subject_actions: presented.actions,
+          subject_timeline: presented.timeline,
+          unified_trace: presented.unified_trace,
+          lineage_summary: presented.lineage_summary,
+          trace_error: presented.trace_error,
+          read_lease: presented.read_lease,
+          stream_attach_lease: presented.stream_attach_lease
+        }
 
         render(conn, :subject, assigns)
 

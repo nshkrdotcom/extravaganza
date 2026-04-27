@@ -1,0 +1,17 @@
+{
+  "command_ref": "command:fixture:denied",
+  "command_kind": "cancel",
+  "accepted?": false,
+  "coalesced?": false,
+  "status": "denied",
+  "authority_state": "denied",
+  "authority_refs": ["authority:packet-denied", "authority:decision-denied"],
+  "workflow_effect_state": "rejected_by_authority",
+  "projection_state": "terminal",
+  "trace_id": "trace:fixture:denied",
+  "correlation_id": "corr:fixture-denied",
+  "receipt_ref": "receipt:fixture:denied",
+  "idempotency_key": "idem:fixture-denied",
+  "message": "Command denied by authority",
+  "diagnostics": [{"severity": "warning", "code": "action_denied", "message": "Authority denied the command"}]
+}

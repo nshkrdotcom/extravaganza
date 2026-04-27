@@ -1,0 +1,24 @@
+{
+  "schema_ref": "runtime_readback/subject_detail.v1",
+  "schema_version": 1,
+  "subject_ref": "subject:fixture",
+  "summary": {
+    "title": "Fixture subject detail",
+    "lifecycle_state": "review_pending",
+    "provider_refs": {"linear": "source:linear:ENG-42"}
+  },
+  "runtime_row": {
+    "subject_ref": "subject:fixture",
+    "run_ref": "run:fixture",
+    "execution_ref": "execution:fixture",
+    "state": "review_pending",
+    "updated_at": "2026-04-27T00:07:00Z",
+    "workspace_ref": {"id": "workspace:fixture", "display_label": "Fixture workspace", "path_redacted?": true}
+  },
+  "events": [
+    {"event_ref": "event:fixture:1", "event_seq": 1, "event_kind": "run_started", "observed_at": "2026-04-27T00:00:00Z", "subject_ref": "subject:fixture", "run_ref": "run:fixture", "message_summary": "Run started"},
+    {"event_ref": "event:fixture:2", "event_seq": 2, "event_kind": "future_m2_state_added", "observed_at": "2026-04-27T00:01:00Z", "subject_ref": "subject:fixture", "run_ref": "run:fixture", "message_summary": "Unknown future event passed through"}
+  ],
+  "runs": [{"run_ref": "run:fixture", "state": "review_pending"}],
+  "diagnostics": []
+}

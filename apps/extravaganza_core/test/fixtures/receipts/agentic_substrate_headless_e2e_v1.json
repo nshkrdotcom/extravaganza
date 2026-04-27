@@ -1,0 +1,13 @@
+{
+  "schema_ref": "agentic_substrate_headless_e2e_v1",
+  "profile": "extravaganza",
+  "flavor": "offline",
+  "mechanism": "M1",
+  "agent_loop_used?": false,
+  "memory_profile_ref": "none",
+  "provider_credentials_required?": false,
+  "network_required?": false,
+  "browser_json_parity": "asserted",
+  "appkit_surface": "AppKit.HeadlessSurface",
+  "receipt_state": "proven"
+}

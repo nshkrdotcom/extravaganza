@@ -1,0 +1,17 @@
+{
+  "command_ref": "command:fixture:accepted",
+  "command_kind": "refresh",
+  "accepted?": true,
+  "coalesced?": false,
+  "status": "accepted",
+  "authority_state": "allowed",
+  "authority_refs": ["authority:packet-accepted", "authority:decision-accepted"],
+  "workflow_effect_state": "pending_signal",
+  "projection_state": "pending",
+  "trace_id": "trace:fixture:command",
+  "correlation_id": "corr:fixture",
+  "receipt_ref": "receipt:fixture:command",
+  "idempotency_key": "idem:fixture",
+  "message": "Command accepted",
+  "diagnostics": []
+}

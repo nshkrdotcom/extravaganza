@@ -3,7 +3,12 @@ defmodule Extravaganza.ProductHost do
   Product-local operator host facade over the current AppKit surfaces.
   """
 
-  alias Extravaganza.{Operators, Queries, Reviews, Workflows}
+  alias Extravaganza.{HeadlessSurface, Operators, Queries, Reviews, Workflows}
+
+  @spec state_snapshot(map(), keyword()) :: {:ok, struct()} | {:error, term()}
+  def state_snapshot(params \\ %{}, opts \\ []) when is_map(params) and is_list(opts) do
+    HeadlessSurface.state_snapshot(params, opts)
+  end
 
   @spec operator_queue(map(), keyword()) :: {:ok, map()} | {:error, term()}
   def operator_queue(params \\ %{}, opts \\ []) when is_map(params) and is_list(opts) do
@@ -24,6 +29,24 @@ defmodule Extravaganza.ProductHost do
   def run_status(run_ref, attrs \\ %{}, opts \\ [])
       when is_map(attrs) and is_list(opts) do
     Queries.run_status(run_ref, attrs, opts)
+  end
+
+  @spec run_detail(String.t(), map(), keyword()) :: {:ok, struct()} | {:error, term()}
+  def run_detail(run_id, attrs \\ %{}, opts \\ [])
+      when is_binary(run_id) and is_map(attrs) and is_list(opts) do
+    HeadlessSurface.run_detail(run_id, attrs, opts)
+  end
+
+  @spec request_refresh(map(), keyword()) :: {:ok, struct()} | {:error, term()}
+  def request_refresh(attrs \\ %{}, opts \\ []) when is_map(attrs) and is_list(opts) do
+    HeadlessSurface.request_refresh(attrs, opts)
+  end
+
+  @spec request_control(String.t(), atom() | String.t(), map(), keyword()) ::
+          {:ok, struct()} | {:error, term()}
+  def request_control(subject_id, action, attrs \\ %{}, opts \\ [])
+      when is_binary(subject_id) and is_map(attrs) and is_list(opts) do
+    HeadlessSurface.request_control(subject_id, action, attrs, opts)
   end
 
   @spec subject_detail(String.t(), keyword()) :: {:ok, map()} | {:error, term()}

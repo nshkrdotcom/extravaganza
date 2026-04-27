@@ -1,0 +1,25 @@
+{
+  "schema_ref": "runtime_readback/run_detail.v1",
+  "schema_version": 1,
+  "run_ref": "run:fixture",
+  "runtime_row": {
+    "subject_ref": "subject:fixture",
+    "run_ref": "run:fixture",
+    "execution_ref": "execution:fixture",
+    "workflow_ref": "workflow:fixture",
+    "state": "running",
+    "updated_at": "2026-04-27T00:09:00Z",
+    "workspace_ref": {"id": "workspace:fixture", "display_label": "Fixture workspace", "path_redacted?": true}
+  },
+  "events": [
+    {"event_ref": "event:run:2", "event_seq": 2, "event_kind": "lower_receipt_observed", "observed_at": "2026-04-27T00:02:00Z", "run_ref": "run:fixture", "message_summary": "Lower receipt observed"},
+    {"event_ref": "event:run:1", "event_seq": 1, "event_kind": "run_started", "observed_at": "2026-04-27T00:01:00Z", "run_ref": "run:fixture", "message_summary": "Run started"}
+  ],
+  "retries": [{"attempt_ref": "attempt:fixture:1", "status": "none"}],
+  "turns": [],
+  "budget_state": {"status": "not_available"},
+  "candidate_fact_refs": [],
+  "memory_proof_refs": [],
+  "agent_loop_diagnostics": [],
+  "diagnostics": []
+}
