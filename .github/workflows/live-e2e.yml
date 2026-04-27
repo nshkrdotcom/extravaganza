@@ -1,0 +1,37 @@
+name: Live E2E
+
+on:
+  schedule:
+    - cron: "17 9 * * *"
+  workflow_dispatch:
+
+jobs:
+  profile-a-live-e2e:
+    runs-on: ubuntu-latest
+    environment: live-e2e
+    env:
+      STACK_CODER_LIVE_E2E: "1"
+      EXTRAVAGANZA_LINEAR_API_KEY: ${{ secrets.EXTRAVAGANZA_LINEAR_API_KEY }}
+      EXTRAVAGANZA_GITHUB_TOKEN: ${{ secrets.EXTRAVAGANZA_GITHUB_TOKEN }}
+      EXTRAVAGANZA_CODEX_API_KEY: ${{ secrets.EXTRAVAGANZA_CODEX_API_KEY }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Erlang and Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          otp-version: "28.3"
+          elixir-version: "1.19.5"
+
+      - name: Run live-gated Profile A E2E
+        run: mix test --only live_e2e
+
+      - name: Upload live receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: extravaganza-live-e2e-receipts
+          path: tmp/test_receipts/**
+          if-no-files-found: ignore

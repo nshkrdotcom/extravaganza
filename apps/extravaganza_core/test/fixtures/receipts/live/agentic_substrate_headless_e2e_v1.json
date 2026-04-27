@@ -1,0 +1,70 @@
+{
+  "schema_ref": "agentic_substrate_headless_e2e_v1",
+  "receipt_name": "agentic_substrate_headless_e2e_v1",
+  "profile": "extravaganza",
+  "flavor": "live",
+  "mechanism": "M1+M2",
+  "mechanisms": [
+    "M1",
+    "M2"
+  ],
+  "agent_loop_used?": true,
+  "agentic_core_proven?": true,
+  "proof_class": "live_e2e",
+  "receipt_state": "proven",
+  "profile_ref": "profile://extravaganza/profile-a-live-m2/v1",
+  "source_profile_ref": "linear_coding_task",
+  "runtime_profile_ref": "codex_session",
+  "evidence_profile_ref": "github_pr_plus_workpad",
+  "memory_profile_ref": "private_facts_v1",
+  "run_ref": "run://extravaganza/profile-a-live",
+  "workflow_ref": "workflow://agent-loop/extravaganza-profile-a-live",
+  "turn_refs": [
+    "turn://agent-loop/extravaganza-profile-a-live/1"
+  ],
+  "tool_action_receipt_refs": [
+    "action-receipt://agent-loop/extravaganza-profile-a-live/1"
+  ],
+  "authority_decision_refs": [
+    "authority-decision://agent-loop/extravaganza-profile-a-live/1"
+  ],
+  "candidate_fact_refs": [
+    "candidate-fact://outer-brain/extravaganza-profile-a-live/1"
+  ],
+  "memory_commit_refs": [
+    "memory-commit://agent-loop/extravaganza-profile-a-live/1"
+  ],
+  "memory_proof_refs": [
+    "m7a-proof://agent-loop/extravaganza-profile-a-live/1"
+  ],
+  "memory_commit_skipped": false,
+  "provider_receipt_refs": [
+    "provider-receipt://linear/disposable-extravaganza-profile-a-live",
+    "provider-receipt://github/disposable-extravaganza-profile-a-live",
+    "provider-receipt://codex/disposable-extravaganza-profile-a-live"
+  ],
+  "provider_credentials_required?": true,
+  "provider_network_access?": true,
+  "network_required?": true,
+  "linear_used?": true,
+  "github_used?": true,
+  "codex_used?": true,
+  "appkit_surface": "AppKit.HeadlessSurface",
+  "appkit_surfaces": [
+    "AppKit.AgentIntake",
+    "AppKit.HeadlessSurface"
+  ],
+  "headless_readback_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "browser_presenter_hash": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+  "trace_id": "trace://extravaganza/profile-a-live",
+  "release_manifest_ref": "release-manifest://extravaganza/profile-a-live/v1",
+  "cleanup_receipt_refs": [
+    "cleanup-receipt://linear/disposable-extravaganza-profile-a-live",
+    "cleanup-receipt://github/disposable-extravaganza-profile-a-live"
+  ],
+  "disposable_provider_resource_refs": [
+    "linear-issue://disposable/extravaganza-profile-a-live",
+    "github-branch://disposable/extravaganza-profile-a-live",
+    "codex-session://disposable/extravaganza-profile-a-live"
+  ]
+}

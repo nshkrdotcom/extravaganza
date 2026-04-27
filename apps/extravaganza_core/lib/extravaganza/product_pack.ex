@@ -265,6 +265,16 @@ defmodule Extravaganza.ProductPack do
 
   def profile_slots(overrides), do: overrides |> Config.load() |> profile_slots()
 
+  @spec agent_loop_profile_slots(Config.t() | keyword() | map()) :: map()
+  def agent_loop_profile_slots(%Config{} = config) do
+    config
+    |> profile_slots()
+    |> Map.put(:memory_profile_ref, :private_facts_v1)
+  end
+
+  def agent_loop_profile_slots(overrides),
+    do: overrides |> Config.load() |> agent_loop_profile_slots()
+
   defp subject_kind(%Config{} = config), do: String.to_atom(config.work_class_kind)
   defp source_kind(%Config{} = config), do: String.to_atom(config.linear_source_kind)
   defp source_binding_ref(%Config{} = config), do: :"#{config.linear_source_kind}_primary"
