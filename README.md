@@ -19,6 +19,16 @@ that stays intentionally thin: its job is to prove a coherent operator surface
 above `app_kit` while pushing all reusable business semantics, workflow
 machinery, and configurable operational logic down into `mezzanine`.
 
+Extravaganza is the enterprise distributed port of the
+[OpenAI Symphony](https://github.com/openai/symphony) headless coding-agent
+orchestration pattern. Symphony defines a language-agnostic service that
+continuously reads work from an issue tracker, creates isolated per-issue
+workspaces, and drives a coding agent session for each item. Extravaganza ports
+that concept onto the nshkr substrate: Temporal-backed durable workflows,
+multi-tenant authorization, operator review gates, evidence collection, and
+structured audit trails replace Symphony's intentionally simple in-memory
+single-node design.
+
 ## Stack position
 
 ```
