@@ -63,7 +63,7 @@ defmodule Extravaganza.MixProject do
   end
 
   defp no_bypass_gate do
-    "cmd --cd #{app_kit_path()} mix app_kit.no_bypass --root #{__DIR__} " <>
+    "cmd --cd #{app_kit_path()} mix app_kit.no_bypass.scan --root #{__DIR__} " <>
       "--profile product --profile hazmat " <>
       "--include apps/extravaganza_core/lib/**/*.ex " <>
       "--include apps/extravaganza_web/lib/**/*.ex"
