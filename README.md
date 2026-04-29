@@ -14,127 +14,122 @@
 # Extravaganza
 
 Extravaganza is the first proving-ground product application for the nshkr
-stack.
-
-It is intentionally thin. The repo exists to prove a sophisticated operator
-surface above `app_kit`, while pushing reusable business semantics, workflow
+stack. It is an Elixir/OTP umbrella (`extravaganza_core` + `extravaganza_web`)
+that stays intentionally thin: its job is to prove a coherent operator surface
+above `app_kit` while pushing all reusable business semantics, workflow
 machinery, and configurable operational logic down into `mezzanine`.
 
-## Product Core
+## Stack position
 
-The current product core is made of a small set of product-owned modules:
-
-- `Extravaganza.Config` for normalized product config
-- `Extravaganza.ProductProfile` for the default install and routing profile
-- `Extravaganza.PolicyPresets` and `Extravaganza.WorkClasses.*` for product
-  defaults
-- `Extravaganza.ProductBootstrap` for idempotent durable bootstrap through
-  `AppKit.InstallationSurface`
-- `Extravaganza.ProductHost` for product-local AppKit entrypoints backed by
-  the current northbound bridge path
-
-The product does not own a workflow compiler, review engine, planner, or
-runtime bridge. Those concerns stay below the product boundary.
-
-The product boundary is AppKit. Extravaganza may author the pure
-`Mezzanine.Pack` model contract for its product pack, but runtime bootstrap,
-intake, queue/detail reads, reviews, operator pause/resume/cancel, trace lookup,
-semantic assist, and lower-backed read leases all go through AppKit surfaces.
-Direct product imports into Mezzanine runtime services, Citadel, Jido
-Integration, or Execution Plane are not allowed.
-
-## Stack Position
-
-```text
-operator product: Extravaganza
-  -> northbound surfaces: app_kit
-      -> host/kernel and semantic layers: Citadel + outer_brain
-          -> integration/runtime plane: jido_integration
-              -> lower execution and effect projection: execution_plane
+```
+Extravaganza          ← this repo: product UX, operator journeys, pack authoring
+  └─ app_kit          ← northbound surfaces, governed product boundary
+       └─ mezzanine   ← reusable business engines, Temporal-backed workflows
+            └─ citadel / outer_brain / jido_integration
+                 └─ execution_plane
 ```
 
-Extravaganza should own:
+`app_kit` is the only allowed entry point for governed product behavior.
+Extravaganza's sole direct Mezzanine coupling is the pure `Mezzanine.Pack`
+model contract used to author its product pack. Everything else — bootstrap,
+intake, operator queue/detail, review decisions, pause/resume/cancel, trace
+lookup, semantic assist, source publication, and lower read leases — goes
+through typed `AppKit.*` surfaces.
 
-- product-facing operator journeys
-- product identity, packaging, and host composition
-- safe defaults for local and single-user installs
-- configuration and policy choices for a proving deployment
-- product-specific program, placement, and work-class defaults
+The CI gate (`mix app_kit.no_bypass`) enforces this boundary continuously with
+both `product` and `hazmat` profiles so it is a hard rule, not a convention.
 
-Extravaganza should not own:
+## What this repo owns
 
-- generic business-semantic workflow machinery
-- reusable operational state models
-- lower runtime, connector, or execution concerns
-- duplicate business orchestration already provided by `mezzanine`
+- Product UX and operator journeys
+- Product identity, configuration, and pack authoring
+- Product defaults: policy bundle, work class, placement profile, source binding
+- Product prompts and operator review workpad templates
+- Safe defaults for local and single-user proving deployments
+- `Extravaganza.ProductHost` — the unified product host facade
 
-## Status
+## What this repo does not own
 
-The repo now contains the first thin product-core slice:
+- Workflow engines or runtime bridges
+- Generic governance, review gating, or audit assembly
+- Lower execution, connector credential handling, or source admission
+- Reusable operational state models or business orchestration
 
-- idempotent durable bootstrap into `mezzanine`
-- product-owned Mezzanine pack defaults for the Linear source binding,
-  workpad source publishing, Codex prompt/tool policy, sandbox policy, and
-  workspace root
-- product-owned review/evidence defaults requiring GitHub PR, Codex session,
-  and source workpad evidence before operator review completion
-- product operator action declarations for pause, resume, cancel, and rework
-- product-owned coding-agent prompt text and operator review workpad rendering
-- runtime projection and source-publication preview/readback through typed
-  AppKit DTOs; provider source writes remain workflow-owned below AppKit
-- credential-free source fixture coverage through `AppKit.WorkSurface`
-- thin-host run start through `AppKit.WorkControl`
-- operator projection access through `AppKit.OperatorSurface`
-- review accept/reject/waive through `AppKit.ReviewSurface`
-- operator pause/resume/cancel and unified/archived trace lookup through
-  `AppKit.OperatorSurface`
-- CI-enforced product and hazmat no-bypass scans via
-  `mix app_kit.no_bypass`
+## Product modules
 
-Dependency health is current for the generalized Symphony lane. `erlexec` is
-locked at `2.3.0`, satisfying the lower runtime dependency constraint, and the
-root `mix ci` gate passes with format, compile, tests, no-bypass, Credo,
-Dialyzer, and docs generation.
+| Module | Role |
+|---|---|
+| `Extravaganza.Config` | Normalized product configuration |
+| `Extravaganza.ProductProfile` | Default install and routing profile |
+| `Extravaganza.ProductPack` | `Mezzanine.Pack` manifest for the coding-ops workflow |
+| `Extravaganza.PolicyPresets` / `WorkClasses.*` | Product-owned policy and work-class defaults |
+| `Extravaganza.ProductBootstrap` | Idempotent durable bootstrap via `AppKit.InstallationSurface` |
+| `Extravaganza.BootstrapWorker` | OTP worker that drives bootstrap on application start |
+| `Extravaganza.ProductHost` | Operator facade over `AppKit.Work*`, `AppKit.OperatorSurface`, `AppKit.ReviewSurface` |
+| `Extravaganza.CodingOpsTemplates` | Coding-agent system prompt and review workpad copy |
 
-The next major layer is the product operator shell.
+## Default product pack
 
-## Boot Flow
+The coding-ops pack drives Linear-backed tasks through a Codex agent session
+and into a human operator review gate.
 
-```text
+| Dimension | Default |
+|---|---|
+| Program slug | `extravaganza_coding_ops` |
+| Source binding | `linear_primary` (Linear → `coding_task` subjects) |
+| Execution recipe | Codex session, 12-turn budget, 300 s stall timeout |
+| Dynamic tools | `linear.comment.update`, `github.pr.create` |
+| Review gate | Operator review, 72-hour window |
+| Required evidence | `github_pr`, `codex_session`, `source_workpad` |
+| Operator actions | pause, resume, cancel, request rework |
+| Lifecycle | submitted → awaiting\_review → completed / rejected / expired |
+
+Source publication (the Linear workpad comment update) is triggered when a
+subject enters `awaiting_review`. The write is owned by the workflow/source-publisher
+path below AppKit; the product only renders the workpad body and reads
+publication state through `AppKit.WorkSurface` projection DTOs.
+
+## Boot flow
+
+```
 Application start
-  -> Extravaganza.BootstrapWorker
-      -> Extravaganza.ProductBootstrap
-          -> AppKit.InstallationSurface
+  └─ Extravaganza.BootstrapWorker
+       └─ Extravaganza.ProductBootstrap
+            └─ AppKit.InstallationSurface
 
 Product-host run
-  -> Extravaganza.ProductHost
-      -> AppKit.WorkControl / AppKit.WorkSurface / AppKit.OperatorSurface
-      -> Mezzanine.AppKitBridge
-      -> Mezzanine services
+  └─ Extravaganza.ProductHost
+       ├─ AppKit.WorkControl / AppKit.WorkSurface
+       ├─ AppKit.OperatorSurface
+       ├─ AppKit.ReviewSurface
+       └─ Mezzanine.AppKitBridge  (owned by app_kit, not this repo)
 ```
 
-Real Linear source events are not ingested by product-owned adapters. The
-generalized Symphony lane routes provider source admission through Jido
-Integration and Mezzanine source admission, with Extravaganza owning only
-coding-ops source defaults and test fixtures for credential-free coverage.
-Source publication writes are likewise owned by the workflow/source-publisher
-path. Extravaganza renders the product workpad body and reads publication,
-evidence, receipt, and review state through `AppKit.WorkSurface` projections.
+Real Linear source events enter below the product boundary through Jido
+Integration and Mezzanine source admission. Extravaganza owns source defaults
+and credential-free test fixtures only.
 
 ## Development
 
-The project targets Elixir `~> 1.19` and Erlang/OTP `28`.
+Targets Elixir `~> 1.19` and Erlang/OTP `28`.
 
 ```bash
 mix deps.get
 mix ci
 ```
 
-The umbrella resolves the sibling `app_kit` checkout by repository path. It
-does not expose a process-environment override for dependency selection.
+`mix ci` runs the full quality sequence:
 
-`mix ci` runs the AppKit-owned boundary scanner before the normal quality
-sequence:
+1. `deps.get`
+2. AppKit no-bypass boundary scan (`product` + `hazmat` profiles)
+3. `format --check-formatted`
+4. `compile --warnings-as-errors`
+5. `test` (with `ash.setup`)
+6. `credo --strict`
+7. `dialyzer --force-check`
+8. `docs --warnings-as-errors`
+
+The boundary scan command run by CI:
 
 ```bash
 mix app_kit.no_bypass --root . \
@@ -144,40 +139,36 @@ mix app_kit.no_bypass --root . \
   --include "apps/extravaganza_web/lib/**/*.ex"
 ```
 
-The gate requires product code to stay on AppKit for governed platform behavior
-and separately proves there is no direct Execution Plane bypass.
+Oban is configured for Mezzanine's retained local duties only
+(workflow-start outbox, workflow-signal outbox, claim-check GC). Live
+orchestration state is projected from Mezzanine workflow facts through AppKit
+surfaces; Extravaganza does not treat Oban as a durable workflow engine.
 
-Extravaganza does not treat Oban as a durable workflow engine. Product-host
-configuration only permits Mezzanine's retained local Oban duties:
-workflow-start outbox, workflow-signal outbox, and claim-check garbage
-collection. Live orchestration state is projected from Mezzanine workflow facts
-through AppKit surfaces.
+## Temporal development substrate
 
-See also:
+Temporal runtime development is managed from the `mezzanine` repo via its
+`just` workflow. Do not start ad hoc Temporal processes.
+
+```bash
+cd /home/home/p/g/n/mezzanine
+just dev-up        # start local Temporal dev server
+just dev-status    # check health
+just dev-logs      # tail logs
+just temporal-ui   # open UI at http://127.0.0.1:8233
+```
+
+Local contract: `127.0.0.1:7233`, namespace `default`, persistent state at
+`~/.local/share/temporal/dev-server.db`.
+
+## Escalation path
+
+If product work needs a platform capability that AppKit does not yet expose,
+add the AppKit surface or lower contract first. Do not import lower platform
+modules directly from product business code.
+
+## Further reading
 
 - [Overview](docs/overview.md)
 - [Stack Position](docs/stack_position.md)
 - [Product Direction](docs/product_direction.md)
 - [Product Profile](docs/product_profile.md)
-
-## Temporal developer environment
-
-Temporal CLI is expected to be available as `temporal` on this developer workstation for local durable-workflow development. Current provisioning is machine-level dotfiles setup, not a repo-local dependency.
-
-TODO: make Temporal ergonomics explicit for developers by adding repo-local setup scripts, version expectations, and fallback instructions so the tool is not silently assumed from the workstation.
-
-## Native Temporal development substrate
-
-Temporal runtime development is managed from `/home/home/p/g/n/mezzanine` through the repo-owned `just` workflow, not by manually starting ad hoc Temporal processes.
-
-Use:
-
-```bash
-cd /home/home/p/g/n/mezzanine
-just dev-up
-just dev-status
-just dev-logs
-just temporal-ui
-```
-
-Expected local contract: `127.0.0.1:7233`, UI `http://127.0.0.1:8233`, namespace `default`, native service `mezzanine-temporal-dev.service`, persistent state `~/.local/share/temporal/dev-server.db`.
