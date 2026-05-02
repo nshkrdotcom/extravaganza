@@ -93,7 +93,9 @@ the same explicit allowlist rule before they become human-authored config.
 ## Product Entry Paths
 
 - durable bootstrap:
-  `Extravaganza.ProductBootstrap -> AppKit.InstallationSurface`
+  `Extravaganza.ProductBootstrap -> Extravaganza.DefaultAuthoringBundle -> AppKit.InstallationSurface.import_authoring_bundle/3`
+  with `create_installation/2` used first when an active pack registration is
+  already present
 - credential-free fixture ingest:
   `Extravaganza.TestSupport.LinearIssueFixture -> AppKit.WorkSurface`
 - product-host run path:
@@ -115,6 +117,8 @@ Extravaganza owns:
 - product defaults
 - product composition
 - future operator shell
+- default ProductPack seed compilation into an AppKit authoring-bundle import
+  envelope
 
 Extravaganza does not own:
 
@@ -125,6 +129,11 @@ Extravaganza does not own:
 - lower runtime dispatch
 - lower facts readback
 - execution-plane write paths
+
+Runtime policy authority belongs to the activated installation revision created
+from the AppKit authoring-bundle import. `DefaultCodingOps.workflow_body/0` is
+prompt/template text only; runtime settings are structured metadata on the
+policy preset and must not activate by themselves.
 
 ## AppKit Boundary Gate
 

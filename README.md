@@ -72,6 +72,7 @@ both `product` and `hazmat` profiles so it is a hard rule, not a convention.
 | `Extravaganza.Config` | Normalized product configuration |
 | `Extravaganza.ProductProfile` | Default install and routing profile |
 | `Extravaganza.ProductPack` | `Mezzanine.Pack` manifest for the coding-ops workflow |
+| `Extravaganza.DefaultAuthoringBundle` | ProductPack/default policy compiler into the AppKit authoring-bundle import envelope |
 | `Extravaganza.PolicyPresets` / `WorkClasses.*` | Product-owned policy and work-class defaults |
 | `Extravaganza.ProductBootstrap` | Idempotent durable bootstrap via `AppKit.InstallationSurface` |
 | `Extravaganza.ProductHost` | Operator facade over `AppKit.Work*`, `AppKit.OperatorSurface`, `AppKit.ReviewSurface` |
@@ -102,6 +103,14 @@ only `coding_task` for `work_class_kind`, `linear` for `linear_source_kind`,
 `linear_primary` ref. Unknown names raise before manifest refs are built, so
 human-authored config cannot create BEAM atoms through ProductPack.
 
+Runtime policy authority is the checksum/schema-validated authoring bundle
+imported through `AppKit.InstallationSurface.import_authoring_bundle/3` and the
+activated installation revision returned by the lower registry. `ProductPack`
+is the default seed. `Extravaganza.PolicyPresets.DefaultCodingOps.workflow_body/0`
+is prompt/template text only; its runtime config is carried as structured
+metadata for Mezzanine `:structured_config` policy bundles instead of YAML
+front matter in the prompt body.
+
 Source publication (the Linear workpad comment update) is an intended workflow
 effect for subjects that enter `awaiting_review`. The write is owned by the
 workflow/source-publisher path below AppKit; until that path has executable
@@ -114,7 +123,8 @@ publication state through `AppKit.WorkSurface` projection DTOs.
 Application start
   └─ internal OTP bootstrap worker
        └─ Extravaganza.ProductBootstrap
-            └─ AppKit.InstallationSurface
+            ├─ AppKit.InstallationSurface.create_installation/2
+            └─ AppKit.InstallationSurface.import_authoring_bundle/3
 
 Product-host run
   └─ Extravaganza.ProductHost
@@ -127,6 +137,12 @@ Product-host run
 Real Linear source events enter below the product boundary through Jido
 Integration and Mezzanine source admission. Extravaganza owns source defaults
 and credential-free test fixtures only.
+
+Bootstrap uses `create_installation/2` when an active pack registration already
+exists, then imports the default authoring bundle through AppKit. When the
+lower registry has no active registration yet, the bundle import creates and
+activates the installation revision atomically through ConfigRegistry; product
+code still does not call ConfigRegistry directly.
 
 ## Development
 

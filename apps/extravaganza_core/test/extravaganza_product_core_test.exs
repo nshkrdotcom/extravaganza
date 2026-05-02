@@ -23,6 +23,7 @@ defmodule ExtravaganzaProductCoreTest do
   alias Extravaganza.{
     CodingOpsTemplates,
     Config,
+    DefaultAuthoringBundle,
     PolicyPresets,
     ProductBootstrap,
     ProductHost,
@@ -386,11 +387,84 @@ defmodule ExtravaganzaProductCoreTest do
     refute preview.body =~ "linear_issue_id"
   end
 
+  test "default authoring bundle rejects workflow-body runtime policy before activation", %{
+    tenant_id: tenant_id,
+    pack_version: pack_version
+  } do
+    config = Config.load(tenant_id: tenant_id, pack_version: pack_version)
+
+    legacy_workflow_body = """
+    ---
+    retry:
+      strategy: exponential
+      max_attempts: 4
+    ---
+    #{CodingOpsTemplates.system_prompt()}
+    """
+
+    assert {:error, {:runtime_policy_conflict, details}} =
+             DefaultAuthoringBundle.build(config,
+               installation_id: "default",
+               workflow_body: legacy_workflow_body
+             )
+
+    assert details.field == :retry
+    assert details.final_owner == :authoring_bundle
+    assert details.product_pack.retry.max_attempts == 2
+    assert details.workflow_body.retry.max_attempts == 4
+  end
+
+  test "default coding ops keeps prompt body separate from runtime config" do
+    preset = PolicyPresets.default_coding_ops()
+
+    assert preset.policy_kind == :structured_config
+    refute preset.body =~ "---"
+    refute preset.body =~ "AITrace"
+    assert preset.body =~ CodingOpsTemplates.prompt_ref()
+
+    config = preset.metadata["runtime_policy_config"]
+    assert config["retry"]["strategy"] == "linear"
+    assert config["retry"]["max_attempts"] == 2
+    assert config["review"]["required"] == true
+  end
+
+  test "bootstrap imports the default authoring bundle and activates runtime policy revision", %{
+    tenant_id: tenant_id,
+    pack_version: pack_version
+  } do
+    activate_fixture_registration!(tenant_id: tenant_id, pack_version: pack_version)
+
+    assert {:ok, profile} =
+             ProductBootstrap.ensure_bootstrapped(
+               tenant_id: tenant_id,
+               pack_version: pack_version
+             )
+
+    assert profile.authoring_result.message == "Authoring bundle imported"
+    assert profile.installation_ref.status == :active
+    assert profile.bundle.bundle_id == "extravaganza_coding_ops-default-#{pack_version}"
+    assert profile.bundle.checksum =~ "sha256:"
+
+    assert {:ok, compiled_pack} =
+             Mezzanine.Pack.Registry.get_compiled_pack(
+               profile.installation_ref.id,
+               profile.installation_ref.compiled_pack_revision
+             )
+
+    recipe = compiled_pack.recipes_by_ref[ProductPack.execution_recipe_ref(profile.config)]
+
+    assert recipe.retry_config.max_attempts == 2
+    assert recipe.retry_config.backoff == :linear
+    assert recipe.sandbox_policy_ref == "standard_coding_ops"
+    assert recipe.prompt_refs == [CodingOpsTemplates.prompt_ref()]
+  end
+
   test "product runtime does not hardcode app kit bridge implementations" do
     refute File.exists?(Path.expand("../lib/extravaganza/app_kit_backends.ex", __DIR__))
 
     [
       Path.expand("../lib/extravaganza/application.ex", __DIR__),
+      Path.expand("../lib/extravaganza/product_bootstrap.ex", __DIR__),
       Path.expand("../lib/extravaganza/product_surface.ex", __DIR__)
     ]
     |> Enum.each(fn path ->
@@ -398,6 +472,9 @@ defmodule ExtravaganzaProductCoreTest do
 
       refute contents =~ "AppKit.Bridges.MezzanineBridge",
              "#{path} still hardcodes the AppKit mezzanine bridge"
+
+      refute contents =~ "MezzanineConfigRegistry",
+             "#{path} bypasses AppKit for ConfigRegistry writes"
 
       refute contents =~ "AppKitBackends.ensure_configured",
              "#{path} still configures AppKit backends from product code"

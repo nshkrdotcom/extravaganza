@@ -10,10 +10,13 @@ defmodule Extravaganza.PolicyPresets do
     %{
       name: "default_coding_ops",
       version: "1.0.0",
-      policy_kind: :workflow_md,
+      policy_kind: :structured_config,
       source_ref: "extravaganza/default_coding_ops",
       body: DefaultCodingOps.workflow_body(),
-      metadata: %{"preset" => "default_coding_ops"}
+      metadata: %{
+        "preset" => "default_coding_ops",
+        "runtime_policy_config" => DefaultCodingOps.runtime_config()
+      }
     }
   end
 
