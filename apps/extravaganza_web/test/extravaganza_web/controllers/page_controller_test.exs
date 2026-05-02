@@ -413,7 +413,7 @@ defmodule ExtravaganzaWeb.PageControllerTest do
         :ok
 
       {:ok, %PackRegistration{} = registration} ->
-        assert {:ok, %PackRegistration{status: :active}} = PackRegistration.activate(registration)
+        activate_registration!(registration)
 
       {:error, _reason} ->
         {:ok, compiled_pack} =
@@ -422,8 +422,29 @@ defmodule ExtravaganzaWeb.PageControllerTest do
           |> Compiler.compile()
 
         registration = MezzanineConfigRegistry.register_pack!(compiled_pack)
-        assert {:ok, %PackRegistration{status: :active}} = PackRegistration.activate(registration)
+        activate_registration!(registration)
     end
+  end
+
+  defp activate_registration!(%PackRegistration{} = registration) do
+    deprecate_active_subject_kind_overlaps!(registration)
+    assert {:ok, %PackRegistration{status: :active}} = PackRegistration.activate(registration)
+  end
+
+  defp deprecate_active_subject_kind_overlaps!(%PackRegistration{} = registration) do
+    subject_kinds = MapSet.new(registration.canonical_subject_kinds)
+    assert {:ok, active_registrations} = PackRegistration.list_active()
+
+    active_registrations
+    |> Enum.reject(&(&1.id == registration.id))
+    |> Enum.filter(fn active_registration ->
+      active_subject_kinds = MapSet.new(active_registration.canonical_subject_kinds)
+      not MapSet.disjoint?(subject_kinds, active_subject_kinds)
+    end)
+    |> Enum.each(fn active_registration ->
+      assert {:ok, %PackRegistration{status: :deprecated}} =
+               PackRegistration.deprecate(active_registration)
+    end)
   end
 
   defp bootstrapped_installation_id!(opts) do

@@ -172,16 +172,12 @@ defmodule ExtravaganzaProductCoreTest do
 
     test_suffix = "#{System.system_time(:nanosecond)}_#{System.unique_integer([:positive])}"
     version_suffix = String.replace(test_suffix, "_", ".")
-    work_class_name = "coding_operations_#{test_suffix}"
-    work_class_kind = "coding_task_#{test_suffix}"
     pack_version = "1.0.0-test.#{version_suffix}"
 
     Application.put_env(
       :extravaganza_core,
       Config,
       Keyword.merge(base_config,
-        work_class_name: work_class_name,
-        work_class_kind: work_class_kind,
         pack_version: pack_version
       )
     )
@@ -321,6 +317,28 @@ defmodule ExtravaganzaProductCoreTest do
              "linear_primary",
              "connection_ref"
            ]) == "linear_primary"
+  end
+
+  test "unknown ProductPack names reject before refs are built" do
+    assert_product_pack_rejects(work_class_kind: unique_product_pack_name("subject"))
+    assert_product_pack_rejects(linear_source_kind: unique_product_pack_name("source"))
+    assert_product_pack_rejects(work_class_name: unique_product_pack_name("recipe"))
+    assert_product_pack_rejects(placement_profile_id: unique_product_pack_name("placement"))
+
+    assert_product_install_template_rejects(
+      [linear_source_kind: unique_product_pack_name("source-binding")],
+      :source_binding_ref
+    )
+
+    assert_product_install_template_rejects(
+      [placement_profile_id: unique_product_pack_name("placement-binding")],
+      :placement_profile_id
+    )
+
+    assert {:ok, _compiled_pack} =
+             Config.load()
+             |> ProductPack.manifest()
+             |> Compiler.compile()
   end
 
   test "product prompt and source workpad preview render from app kit runtime projection", %{
@@ -980,7 +998,7 @@ defmodule ExtravaganzaProductCoreTest do
         :ok
 
       {:ok, %PackRegistration{} = registration} ->
-        assert {:ok, %PackRegistration{status: :active}} = PackRegistration.activate(registration)
+        activate_registration!(registration)
 
       {:error, _reason} ->
         {:ok, compiled_pack} =
@@ -989,8 +1007,29 @@ defmodule ExtravaganzaProductCoreTest do
           |> Compiler.compile()
 
         registration = MezzanineConfigRegistry.register_pack!(compiled_pack)
-        assert {:ok, %PackRegistration{status: :active}} = PackRegistration.activate(registration)
+        activate_registration!(registration)
     end
+  end
+
+  defp activate_registration!(%PackRegistration{} = registration) do
+    deprecate_active_subject_kind_overlaps!(registration)
+    assert {:ok, %PackRegistration{status: :active}} = PackRegistration.activate(registration)
+  end
+
+  defp deprecate_active_subject_kind_overlaps!(%PackRegistration{} = registration) do
+    subject_kinds = MapSet.new(registration.canonical_subject_kinds)
+    assert {:ok, active_registrations} = PackRegistration.list_active()
+
+    active_registrations
+    |> Enum.reject(&(&1.id == registration.id))
+    |> Enum.filter(fn active_registration ->
+      active_subject_kinds = MapSet.new(active_registration.canonical_subject_kinds)
+      not MapSet.disjoint?(subject_kinds, active_subject_kinds)
+    end)
+    |> Enum.each(fn active_registration ->
+      assert {:ok, %PackRegistration{status: :deprecated}} =
+               PackRegistration.deprecate(active_registration)
+    end)
   end
 
   defp bootstrapped_installation_id!(opts) do
@@ -1037,4 +1076,25 @@ defmodule ExtravaganzaProductCoreTest do
       _other -> :ok
     end
   end
+
+  defp assert_product_pack_rejects(overrides) do
+    ProductPack.manifest(overrides)
+    flunk("ProductPack accepted invalid config #{inspect(overrides)}")
+  rescue
+    ArgumentError -> :ok
+  end
+
+  defp assert_product_install_template_rejects(overrides, field) do
+    overrides
+    |> Config.load()
+    |> ProductInstallTemplate.default()
+
+    flunk("Product install template accepted invalid config #{inspect(overrides)}")
+  rescue
+    error in [ArgumentError] ->
+      assert Exception.message(error) =~ "unknown ProductPack #{field}"
+  end
+
+  defp unique_product_pack_name(prefix),
+    do: prefix <> "_" <> Integer.to_string(System.unique_integer([:positive]))
 end

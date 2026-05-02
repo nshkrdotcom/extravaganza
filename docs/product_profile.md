@@ -31,6 +31,22 @@ Extravaganza currently ships one default durable product profile.
 - state mapping: submitted/backlog, review, retry, completed, rejected, and expired
 - source publish: update the existing Linear workpad comment when work enters review
 
+## Bounded ProductPack Names
+
+ProductPack accepts only the shipped default config names when converting
+human-authored product config into manifest refs:
+
+| Config field | Accepted value | Manifest ref |
+|---|---|---|
+| `work_class_kind` | `coding_task` | `:coding_task` |
+| `linear_source_kind` | `linear` | `:linear` |
+| derived source binding | `linear` | `:linear_primary` |
+| `work_class_name` | `coding_operations` | `:coding_operations` |
+| `placement_profile_id` | `local_default` | `:local_default` |
+
+Unknown names raise before refs are built. Future profile-slot inputs must use
+the same explicit allowlist rule before they become human-authored config.
+
 ## Default Prompt And Workpad
 
 - prompt ref: `coding_agent_system`

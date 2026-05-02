@@ -27,12 +27,18 @@ defmodule Extravaganza.ProductInstallTemplate do
     %{
       "execution_bindings" => %{
         ProductPack.execution_binding_key(config) => %{
-          "placement_ref" => config.placement_profile_id,
+          "placement_ref" => ProductPack.placement_key(config),
+          "authority_decision_ref" =>
+            "authority-decision://#{ProductPack.pack_slug(config)}/default",
+          "connector_binding_ref" =>
+            "connector-binding://#{ProductPack.source_binding_key(config)}",
+          "no_credentials_posture_ref" =>
+            "no-credentials://#{ProductPack.pack_slug(config)}/default",
           "execution_params" => %{"timeout_ms" => config.execution_timeout_ms}
         }
       },
       "source_bindings" => %{
-        (config.linear_source_kind <> "_primary") => %{
+        ProductPack.source_binding_key(config) => %{
           "provider" => "linear",
           "connection_ref" => "linear_primary",
           "source_kind" => config.linear_source_kind

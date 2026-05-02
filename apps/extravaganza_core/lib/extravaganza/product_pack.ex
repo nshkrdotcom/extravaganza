@@ -21,6 +21,12 @@ defmodule Extravaganza.ProductPack do
     SubjectKindSpec
   }
 
+  @subject_kinds %{"coding_task" => :coding_task}
+  @source_kinds %{"linear" => :linear}
+  @source_binding_refs %{"linear" => :linear_primary}
+  @recipe_refs %{"coding_operations" => :coding_operations}
+  @placement_refs %{"local_default" => :local_default}
+
   @impl true
   def manifest, do: manifest(Config.load())
 
@@ -242,12 +248,26 @@ defmodule Extravaganza.ProductPack do
   def pack_version(overrides), do: overrides |> Config.load() |> pack_version()
 
   @spec execution_binding_key(Config.t() | keyword() | map()) :: String.t()
-  def execution_binding_key(%Config{} = config), do: config.work_class_name
+  def execution_binding_key(%Config{} = config),
+    do: config |> execution_recipe_ref_atom() |> Atom.to_string()
+
   def execution_binding_key(overrides), do: overrides |> Config.load() |> execution_binding_key()
 
   @spec execution_recipe_ref(Config.t() | keyword() | map()) :: String.t()
-  def execution_recipe_ref(%Config{} = config), do: config.work_class_name
+  def execution_recipe_ref(%Config{} = config),
+    do: config |> execution_recipe_ref_atom() |> Atom.to_string()
+
   def execution_recipe_ref(overrides), do: overrides |> Config.load() |> execution_recipe_ref()
+
+  @spec placement_key(Config.t() | keyword() | map()) :: String.t()
+  def placement_key(%Config{} = config), do: config |> placement_ref() |> Atom.to_string()
+  def placement_key(overrides), do: overrides |> Config.load() |> placement_key()
+
+  @spec source_binding_key(Config.t() | keyword() | map()) :: String.t()
+  def source_binding_key(%Config{} = config),
+    do: config |> source_binding_ref() |> Atom.to_string()
+
+  def source_binding_key(overrides), do: overrides |> Config.load() |> source_binding_key()
 
   @spec profile_slots(Config.t() | keyword() | map()) :: map()
   def profile_slots(%Config{}) do
@@ -275,9 +295,28 @@ defmodule Extravaganza.ProductPack do
   def agent_loop_profile_slots(overrides),
     do: overrides |> Config.load() |> agent_loop_profile_slots()
 
-  defp subject_kind(%Config{} = config), do: String.to_atom(config.work_class_kind)
-  defp source_kind(%Config{} = config), do: String.to_atom(config.linear_source_kind)
-  defp source_binding_ref(%Config{} = config), do: :"#{config.linear_source_kind}_primary"
-  defp execution_recipe_ref_atom(%Config{} = config), do: String.to_atom(config.work_class_name)
-  defp placement_ref(%Config{} = config), do: String.to_atom(config.placement_profile_id)
+  defp subject_kind(%Config{} = config),
+    do: fetch_ref!(@subject_kinds, config.work_class_kind, :work_class_kind)
+
+  defp source_kind(%Config{} = config),
+    do: fetch_ref!(@source_kinds, config.linear_source_kind, :linear_source_kind)
+
+  defp source_binding_ref(%Config{} = config),
+    do: fetch_ref!(@source_binding_refs, config.linear_source_kind, :source_binding_ref)
+
+  defp execution_recipe_ref_atom(%Config{} = config),
+    do: fetch_ref!(@recipe_refs, config.work_class_name, :work_class_name)
+
+  defp placement_ref(%Config{} = config),
+    do: fetch_ref!(@placement_refs, config.placement_profile_id, :placement_profile_id)
+
+  defp fetch_ref!(refs, value, field) do
+    case Map.fetch(refs, value) do
+      {:ok, ref} ->
+        ref
+
+      :error ->
+        raise ArgumentError, "unknown ProductPack #{field}: #{inspect(value)}"
+    end
+  end
 end

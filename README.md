@@ -74,7 +74,6 @@ both `product` and `hazmat` profiles so it is a hard rule, not a convention.
 | `Extravaganza.ProductPack` | `Mezzanine.Pack` manifest for the coding-ops workflow |
 | `Extravaganza.PolicyPresets` / `WorkClasses.*` | Product-owned policy and work-class defaults |
 | `Extravaganza.ProductBootstrap` | Idempotent durable bootstrap via `AppKit.InstallationSurface` |
-| `Extravaganza.BootstrapWorker` | OTP worker that drives bootstrap on application start |
 | `Extravaganza.ProductHost` | Operator facade over `AppKit.Work*`, `AppKit.OperatorSurface`, `AppKit.ReviewSurface` |
 | `Extravaganza.CodingOpsTemplates` | Coding-agent system prompt and review workpad copy |
 
@@ -96,6 +95,13 @@ executable proof.
 | Operator actions | pause, resume, cancel, request rework |
 | Lifecycle | submitted → awaiting\_review → completed / rejected / expired |
 
+ProductPack config names are bounded product inputs. The default pack accepts
+only `coding_task` for `work_class_kind`, `linear` for `linear_source_kind`,
+`coding_operations` for `work_class_name`, and `local_default` for
+`placement_profile_id`; the derived source binding is the fixed
+`linear_primary` ref. Unknown names raise before manifest refs are built, so
+human-authored config cannot create BEAM atoms through ProductPack.
+
 Source publication (the Linear workpad comment update) is an intended workflow
 effect for subjects that enter `awaiting_review`. The write is owned by the
 workflow/source-publisher path below AppKit; until that path has executable
@@ -106,7 +112,7 @@ publication state through `AppKit.WorkSurface` projection DTOs.
 
 ```
 Application start
-  └─ Extravaganza.BootstrapWorker
+  └─ internal OTP bootstrap worker
        └─ Extravaganza.ProductBootstrap
             └─ AppKit.InstallationSurface
 

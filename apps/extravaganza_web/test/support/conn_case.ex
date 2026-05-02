@@ -27,8 +27,6 @@ defmodule ExtravaganzaWeb.ConnCase do
     version_suffix = String.replace(test_suffix, "_", ".")
     tenant_id = "extravaganza-web-test-#{Ecto.UUID.generate()}"
     pack_version = "1.0.0-test.#{version_suffix}"
-    work_class_name = "coding_operations_#{test_suffix}"
-    work_class_kind = "coding_task_#{test_suffix}"
     previous_config = Application.get_env(:extravaganza_core, Config, [])
 
     Application.put_env(
@@ -36,9 +34,7 @@ defmodule ExtravaganzaWeb.ConnCase do
       Config,
       Keyword.merge(previous_config,
         tenant_id: tenant_id,
-        pack_version: pack_version,
-        work_class_name: work_class_name,
-        work_class_kind: work_class_kind
+        pack_version: pack_version
       )
     )
 
