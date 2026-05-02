@@ -80,8 +80,10 @@ both `product` and `hazmat` profiles so it is a hard rule, not a convention.
 
 ## Default product pack
 
-The coding-ops pack drives Linear-backed tasks through a Codex agent session
-and into a human operator review gate.
+The coding-ops product pack declares the intended Linear-backed Codex review
+lane. Live governed Codex execution, source publication, runtime metrics, and
+operator decision effects are not release claims until the owning phases add
+executable proof.
 
 | Dimension | Default |
 |---|---|
@@ -94,9 +96,10 @@ and into a human operator review gate.
 | Operator actions | pause, resume, cancel, request rework |
 | Lifecycle | submitted → awaiting\_review → completed / rejected / expired |
 
-Source publication (the Linear workpad comment update) is triggered when a
-subject enters `awaiting_review`. The write is owned by the workflow/source-publisher
-path below AppKit; the product only renders the workpad body and reads
+Source publication (the Linear workpad comment update) is an intended workflow
+effect for subjects that enter `awaiting_review`. The write is owned by the
+workflow/source-publisher path below AppKit; until that path has executable
+proof, the product only renders the workpad body and reads deterministic
 publication state through `AppKit.WorkSurface` projection DTOs.
 
 ## Boot flow
