@@ -29,7 +29,9 @@ Extravaganza currently ships one default durable product profile.
 - provider: `linear`
 - source kind: `linear`
 - state mapping: submitted/backlog, review, retry, completed, rejected, and expired
-- source publish: update the existing Linear workpad comment when work enters review
+- source publish intent: workflow-owned update of the existing Linear workpad
+  comment when work enters review; v1 evidence covers deterministic projection
+  and readback, not live Linear mutation
 
 ## Bounded ProductPack Names
 
@@ -70,7 +72,8 @@ the same explicit allowlist rule before they become human-authored config.
 - workspace root ref: `extravaganza_workspaces`
 - sandbox policy ref: `standard_coding_ops`
 - prompt refs: `coding_agent_system`
-- dynamic tools: Linear comment update and GitHub PR create
+- dynamic tools: declared Linear comment update and GitHub PR create operations
+  governed by connector manifests
 - turn budget: 12
 - stall timeout: 300 seconds
 
@@ -83,12 +86,14 @@ the same explicit allowlist rule before they become human-authored config.
 - GitHub PR and Codex session evidence is collected from execution completion
   receipts
 
-## Default Operator Actions
+## Default Operator Controls
 
-- pause execution while submitted, in review, or awaiting retry
-- resume execution while submitted, in review, or awaiting retry
-- cancel the active execution while submitted, in review, or awaiting retry
-- request rework from review
+- accept review through AppKit and Mezzanine decision commands
+- request rework from review through AppKit and Mezzanine decision commands
+- cancel the active subject through AppKit and the Mezzanine operator-action owner path
+- request source refresh through AppKit and the Mezzanine source-refresh owner path
+- pause and resume remain product-policy declarations until an owning proof
+  adds executable command evidence
 
 ## Product Entry Paths
 
@@ -145,3 +150,12 @@ separately blocks direct Execution Plane usage.
 Real Linear provider admission is intentionally outside the active product code
 path. It belongs to the Jido Integration connector and Mezzanine source
 admission lane; Extravaganza owns source defaults and test-only fixture helpers.
+
+## v1 Release Evidence Boundary
+
+The deterministic v1 release evidence covers ProductPack bounds, product
+boundary no-bypass checks, authoring-bundle activation, tenant/authority
+admission, governed Codex strict-mode materialization, deterministic receipt
+projection, governed operator controls, and restart/fencing proof. Optional
+live provider smoke was not run for v1, so this profile does not claim live
+Linear, GitHub, or Codex execution.

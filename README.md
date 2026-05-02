@@ -80,20 +80,23 @@ both `product` and `hazmat` profiles so it is a hard rule, not a convention.
 
 ## Default product pack
 
-The coding-ops product pack declares the intended Linear-backed Codex review
-lane. Live governed Codex execution, source publication, runtime metrics, and
-operator decision effects are not release claims until the owning phases add
-executable proof.
+The coding-ops product pack declares the Linear-to-governed-Codex review lane
+and has deterministic v1 executable evidence for product pack bounds,
+authoring-bundle activation, tenant and authority admission, governed Codex
+strict-mode materialization, deterministic receipt projection, governed
+operator controls, and restart/fencing. Optional live provider smoke is not
+part of the v1 release evidence; live Linear, GitHub, or Codex execution is
+not claimed until disposable-auth smoke runs through the governed path.
 
 | Dimension | Default |
 |---|---|
 | Program slug | `extravaganza_coding_ops` |
 | Source binding | `linear_primary` (Linear → `coding_task` subjects) |
 | Execution recipe | Codex session, 12-turn budget, 300 s stall timeout |
-| Dynamic tools | `linear.comment.update`, `github.pr.create` |
+| Dynamic tools | Declared `linear.comment.update`, `github.pr.create` operations governed by connector manifests |
 | Review gate | Operator review, 72-hour window |
 | Required evidence | `github_pr`, `codex_session`, `source_workpad` |
-| Operator actions | pause, resume, cancel, request rework |
+| Operator controls | accept, rework, cancel, and refresh through AppKit and Mezzanine governed owner paths |
 | Lifecycle | submitted → awaiting\_review → completed / rejected / expired |
 
 ProductPack config names are bounded product inputs. The default pack accepts
@@ -113,9 +116,9 @@ front matter in the prompt body.
 
 Source publication (the Linear workpad comment update) is an intended workflow
 effect for subjects that enter `awaiting_review`. The write is owned by the
-workflow/source-publisher path below AppKit; until that path has executable
-proof, the product only renders the workpad body and reads deterministic
-publication state through `AppKit.WorkSurface` projection DTOs.
+workflow/source-publisher path below AppKit. The v1 release evidence covers
+deterministic workpad rendering, projection, and readback through
+`AppKit.WorkSurface` DTOs; it does not claim live Linear mutation.
 
 ## Boot flow
 

@@ -28,3 +28,10 @@ output, or durable receipts.
 Credential-free source fixture helpers live under test support only. Production
 Linear/GitHub/Codex integrations enter below the product boundary through
 AppKit, Mezzanine, and Jido Integration.
+
+The v1 release claim is deterministic. It covers the governed product boundary,
+ProductPack bounds, authoring-bundle activation, tenant and authority
+admission, governed Codex strict-mode materialization, deterministic receipt
+projection, governed operator controls, and restart/fencing proof. It does not
+claim live Linear, GitHub, or Codex execution until disposable-auth smoke runs
+through the governed path.
