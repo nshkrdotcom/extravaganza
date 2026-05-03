@@ -140,6 +140,12 @@ from the AppKit authoring-bundle import. `DefaultCodingOps.workflow_body/0` is
 prompt/template text only; runtime settings are structured metadata on the
 policy preset and must not activate by themselves.
 
+Process env is not a Product Profile input. Deployment env can start the
+Phoenix endpoint, and test env gates can select optional live smoke tests, but
+provider credentials, base URLs, targets, source bindings, placement, policy
+presets, and operator controls are never read from env by governed product
+code.
+
 ## AppKit Boundary Gate
 
 `mix ci` runs the AppKit scanner over product source with the `product` and

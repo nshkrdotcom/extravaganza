@@ -114,6 +114,13 @@ is prompt/template text only; its runtime config is carried as structured
 metadata for Mezzanine `:structured_config` policy bundles instead of YAML
 front matter in the prompt body.
 
+Process environment variables are not governed product authority. Phoenix boot
+configuration may use deployment env for web server startup, and tests may use
+restored env gates for optional live smoke selection, but ProductPack,
+ProductProfile, authoring bundles, source bindings, provider identity, base
+URLs, tokens, targets, and operator policy all remain explicit AppKit or lower
+authority inputs.
+
 Source publication (the Linear workpad comment update) is an intended workflow
 effect for subjects that enter `awaiting_review`. The write is owned by the
 workflow/source-publisher path below AppKit. The v1 release evidence covers

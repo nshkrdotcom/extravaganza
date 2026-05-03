@@ -18,7 +18,6 @@ defmodule Extravaganza.LiveAgentLoopReceipt do
     ProductPack
   }
 
-  @gate_env "STACK_CODER_LIVE_E2E"
   @schema_ref "agentic_substrate_headless_e2e_v1"
   @release_manifest_ref "release-manifest://extravaganza/profile-a-live/v1"
   @profile_ref "profile://extravaganza/profile-a-live-m2/v1"
@@ -35,12 +34,12 @@ defmodule Extravaganza.LiveAgentLoopReceipt do
     disposable_provider_resource_refs
   ]
 
-  @spec live_gate_enabled?() :: boolean()
-  def live_gate_enabled?, do: System.get_env(@gate_env) == "1"
+  @spec live_gate_enabled?(keyword()) :: boolean()
+  def live_gate_enabled?(opts \\ []), do: Keyword.get(opts, :live_e2e_enabled?, false) == true
 
   @spec run(map(), keyword()) :: {:ok, map()} | {:error, term()}
   def run(attrs \\ %{}, opts \\ []) when is_map(attrs) and is_list(opts) do
-    if live_gate_enabled?() do
+    if live_gate_enabled?(opts) do
       config = Config.load(Keyword.get(opts, :config_overrides, []))
       context = Keyword.get(opts, :context) || AppKitContext.bootstrap_context(config)
       request = agent_run_request(config, attrs)

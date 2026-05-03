@@ -133,10 +133,19 @@ defmodule Extravaganza.LiveAgentLoopReceiptTest do
   end
 
   test "live Profile A M2 path fails closed when the explicit gate is absent" do
-    System.delete_env("STACK_CODER_LIVE_E2E")
+    assert {:error, :live_e2e_not_enabled} =
+             LiveAgentLoopReceipt.run(%{}, backend: FakeLiveBackend)
+  end
+
+  test "process env cannot enable the live Profile A M2 path" do
+    System.put_env("STACK_CODER_LIVE_E2E", "1")
+
+    refute LiveAgentLoopReceipt.live_gate_enabled?()
 
     assert {:error, :live_e2e_not_enabled} =
              LiveAgentLoopReceipt.run(%{}, backend: FakeLiveBackend)
+
+    assert LiveAgentLoopReceipt.live_gate_enabled?(live_e2e_enabled?: true)
   end
 
   if System.get_env("STACK_CODER_LIVE_E2E") == "1" do
@@ -176,6 +185,7 @@ defmodule Extravaganza.LiveAgentLoopReceiptTest do
       assert {:ok, receipt} =
                LiveAgentLoopReceipt.run(attrs,
                  backend: FakeLiveBackend,
+                 live_e2e_enabled?: true,
                  receipt_path: receipt_path
                )
 
