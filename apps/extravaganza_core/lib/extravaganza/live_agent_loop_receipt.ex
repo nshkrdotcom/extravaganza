@@ -231,7 +231,7 @@ defmodule Extravaganza.LiveAgentLoopReceipt do
   end
 
   defp unsafe_public_json?(value) when is_binary(value) do
-    String.starts_with?(value, ["/", "~/"]) or Regex.match?(~r/^[A-Za-z]:[\\\/]/, value)
+    String.starts_with?(value, ["/", "~/"]) or windows_absolute_path?(value)
   end
 
   defp unsafe_public_json?(_value), do: false
@@ -245,6 +245,12 @@ defmodule Extravaganza.LiveAgentLoopReceipt do
 
   defp safe_ref?(value),
     do: is_binary(value) and String.trim(value) != "" and not unsafe_public_json?(value)
+
+  defp windows_absolute_path?(<<drive, ?:, separator, _rest::binary>>) do
+    (drive in ?A..?Z or drive in ?a..?z) and separator in [?\\, ?/]
+  end
+
+  defp windows_absolute_path?(_value), do: false
 
   defp turn_refs(%RuntimeRunDetail{} = run_detail) do
     run_detail.turns

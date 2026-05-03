@@ -2,13 +2,13 @@ defmodule Extravaganza.RuntimeDecouplingTest do
   use ExUnit.Case, async: true
 
   @forbidden_legacy_refs [
-    ~r/Mezzanine\.OpsDomain\.Repo\b/,
-    ~r/Mezzanine\.Programs\b/,
-    ~r/Mezzanine\.Work\b/,
-    ~r/Mezzanine\.Runs\b/,
-    ~r/Mezzanine\.Review\b/,
-    ~r/Mezzanine\.Evidence\b/,
-    ~r/Mezzanine\.Control\b/
+    "Mezzanine.OpsDomain.Repo",
+    "Mezzanine.Programs",
+    "Mezzanine.Work",
+    "Mezzanine.Runs",
+    "Mezzanine.Review",
+    "Mezzanine.Evidence",
+    "Mezzanine.Control"
   ]
   @scan_patterns [
     "config/*.exs",
@@ -34,24 +34,53 @@ defmodule Extravaganza.RuntimeDecouplingTest do
   test "active product code does not expose fake source adapters or old subject aliases" do
     root = Path.expand("../../..", __DIR__)
 
-    assert_refutes_file_patterns(root, @active_product_patterns, ~r/LinearIntakeAdapter/)
+    assert_refutes_file_patterns(root, @active_product_patterns, "LinearIntakeAdapter")
 
-    assert_refutes_file_patterns(
+    assert_refutes_normalized_file_patterns(
       root,
       @active_product_patterns,
-      ~r/subject_kind:\s*"work_object"/
+      "subject_kind: \"work_object\""
     )
   end
 
-  defp assert_refutes_file_patterns(root, patterns, pattern) do
+  defp assert_refutes_file_patterns(root, patterns, forbidden) do
     patterns
     |> Enum.flat_map(fn pattern ->
       Path.wildcard(Path.join(root, pattern), match_dot: true)
     end)
     |> Enum.uniq()
     |> Enum.each(fn path ->
-      refute Regex.match?(pattern, File.read!(path)),
-             "#{path} still references #{inspect(pattern)}"
+      refute contains_forbidden_ref?(File.read!(path), forbidden),
+             "#{path} still references #{forbidden}"
+    end)
+  end
+
+  defp contains_forbidden_ref?(contents, "Mezzanine." <> _rest = forbidden) do
+    contents
+    |> String.split(forbidden)
+    |> Enum.drop(1)
+    |> Enum.any?(fn
+      "" -> true
+      rest -> rest |> :binary.first() |> namespace_boundary?()
+    end)
+  end
+
+  defp contains_forbidden_ref?(contents, forbidden), do: String.contains?(contents, forbidden)
+
+  defp namespace_boundary?(byte),
+    do: not (byte in ?a..?z or byte in ?A..?Z or byte in ?0..?9 or byte == ?_)
+
+  defp assert_refutes_normalized_file_patterns(root, patterns, forbidden) do
+    patterns
+    |> Enum.flat_map(fn pattern ->
+      Path.wildcard(Path.join(root, pattern), match_dot: true)
+    end)
+    |> Enum.uniq()
+    |> Enum.each(fn path ->
+      normalized = path |> File.read!() |> String.split() |> Enum.join(" ")
+
+      refute String.contains?(normalized, forbidden),
+             "#{path} still references #{forbidden}"
     end)
   end
 end

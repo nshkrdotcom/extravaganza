@@ -349,7 +349,7 @@ defmodule ExtravaganzaProductCoreTest do
     activate_fixture_registration!(tenant_id: tenant_id, pack_version: pack_version)
 
     workflow_body = PolicyPresets.default_coding_ops().body
-    normalized_workflow_body = Regex.replace(~r/\s+/, workflow_body, " ")
+    normalized_workflow_body = workflow_body |> String.split() |> Enum.join(" ")
 
     assert workflow_body =~ CodingOpsTemplates.prompt_ref()
     assert normalized_workflow_body =~ "provider refs must come from"
