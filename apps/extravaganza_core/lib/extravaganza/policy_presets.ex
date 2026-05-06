@@ -15,6 +15,9 @@ defmodule Extravaganza.PolicyPresets do
       body: DefaultCodingOps.workflow_body(),
       metadata: %{
         "preset" => "default_coding_ops",
+        "prompt_artifact_ref" => DefaultCodingOps.prompt_artifact_ref(),
+        "prompt_author_request" => DefaultCodingOps.prompt_author_request(),
+        "guard_chain_ref" => DefaultCodingOps.guard_chain_ref(),
         "runtime_policy_config" => DefaultCodingOps.runtime_config()
       }
     }

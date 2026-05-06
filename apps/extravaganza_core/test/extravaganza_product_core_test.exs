@@ -351,10 +351,20 @@ defmodule ExtravaganzaProductCoreTest do
     workflow_body = PolicyPresets.default_coding_ops().body
     normalized_workflow_body = workflow_body |> String.split() |> Enum.join(" ")
 
-    assert workflow_body =~ CodingOpsTemplates.prompt_ref()
-    assert normalized_workflow_body =~ "provider refs must come from"
-    assert normalized_workflow_body =~ "durable receipts"
-    refute workflow_body =~ "TODO"
+    assert String.contains?(workflow_body, CodingOpsTemplates.prompt_ref())
+
+    assert String.contains?(
+             normalized_workflow_body,
+             PolicyPresets.DefaultCodingOps.prompt_artifact_ref().prompt_id
+           )
+
+    assert String.contains?(
+             normalized_workflow_body,
+             PolicyPresets.DefaultCodingOps.guard_chain_ref().guard_chain_ref
+           )
+
+    refute String.contains?(workflow_body, "provider refs must come from")
+    refute String.contains?(workflow_body, "TODO")
 
     assert {:ok, preview} =
              ProductHost.source_publication_preview(
@@ -378,13 +388,13 @@ defmodule ExtravaganzaProductCoreTest do
            ]
 
     assert preview.pending_decision_refs == ["decision://operator-review"]
-    assert preview.body =~ "Operator Review Workpad"
-    assert preview.body =~ "source://linear/discovered-task"
-    assert preview.body =~ "lower_receipt://terminal-success"
-    assert preview.body =~ "github_pr"
-    assert preview.body =~ "codex.session.completed=1"
-    refute preview.body =~ "github_issue_number"
-    refute preview.body =~ "linear_issue_id"
+    assert String.contains?(preview.body, "Operator Review Workpad")
+    assert String.contains?(preview.body, "source://linear/discovered-task")
+    assert String.contains?(preview.body, "lower_receipt://terminal-success")
+    assert String.contains?(preview.body, "github_pr")
+    assert String.contains?(preview.body, "codex.session.completed=1")
+    refute String.contains?(preview.body, "github_issue_number")
+    refute String.contains?(preview.body, "linear_issue_id")
   end
 
   test "default authoring bundle rejects workflow-body runtime policy before activation", %{
@@ -418,9 +428,16 @@ defmodule ExtravaganzaProductCoreTest do
     preset = PolicyPresets.default_coding_ops()
 
     assert preset.policy_kind == :structured_config
-    refute preset.body =~ "---"
-    refute preset.body =~ "AITrace"
-    assert preset.body =~ CodingOpsTemplates.prompt_ref()
+    refute String.contains?(preset.body, "---")
+    refute String.contains?(preset.body, "AITrace")
+    refute String.contains?(preset.body, "Provider identity source")
+    assert String.contains?(preset.body, CodingOpsTemplates.prompt_ref())
+
+    assert preset.metadata["prompt_author_request"].prompt_id ==
+             "prompt://extravaganza/coding_agent_system"
+
+    assert preset.metadata["guard_chain_ref"].guard_chain_ref ==
+             "guard-chain://extravaganza/coding_ops/default"
 
     config = preset.metadata["runtime_policy_config"]
     assert config["retry"]["strategy"] == "linear"
@@ -443,7 +460,7 @@ defmodule ExtravaganzaProductCoreTest do
     assert profile.authoring_result.message == "Authoring bundle imported"
     assert profile.installation_ref.status == :active
     assert profile.bundle.bundle_id == "extravaganza_coding_ops-default-#{pack_version}"
-    assert profile.bundle.checksum =~ "sha256:"
+    assert String.contains?(profile.bundle.checksum, "sha256:")
 
     assert {:ok, compiled_pack} =
              Mezzanine.Pack.Registry.get_compiled_pack(
@@ -470,13 +487,13 @@ defmodule ExtravaganzaProductCoreTest do
     |> Enum.each(fn path ->
       contents = File.read!(path)
 
-      refute contents =~ "AppKit.Bridges.MezzanineBridge",
+      refute String.contains?(contents, "AppKit.Bridges.MezzanineBridge"),
              "#{path} still hardcodes the AppKit mezzanine bridge"
 
-      refute contents =~ "MezzanineConfigRegistry",
+      refute String.contains?(contents, "MezzanineConfigRegistry"),
              "#{path} bypasses AppKit for ConfigRegistry writes"
 
-      refute contents =~ "AppKitBackends.ensure_configured",
+      refute String.contains?(contents, "AppKitBackends.ensure_configured"),
              "#{path} still configures AppKit backends from product code"
     end)
   end
@@ -1169,7 +1186,7 @@ defmodule ExtravaganzaProductCoreTest do
     flunk("Product install template accepted invalid config #{inspect(overrides)}")
   rescue
     error in [ArgumentError] ->
-      assert Exception.message(error) =~ "unknown ProductPack #{field}"
+      assert String.contains?(Exception.message(error), "unknown ProductPack #{field}")
   end
 
   defp unique_product_pack_name(prefix),

@@ -5,11 +5,58 @@ defmodule Extravaganza.PolicyPresets.DefaultCodingOps do
 
   alias Extravaganza.CodingOpsTemplates
 
+  @prompt_artifact_ref %{
+    prompt_id: "prompt://extravaganza/coding_agent_system",
+    revision: 1,
+    tenant_ref: "tenant://extravaganza/default",
+    installation_ref: "installation://extravaganza/default",
+    content_hash: "sha256:extravaganza-coding-agent-system-v1",
+    redaction_policy_ref: "redaction://prompt/excerpt-only",
+    lineage_ref: "prompt-lineage://extravaganza/coding_agent_system/1"
+  }
+  @guard_chain_ref %{
+    guard_chain_ref: "guard-chain://extravaganza/coding_ops/default",
+    detector_refs: [
+      "detector://pii_reference",
+      "detector://jailbreak_reference",
+      "detector://schema_shape_reference",
+      "detector://length_bounds"
+    ],
+    redaction_posture_floor: "partial",
+    policy_revision_ref: "policy-revision://extravaganza/coding_ops/guard/v1"
+  }
+
   @spec workflow_body() :: String.t()
   def workflow_body do
     """
-    #{CodingOpsTemplates.system_prompt()}
+    # Extravaganza Coding Agent
+
+    Prompt artifact ref: #{@prompt_artifact_ref.prompt_id}
+    Prompt artifact revision: #{@prompt_artifact_ref.revision}
+    Prompt catalog key: #{CodingOpsTemplates.prompt_ref()}
+    Guard chain ref: #{@guard_chain_ref.guard_chain_ref}
     """
+  end
+
+  @spec prompt_artifact_ref() :: map()
+  def prompt_artifact_ref, do: @prompt_artifact_ref
+
+  @spec guard_chain_ref() :: map()
+  def guard_chain_ref, do: @guard_chain_ref
+
+  @spec prompt_author_request() :: map()
+  def prompt_author_request do
+    {:ok, request} =
+      AppKit.PromptSurface.author_request(%{
+        request_ref: "prompt-author-request://extravaganza/coding_agent_system/v1",
+        tenant_ref: @prompt_artifact_ref.tenant_ref,
+        authority_ref: "authority://extravaganza/default-authoring",
+        installation_ref: @prompt_artifact_ref.installation_ref,
+        prompt_id: @prompt_artifact_ref.prompt_id,
+        content_hash: @prompt_artifact_ref.content_hash
+      })
+
+    Map.from_struct(request)
   end
 
   @spec runtime_config() :: map()

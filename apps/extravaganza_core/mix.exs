@@ -45,6 +45,7 @@ defmodule ExtravaganzaCore.MixProject do
       {:app_kit_core, path: "../../../app_kit/core/app_kit_core"},
       {:mezzanine_pack_model, path: "../../../mezzanine/core/pack_model"},
       {:app_kit_installation_surface, path: "../../../app_kit/core/installation_surface"},
+      {:app_kit_prompt_surface, path: "../../../app_kit/core/prompt_surface"},
       {:app_kit_work_surface, path: "../../../app_kit/core/work_surface"},
       {:app_kit_work_control, path: "../../../app_kit/core/work_control"},
       {:app_kit_review_surface, path: "../../../app_kit/core/review_surface"},
