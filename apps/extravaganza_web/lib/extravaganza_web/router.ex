@@ -20,6 +20,7 @@ defmodule ExtravaganzaWeb.Router do
 
     get("/", PageController, :home)
     get("/queue", PageController, :queue)
+    get("/operator-console", PageController, :operator_console)
     get("/subjects/:subject_id", PageController, :subject)
     post("/subjects/:subject_id/actions/:action", PageController, :apply_subject_action)
     post("/subjects/:subject_id/read-lease", PageController, :issue_read_lease)

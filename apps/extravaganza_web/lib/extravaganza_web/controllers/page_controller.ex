@@ -1,6 +1,7 @@
 defmodule ExtravaganzaWeb.PageController do
   use ExtravaganzaWeb, :controller
 
+  alias AppKit.OperatorConsole
   alias Extravaganza.Presenters.{ReviewPresenter, StatePresenter, SubjectPresenter}
   alias Extravaganza.ProductHost
 
@@ -64,6 +65,18 @@ defmodule ExtravaganzaWeb.PageController do
           review_next_cursor: nil,
           review_error: inspect(reason)
         )
+    end
+  end
+
+  def operator_console(conn, _params) do
+    with {:ok, session} <- OperatorConsole.authorize(operator_console_session()),
+         {:ok, console} <- OperatorConsole.render(session, operator_console_sections()) do
+      render(conn, :operator_console, console: console, console_error: nil)
+    else
+      {:error, reason} ->
+        conn
+        |> put_status(:internal_server_error)
+        |> render(:operator_console, console: nil, console_error: inspect(reason))
     end
   end
 
@@ -164,5 +177,55 @@ defmodule ExtravaganzaWeb.PageController do
 
   defp subject_action_params(params) when is_map(params) do
     Map.drop(params, ["_csrf_token", "action", "subject_id"])
+  end
+
+  defp operator_console_session do
+    %{
+      session_ref: "extravaganza-operator-console",
+      tenant_ref: "tenant://extravaganza/default",
+      authority_ref: "authority://extravaganza/operator",
+      installation_ref: "installation://extravaganza/default",
+      operator_ref: "operator://extravaganza/console",
+      trace_ref: "trace://extravaganza/operator-console",
+      release_manifest_ref: "release://phase-f/operator-console"
+    }
+  end
+
+  defp operator_console_sections do
+    tenant_ref = "tenant://extravaganza/default"
+
+    %{
+      memory: [
+        %{tenant_ref: tenant_ref, ref: "memory://extravaganza/session-scope", status: "bounded"}
+      ],
+      prompts: [
+        %{tenant_ref: tenant_ref, ref: "prompt://extravaganza/coding-ops", status: "active"}
+      ],
+      guards: [
+        %{tenant_ref: tenant_ref, ref: "guard-chain://extravaganza/default", status: "active"}
+      ],
+      replay: [
+        %{tenant_ref: tenant_ref, ref: "replay://extravaganza/latest", status: "available"}
+      ],
+      evals: [
+        %{tenant_ref: tenant_ref, ref: "eval-run://extravaganza/latest", status: "passing"}
+      ],
+      costs: [
+        %{tenant_ref: tenant_ref, ref: "cost-dashboard://extravaganza", status: "redacted"}
+      ],
+      connectors: [
+        %{
+          tenant_ref: tenant_ref,
+          ref: "connector://extravaganza/linear-safe-read",
+          status: "admitted"
+        }
+      ],
+      skills: [
+        %{tenant_ref: tenant_ref, ref: "skill://pending/phase-g", status: "reserved"}
+      ],
+      hive: [
+        %{tenant_ref: tenant_ref, ref: "hive://pending/phase-h", status: "reserved"}
+      ]
+    }
   end
 end

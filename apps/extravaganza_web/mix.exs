@@ -37,6 +37,7 @@ defmodule ExtravaganzaWeb.MixProject do
   defp deps do
     [
       {:extravaganza_core, in_umbrella: true},
+      {:app_kit_operator_console, path: "../../../app_kit/web/operator_console"},
       {:phoenix, "~> 1.8.1"},
       {:phoenix_html, "~> 4.1"},
       {:phoenix_live_view, "~> 1.1.0"},
