@@ -67,8 +67,8 @@ defmodule Extravaganza.HeadlessSurfaceTest do
     assert rendered["schema_ref"] == "headless_state_snapshot.v1"
     assert rendered["correlation_id"] == "corr:test"
     assert rendered["data"]["turns"] == []
-    refute Jason.encode!(rendered) =~ "workspace_path"
-    refute Jason.encode!(rendered) =~ "/home/"
+    refute String.contains?(Jason.encode!(rendered), "workspace_path")
+    refute String.contains?(Jason.encode!(rendered), "/home/")
   end
 
   test "subject and run presenters pass through future M2 event slots safely" do
@@ -142,13 +142,13 @@ defmodule Extravaganza.HeadlessSharedPresenterBoundaryTest do
         )
       )
 
-    assert browser =~ "StatePresenter"
-    assert browser =~ "SubjectPresenter"
-    assert browser =~ "ReviewPresenter"
+    assert String.contains?(browser, "StatePresenter")
+    assert String.contains?(browser, "SubjectPresenter")
+    assert String.contains?(browser, "ReviewPresenter")
 
-    assert api =~ "StatePresenter"
-    assert api =~ "SubjectPresenter"
-    assert api =~ "RunPresenter"
-    assert api =~ "CommandResultPresenter"
+    assert String.contains?(api, "StatePresenter")
+    assert String.contains?(api, "SubjectPresenter")
+    assert String.contains?(api, "RunPresenter")
+    assert String.contains?(api, "CommandResultPresenter")
   end
 end

@@ -71,7 +71,7 @@ defmodule ExtravaganzaAtomCleanupTest do
     flunk("Product install template accepted invalid config #{inspect(overrides)}")
   rescue
     error in [ArgumentError] ->
-      assert Exception.message(error) =~ "unknown ProductPack #{field}"
+      assert String.contains?(Exception.message(error), "unknown ProductPack #{field}")
   end
 
   defp unique_product_pack_name(prefix),

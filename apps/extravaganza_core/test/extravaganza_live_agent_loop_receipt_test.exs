@@ -126,10 +126,10 @@ defmodule Extravaganza.LiveAgentLoopReceiptTest do
     assert :ok = LiveAgentLoopReceipt.validate_receipt(live)
 
     encoded = Jason.encode!(live)
-    refute encoded =~ "workspace_path"
-    refute encoded =~ "/home/"
-    refute encoded =~ "raw_prompt"
-    refute encoded =~ "raw_provider"
+    refute String.contains?(encoded, "workspace_path")
+    refute String.contains?(encoded, "/home/")
+    refute String.contains?(encoded, "raw_prompt")
+    refute String.contains?(encoded, "raw_provider")
   end
 
   test "live Profile A M2 path fails closed when the explicit gate is absent" do
@@ -193,8 +193,8 @@ defmodule Extravaganza.LiveAgentLoopReceiptTest do
       assert receipt["mechanisms"] == ["M1", "M2"]
       assert receipt["memory_commit_refs"] == attrs.memory_commit_refs
       assert receipt["provider_credentials_required?"] == true
-      assert receipt["headless_readback_hash"] =~ "sha256:"
-      assert receipt["browser_presenter_hash"] =~ "sha256:"
+      assert String.contains?(receipt["headless_readback_hash"], "sha256:")
+      assert String.contains?(receipt["browser_presenter_hash"], "sha256:")
       assert :ok = LiveAgentLoopReceipt.validate_receipt(receipt)
     end
   else

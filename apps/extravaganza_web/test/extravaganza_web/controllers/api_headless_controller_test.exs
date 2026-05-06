@@ -38,8 +38,8 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
     assert body["data"]["turns"] == []
 
     encoded = Jason.encode!(body)
-    refute encoded =~ "workspace_path"
-    refute encoded =~ "/home/"
+    refute String.contains?(encoded, "workspace_path")
+    refute String.contains?(encoded, "/home/")
   end
 
   test "GET /api/v1/subjects/:subject_id and compatibility issue route share subject presenter",

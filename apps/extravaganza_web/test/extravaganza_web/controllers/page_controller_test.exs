@@ -9,8 +9,8 @@ defmodule ExtravaganzaWeb.PageControllerTest do
   test "GET / renders the product shell", %{conn: conn} do
     conn = get(conn, ~p"/")
 
-    assert html_response(conn, 200) =~ "Extravaganza"
-    assert html_response(conn, 200) =~ "proving-ground product"
+    assert String.contains?(html_response(conn, 200), "Extravaganza")
+    assert String.contains?(html_response(conn, 200), "proving-ground product")
   end
 
   test "GET /queue renders the core-backed operator queue", %{
@@ -37,9 +37,9 @@ defmodule ExtravaganzaWeb.PageControllerTest do
     conn = get(conn, ~p"/queue")
     body = html_response(conn, 200)
 
-    assert body =~ "Operator Queue"
-    assert body =~ "Render operator queue"
-    assert body =~ "Open subject detail"
+    assert String.contains?(body, "Operator Queue")
+    assert String.contains?(body, "Render operator queue")
+    assert String.contains?(body, "Open subject detail")
   end
 
   test "GET /reviews renders the pending review queue", %{
@@ -66,10 +66,10 @@ defmodule ExtravaganzaWeb.PageControllerTest do
     conn = get(conn, ~p"/reviews")
     body = html_response(conn, 200)
 
-    assert body =~ "Pending Reviews"
-    assert body =~ "Render pending review queue"
-    assert body =~ "Reject review"
-    assert body =~ "Waive review"
+    assert String.contains?(body, "Pending Reviews")
+    assert String.contains?(body, "Render pending review queue")
+    assert String.contains?(body, "Reject review")
+    assert String.contains?(body, "Waive review")
   end
 
   test "GET /subjects/:subject_id renders the subject detail proving ground", %{
@@ -96,10 +96,10 @@ defmodule ExtravaganzaWeb.PageControllerTest do
     conn = get(conn, ~p"/subjects/#{result.payload.work_object_id}")
     body = html_response(conn, 200)
 
-    assert body =~ "Render subject detail"
-    assert body =~ "Operator controls"
-    assert body =~ "Unified trace"
-    assert body =~ "Issue read lease"
+    assert String.contains?(body, "Render subject detail")
+    assert String.contains?(body, "Operator controls")
+    assert String.contains?(body, "Unified trace")
+    assert String.contains?(body, "Issue read lease")
   end
 
   test "POST /subjects/:subject_id/actions/:action drives operator controls through the web shell",
@@ -134,7 +134,7 @@ defmodule ExtravaganzaWeb.PageControllerTest do
     conn = get(recycle(conn), ~p"/subjects/#{result.payload.work_object_id}")
     body = html_response(conn, 200)
 
-    assert body =~ "Resume"
+    assert String.contains?(body, "Resume")
   end
 
   test "POST /subjects/:subject_id/read-lease renders issued lease details", %{
@@ -170,8 +170,8 @@ defmodule ExtravaganzaWeb.PageControllerTest do
     conn = post(conn, ~p"/subjects/#{result.payload.work_object_id}/read-lease", %{})
     body = html_response(conn, 200)
 
-    assert body =~ "Read lease issued"
-    assert body =~ "Allowed ops"
+    assert String.contains?(body, "Read lease issued")
+    assert String.contains?(body, "Allowed ops")
   end
 
   test "POST /subjects/:subject_id/stream-attach-lease renders issued lease details", %{
@@ -207,8 +207,8 @@ defmodule ExtravaganzaWeb.PageControllerTest do
     conn = post(conn, ~p"/subjects/#{result.payload.work_object_id}/stream-attach-lease", %{})
     body = html_response(conn, 200)
 
-    assert body =~ "Stream attach lease issued"
-    assert body =~ "Reconnect cursor"
+    assert String.contains?(body, "Stream attach lease issued")
+    assert String.contains?(body, "Reconnect cursor")
   end
 
   test "GET /subjects/:subject_id keeps latest execution lineage visible after cancel", %{
@@ -282,13 +282,13 @@ defmodule ExtravaganzaWeb.PageControllerTest do
     conn = get(recycle(conn), ~p"/subjects/#{result.payload.work_object_id}")
     body = html_response(conn, 200)
 
-    assert body =~ "Live lineage posture"
-    assert body =~ "Dispatch state"
-    assert body =~ "cancelled"
-    assert body =~ "Invalidated leases"
-    assert body =~ "Reconcile wave"
-    assert body =~ "Join step"
-    assert body =~ "triage_join"
+    assert String.contains?(body, "Live lineage posture")
+    assert String.contains?(body, "Dispatch state")
+    assert String.contains?(body, "cancelled")
+    assert String.contains?(body, "Invalidated leases")
+    assert String.contains?(body, "Reconcile wave")
+    assert String.contains?(body, "Join step")
+    assert String.contains?(body, "triage_join")
   end
 
   test "POST /reviews/:decision_id/decisions/:decision completes a pending review through the web shell",

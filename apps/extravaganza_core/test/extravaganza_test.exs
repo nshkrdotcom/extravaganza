@@ -10,6 +10,6 @@ defmodule ExtravaganzaTest do
   end
 
   test "states an operator-surface mission" do
-    assert Extravaganza.mission() =~ "operator product surface"
+    assert String.contains?(Extravaganza.mission(), "operator product surface")
   end
 end
