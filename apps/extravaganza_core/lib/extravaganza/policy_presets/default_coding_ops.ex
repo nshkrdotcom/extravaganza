@@ -25,6 +25,7 @@ defmodule Extravaganza.PolicyPresets.DefaultCodingOps do
     redaction_posture_floor: "partial",
     policy_revision_ref: "policy-revision://extravaganza/coding_ops/guard/v1"
   }
+  @budget_policy_ref "budget-policy://extravaganza/coding_ops/default"
 
   @spec workflow_body() :: String.t()
   def workflow_body do
@@ -35,6 +36,7 @@ defmodule Extravaganza.PolicyPresets.DefaultCodingOps do
     Prompt artifact revision: #{@prompt_artifact_ref.revision}
     Prompt catalog key: #{CodingOpsTemplates.prompt_ref()}
     Guard chain ref: #{@guard_chain_ref.guard_chain_ref}
+    Budget policy ref: #{@budget_policy_ref}
     """
   end
 
@@ -43,6 +45,32 @@ defmodule Extravaganza.PolicyPresets.DefaultCodingOps do
 
   @spec guard_chain_ref() :: map()
   def guard_chain_ref, do: @guard_chain_ref
+
+  @spec budget_policy_ref() :: String.t()
+  def budget_policy_ref, do: @budget_policy_ref
+
+  @spec budget_policy() :: map()
+  def budget_policy do
+    %{
+      budget_policy_ref: @budget_policy_ref,
+      citadel_policy_ref: "policy://citadel/coding_ops/budget/default",
+      scope_key_ref: "budget-scope://coding-ops/default",
+      period_class: "per_run",
+      hard_cap_class: "redacted_above_ceiling",
+      soft_cap_class: "redacted_below_floor",
+      default_exhaustion_behavior: "fail_closed",
+      override_permissions: [
+        %{
+          permission_ref: "permission://budget/override",
+          operator_role_refs: ["role://operator/coding-ops-budget-override"],
+          budget_classes: ["production", "replay", "eval", "infrastructure"],
+          max_duration_seconds: 3_600,
+          extensions: %{"policy_family" => "coding_ops_budget_override"}
+        }
+      ],
+      extensions: %{"policy_family" => "coding_ops_budget"}
+    }
+  end
 
   @spec prompt_author_request() :: map()
   def prompt_author_request do
@@ -101,6 +129,12 @@ defmodule Extravaganza.PolicyPresets.DefaultCodingOps do
         "required" => true,
         "required_decisions" => 1,
         "gates" => ["operator"]
+      },
+      "budget" => %{
+        "budget_policy_ref" => @budget_policy_ref,
+        "default_budget_ref" => "budget://extravaganza/coding_ops/default",
+        "cost_class" => "production",
+        "fail_closed" => true
       },
       "capability_grants" => [
         %{"capability_id" => "linear.issue.read", "mode" => "allow"},

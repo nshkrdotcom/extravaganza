@@ -363,6 +363,11 @@ defmodule ExtravaganzaProductCoreTest do
              PolicyPresets.DefaultCodingOps.guard_chain_ref().guard_chain_ref
            )
 
+    assert String.contains?(
+             normalized_workflow_body,
+             PolicyPresets.DefaultCodingOps.budget_policy_ref()
+           )
+
     refute String.contains?(workflow_body, "provider refs must come from")
     refute String.contains?(workflow_body, "TODO")
 
@@ -439,10 +444,16 @@ defmodule ExtravaganzaProductCoreTest do
     assert preset.metadata["guard_chain_ref"].guard_chain_ref ==
              "guard-chain://extravaganza/coding_ops/default"
 
+    assert preset.metadata["budget_policy"].budget_policy_ref ==
+             "budget-policy://extravaganza/coding_ops/default"
+
+    assert preset.metadata["budget_policy"].default_exhaustion_behavior == "fail_closed"
+
     config = preset.metadata["runtime_policy_config"]
     assert config["retry"]["strategy"] == "linear"
     assert config["retry"]["max_attempts"] == 2
     assert config["review"]["required"] == true
+    assert config["budget"]["fail_closed"] == true
   end
 
   test "bootstrap imports the default authoring bundle and activates runtime policy revision", %{

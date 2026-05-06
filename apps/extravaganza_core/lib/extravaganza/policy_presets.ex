@@ -18,6 +18,7 @@ defmodule Extravaganza.PolicyPresets do
         "prompt_artifact_ref" => DefaultCodingOps.prompt_artifact_ref(),
         "prompt_author_request" => DefaultCodingOps.prompt_author_request(),
         "guard_chain_ref" => DefaultCodingOps.guard_chain_ref(),
+        "budget_policy" => DefaultCodingOps.budget_policy(),
         "runtime_policy_config" => DefaultCodingOps.runtime_config()
       }
     }
