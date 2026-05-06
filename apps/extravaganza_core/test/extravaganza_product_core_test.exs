@@ -318,6 +318,23 @@ defmodule ExtravaganzaProductCoreTest do
              "linear_primary",
              "connection_ref"
            ]) == "linear_primary"
+
+    [companion] = ProductInstallTemplate.companion_connectors(config)
+
+    assert companion["connector_ref"] ==
+             "connector://#{config.tenant_id}/extravaganza-linear-safe-read"
+
+    assert companion["tenant_ref"] == "tenant://#{config.tenant_id}"
+    assert companion["contract_version"] == "connector-sdk.v1"
+    assert companion["persistence_profile"] == "memory-default"
+    assert companion["admission_policy"] == "explicit_app_config_only"
+    assert companion["capability_ids"] == ["extravaganza_linear_safe_read.issue.fetch"]
+    assert companion["auth_profiles"] == ["default_manual_secret"]
+    assert companion["scopes"] == ["linear:read"]
+    refute Map.has_key?(companion, "provider_account_id")
+    refute Map.has_key?(companion, "secret_metadata")
+
+    assert install_template.metadata["companion_connectors"] == [companion]
   end
 
   test "unknown ProductPack names reject before refs are built" do
