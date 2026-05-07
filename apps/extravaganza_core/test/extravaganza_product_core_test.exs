@@ -183,14 +183,20 @@ defmodule ExtravaganzaProductCoreTest do
       )
     )
 
-    owners = [
-      Sandbox.start_owner!(RuntimeStack.ops_domain_repo(), shared: false),
-      Sandbox.start_owner!(ConfigRegistryRepo, shared: true),
-      Sandbox.start_owner!(AuditRepo, shared: false),
-      Sandbox.start_owner!(ExecutionRepo, shared: false),
-      Sandbox.start_owner!(DecisionsRepo, shared: false),
-      Sandbox.start_owner!(EvidenceRepo, shared: false)
+    repo_specs = [
+      {RuntimeStack.ops_domain_repo(), [shared: false]},
+      {ConfigRegistryRepo, [shared: true]},
+      {AuditRepo, [shared: false]},
+      {ExecutionRepo, [shared: false]},
+      {DecisionsRepo, [shared: false]},
+      {EvidenceRepo, [shared: false]}
     ]
+
+    repo_specs
+    |> Enum.map(&elem(&1, 0))
+    |> ensure_repos_started()
+
+    owners = start_sandbox_owners(repo_specs)
 
     [_ops_owner, config_owner | _rest] = owners
     allow_registry_process(config_owner)
@@ -1197,6 +1203,30 @@ defmodule ExtravaganzaProductCoreTest do
       pid when is_pid(pid) -> Sandbox.allow(ConfigRegistryRepo, config_owner, pid)
       _other -> :ok
     end
+  end
+
+  defp ensure_repos_started(repos) do
+    Enum.each(repos, fn repo ->
+      case repo.start_link() do
+        {:ok, _pid} -> :ok
+        {:error, {:already_started, _pid}} -> :ok
+      end
+    end)
+  end
+
+  defp start_sandbox_owners(repo_specs) do
+    do_start_sandbox_owners(repo_specs, [])
+  end
+
+  defp do_start_sandbox_owners([], owners), do: Enum.reverse(owners)
+
+  defp do_start_sandbox_owners([{repo, opts} | rest], owners) do
+    owner = Sandbox.start_owner!(repo, opts)
+    do_start_sandbox_owners(rest, [owner | owners])
+  rescue
+    exception ->
+      Enum.each(owners, &Sandbox.stop_owner/1)
+      reraise exception, __STACKTRACE__
   end
 
   defp assert_product_pack_rejects(overrides) do

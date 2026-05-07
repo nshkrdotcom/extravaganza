@@ -217,3 +217,9 @@ modules directly from product business code.
 - [Stack Position](docs/stack_position.md)
 - [Product Direction](docs/product_direction.md)
 - [Product Profile](docs/product_profile.md)
+- `docs/persistence.md`
+- `docs/product_no_bypass.md`
+
+## Persistence Documentation
+
+See `docs/persistence.md` for tiers, defaults, adapters, unsupported selections, config examples, restart claims, durability claims, debug sidecar behavior, redaction guarantees, migration or preflight behavior, and no-bypass scope when applicable.
