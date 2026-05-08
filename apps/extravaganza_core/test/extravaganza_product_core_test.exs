@@ -31,6 +31,7 @@ defmodule ExtravaganzaProductCoreTest do
     ProductPack,
     Queries,
     Reviews,
+    RunProfiles.DefaultCodexProfile,
     Workflows
   }
 
@@ -292,6 +293,7 @@ defmodule ExtravaganzaProductCoreTest do
     assert recipe.hook_stages == [:prepare_workspace, :after_turn]
     assert recipe.max_turns == 12
     assert recipe.stall_timeout_ms == 300_000
+    assert ProductPack.profile_slots(config).runtime_profile_ref == :codex_session
 
     review_gate = compiled_pack.decision_specs_by_kind["operator_review"]
 
@@ -333,6 +335,12 @@ defmodule ExtravaganzaProductCoreTest do
              "linear_primary",
              "connection_ref"
            ]) == "linear_primary"
+
+    assert get_in(install_template.default_bindings, [
+             "execution_bindings",
+             ProductPack.execution_binding_key(config),
+             "runtime_profile_ref"
+           ]) == DefaultCodexProfile.profile_ref()
 
     [companion] = ProductInstallTemplate.companion_connectors(config)
 
@@ -378,11 +386,11 @@ defmodule ExtravaganzaProductCoreTest do
     runtime_config = PolicyPresets.DefaultCodingOps.runtime_config()
 
     assert runtime_config["run"] == %{
-             "profile" => "default_codex",
-             "runtime_class" => "session",
-             "lower_runtime_kind" => "codex_session",
-             "capability" => "codex.session.turn",
-             "target" => "codex-default"
+             "profile" => DefaultCodexProfile.profile_key(),
+             "runtime_class" => DefaultCodexProfile.runtime_class(),
+             "lower_runtime_kind" => DefaultCodexProfile.lower_runtime_kind(),
+             "capability" => DefaultCodexProfile.capability_id(),
+             "target" => DefaultCodexProfile.target_ref()
            }
 
     capability_ids =
@@ -407,6 +415,23 @@ defmodule ExtravaganzaProductCoreTest do
              "github.commit.statuses.get_combined",
              "github.check_runs.list_for_ref"
            ]
+
+    assert :ok = Workflows.validate_runtime_profile_compatibility(Config.load(), runtime_config)
+  end
+
+  test "runtime compatibility fails closed before run start when product and policy diverge" do
+    runtime_config =
+      PolicyPresets.DefaultCodingOps.runtime_config()
+      |> put_in(["run", "lower_runtime_kind"], "direct_connector")
+
+    assert {:error, {:incompatible_product_runtime_profile, details}} =
+             Workflows.validate_runtime_profile_compatibility(Config.load(), runtime_config)
+
+    assert details.field == :lower_runtime_kind
+    assert details.actual == "direct_connector"
+
+    assert details.expected_selection["lower_runtime_kind"] ==
+             DefaultCodexProfile.lower_runtime_kind()
   end
 
   test "product runtime code does not import lower governance or execution internals" do
@@ -541,6 +566,43 @@ defmodule ExtravaganzaProductCoreTest do
     assert config["budget"]["fail_closed"] == true
   end
 
+  test "prompt context rendering is strict for known issue and attempt variables" do
+    template = """
+    Issue: {{ issue.identifier }} {{ issue.title }}
+    Labels: {{ issue.labels | join: ", " }}
+    Attempt: {{ attempt | default: "first" }}
+    Runtime: {{ runtime_profile_ref }}
+    """
+
+    assert {:ok, rendered} =
+             CodingOpsTemplates.render_prompt_template(template, %{
+               "issue" => %{
+                 "identifier" => "ENG-900",
+                 "title" => "Strict prompt context",
+                 "labels" => ["agent", "governance"]
+               },
+               "attempt" => nil,
+               "runtime_profile_ref" => DefaultCodexProfile.profile_ref()
+             })
+
+    assert String.contains?(rendered, "Issue: ENG-900 Strict prompt context")
+    assert String.contains?(rendered, "Labels: agent, governance")
+    assert String.contains?(rendered, "Attempt: first")
+    assert String.contains?(rendered, "Runtime: #{DefaultCodexProfile.profile_ref()}")
+  end
+
+  test "prompt context compiler rejects unknown variables and filters" do
+    assert {:error,
+            {:template_render_error, %{reason: :unknown_variable, variable: "issue.secret"}}} =
+             CodingOpsTemplates.compile_prompt_template("{{ issue.secret }}")
+
+    assert {:error, {:template_render_error, %{reason: :unknown_filter, filter: "upcase"}}} =
+             CodingOpsTemplates.compile_prompt_template("{{ issue.title | upcase }}")
+
+    assert {:error, {:template_parse_error, %{reason: :unbalanced_interpolation}}} =
+             CodingOpsTemplates.compile_prompt_template("{{ issue.title")
+  end
+
   test "bootstrap imports the default authoring bundle and activates runtime policy revision", %{
     tenant_id: tenant_id,
     pack_version: pack_version
@@ -570,6 +632,36 @@ defmodule ExtravaganzaProductCoreTest do
     assert recipe.retry_config.backoff == :linear
     assert recipe.sandbox_policy_ref == "standard_coding_ops"
     assert recipe.prompt_refs == [CodingOpsTemplates.prompt_ref()]
+  end
+
+  test "cold bootstrap imports authoring bundle then returns app kit installation state", %{
+    tenant_id: tenant_id,
+    pack_version: pack_version
+  } do
+    assert {:ok, profile} =
+             ProductBootstrap.ensure_bootstrapped(
+               tenant_id: tenant_id,
+               pack_version: pack_version
+             )
+
+    assert profile.bootstrap_install_result == nil
+    assert profile.install_result.status in [:created, :updated, :reused]
+    assert profile.installation_ref.status == :active
+    assert profile.installation_ref.pack_slug == ProductPack.pack_slug(profile.config)
+    assert profile.installation_ref.pack_version == pack_version
+
+    execution_binding =
+      get_in(profile.install_result.metadata, [
+        :installation,
+        :bindings,
+        "execution_bindings",
+        ProductPack.execution_binding_key(profile.config)
+      ])
+
+    assert execution_binding["runtime_profile_ref"] == DefaultCodexProfile.profile_ref()
+
+    assert execution_binding["execution_params"]["timeout_ms"] ==
+             profile.config.execution_timeout_ms
   end
 
   test "product runtime does not hardcode app kit bridge implementations" do
@@ -719,11 +811,62 @@ defmodule ExtravaganzaProductCoreTest do
     assert result.payload.run_ref.metadata.tenant_id == tenant_id
     assert is_binary(result.payload.work_object_id)
 
+    assert result.payload.recipe_ref == ProductPack.execution_recipe_ref([])
+
     assert {:ok, status} = Queries.run_status(result.payload.run_ref, %{}, tenant_id: tenant_id)
 
     assert status.work_object_id == result.payload.work_object_id
     assert is_list(status.timeline)
     assert is_map(status.gate_status)
+  end
+
+  test "product-local start_run sends complete run request metadata for governed lower dispatch",
+       %{
+         tenant_id: tenant_id,
+         pack_version: pack_version
+       } do
+    activate_fixture_registration!(tenant_id: tenant_id, pack_version: pack_version)
+
+    assert {:ok, result} =
+             Workflows.start_run(
+               %{
+                 external_ref: "linear:ENG-207",
+                 title: "Carry governed run metadata",
+                 description: "RunRequest should carry enough refs for the lower envelope",
+                 source_kind: "linear",
+                 payload: %{"issue_id" => "ENG-207"},
+                 normalized_payload: %{"issue_id" => "ENG-207"}
+               },
+               tenant_id: tenant_id,
+               pack_version: pack_version
+             )
+
+    metadata = result.payload.run_request_metadata
+
+    assert result.payload.recipe_ref == ProductPack.execution_recipe_ref([])
+
+    assert result.payload.params["runtime_policy_config"]["run"]["capability"] ==
+             "codex.session.turn"
+
+    assert metadata["idempotency_key"] == result.payload.run_ref.metadata.idempotency_key
+    assert metadata["pack_revision"] == result.payload.run_ref.metadata.pack_revision
+    assert metadata["runtime_profile_ref"] == "codex_session"
+    assert metadata["runtime_profile_kind"] == "temporal_local"
+    assert metadata["runtime_profile_revision"] == 1
+    assert metadata["lower_runtime_kind"] == "codex_session"
+    assert metadata["requested_action_ids"] == ["codex.session.turn"]
+    assert "codex.session.turn" in metadata["requested_capability_ids"]
+    assert "linear.comments.update" in metadata["requested_capability_ids"]
+    assert metadata["source_binding_refs"] == ["linear_primary"]
+    assert "source_binding://linear_primary" in metadata["resource_scope_refs"]
+
+    assert metadata["workspace_policy_ref"] ==
+             "workspace-policy://extravaganza_coding_ops/coding_operations"
+
+    assert metadata["live_provider_allowed"] == false
+    assert metadata["evidence_profile_ref"] == "github_pr_plus_workpad"
+    assert metadata["redaction_profile_ref"] == "redaction://extravaganza/default"
+    assert metadata["prompt_context_recipe_refs"] == [CodingOpsTemplates.prompt_ref()]
   end
 
   test "product-local query facade lists the operator queue through app kit", %{

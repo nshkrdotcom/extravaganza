@@ -14,6 +14,25 @@ defmodule Extravaganza.CodingOpsTemplates do
 
   @prompt_ref "coding_agent_system"
   @workpad_template_ref "operator_review_workpad"
+  @allowed_prompt_variables MapSet.new([
+                              "attempt",
+                              "authorized_tool_refs",
+                              "issue.assignee",
+                              "issue.blockers",
+                              "issue.description",
+                              "issue.identifier",
+                              "issue.labels",
+                              "issue.priority",
+                              "issue.state",
+                              "issue.title",
+                              "issue.url",
+                              "max_turns",
+                              "redaction_profile_ref",
+                              "runtime_profile_ref",
+                              "source_binding_ref",
+                              "turn_number"
+                            ])
+  @allowed_prompt_filters MapSet.new(["default", "inspect", "join"])
 
   @spec prompt_ref() :: String.t()
   def prompt_ref, do: @prompt_ref
@@ -56,6 +75,34 @@ defmodule Extravaganza.CodingOpsTemplates do
     Provider identity source: source admission, provider create/list output,
     workflow state, or durable receipts.
     """
+  end
+
+  @spec compile_prompt_template(String.t(), keyword()) :: :ok | {:error, term()}
+  def compile_prompt_template(template, opts \\ []) when is_binary(template) and is_list(opts) do
+    allowed_variables =
+      MapSet.new(Keyword.get(opts, :allowed_variables, @allowed_prompt_variables))
+
+    allowed_filters = MapSet.new(Keyword.get(opts, :allowed_filters, @allowed_prompt_filters))
+
+    with :ok <- balanced_template_tags(template) do
+      template
+      |> template_expressions()
+      |> validate_template_expressions(allowed_variables, allowed_filters)
+    end
+  end
+
+  @spec render_prompt_template(String.t(), map(), keyword()) ::
+          {:ok, String.t()} | {:error, term()}
+  def render_prompt_template(template, attrs, opts \\ [])
+      when is_binary(template) and is_map(attrs) and is_list(opts) do
+    with :ok <- compile_prompt_template(template, opts) do
+      rendered =
+        Regex.replace(~r/\{\{\s*(.*?)\s*\}\}/, template, fn _match, expression ->
+          render_template_expression(expression, attrs)
+        end)
+
+      {:ok, rendered}
+    end
   end
 
   @spec source_publication_preview(SubjectRuntimeProjection.t()) :: map()
@@ -214,4 +261,120 @@ defmodule Extravaganza.CodingOpsTemplates do
       _ -> default
     end
   end
+
+  defp balanced_template_tags(template) do
+    opens = Regex.scan(~r/\{\{/, template) |> length()
+    closes = Regex.scan(~r/\}\}/, template) |> length()
+
+    if opens == closes do
+      :ok
+    else
+      {:error, {:template_parse_error, %{reason: :unbalanced_interpolation}}}
+    end
+  end
+
+  defp template_expressions(template) do
+    ~r/\{\{\s*(.*?)\s*\}\}/
+    |> Regex.scan(template, capture: :all_but_first)
+    |> Enum.map(fn [expression] -> String.trim(expression) end)
+  end
+
+  defp validate_template_expressions(expressions, allowed_variables, allowed_filters) do
+    Enum.reduce_while(expressions, :ok, fn expression, :ok ->
+      case validate_template_expression(expression, allowed_variables, allowed_filters) do
+        :ok -> {:cont, :ok}
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
+  end
+
+  defp validate_template_expression(expression, allowed_variables, allowed_filters) do
+    [variable | filters] = expression |> String.split("|") |> Enum.map(&String.trim/1)
+
+    cond do
+      variable == "" ->
+        {:error, {:template_render_error, %{reason: :empty_variable}}}
+
+      not MapSet.member?(allowed_variables, variable) ->
+        {:error, {:template_render_error, %{reason: :unknown_variable, variable: variable}}}
+
+      true ->
+        validate_template_filters(filters, allowed_filters)
+    end
+  end
+
+  defp validate_template_filters(filters, allowed_filters) do
+    Enum.reduce_while(filters, :ok, fn filter_expression, :ok ->
+      filter_name = filter_expression |> String.split(":", parts: 2) |> hd() |> String.trim()
+
+      if MapSet.member?(allowed_filters, filter_name) do
+        {:cont, :ok}
+      else
+        {:halt,
+         {:error, {:template_render_error, %{reason: :unknown_filter, filter: filter_name}}}}
+      end
+    end)
+  end
+
+  defp render_template_expression(expression, attrs) do
+    [variable | filters] = expression |> String.split("|") |> Enum.map(&String.trim/1)
+
+    attrs
+    |> fetch_template_value(variable)
+    |> apply_template_filters(filters)
+    |> template_value_to_string()
+  end
+
+  defp fetch_template_value(attrs, variable) do
+    variable
+    |> String.split(".")
+    |> Enum.reduce(attrs, fn key, value ->
+      case value do
+        value when is_map(value) -> Map.get(value, key) || Map.get(value, existing_atom(key))
+        _other -> nil
+      end
+    end)
+  end
+
+  defp existing_atom(key) do
+    String.to_existing_atom(key)
+  rescue
+    ArgumentError -> key
+  end
+
+  defp apply_template_filters(value, filters) do
+    Enum.reduce(filters, value, fn filter_expression, value ->
+      filter_expression
+      |> String.split(":", parts: 2)
+      |> case do
+        ["default", default_value] -> default_filter(value, default_value)
+        ["default"] -> default_filter(value, "")
+        ["join", separator] -> join_filter(value, separator)
+        ["join"] -> join_filter(value, ", ")
+        ["inspect"] -> inspect(value)
+        [_known] -> value
+      end
+    end)
+  end
+
+  defp default_filter(nil, default_value), do: trim_filter_arg(default_value)
+  defp default_filter("", default_value), do: trim_filter_arg(default_value)
+  defp default_filter(value, _default_value), do: value
+
+  defp join_filter(value, separator) when is_list(value),
+    do: Enum.join(value, trim_filter_arg(separator))
+
+  defp join_filter(value, _separator), do: value
+
+  defp trim_filter_arg(value) do
+    value
+    |> String.trim()
+    |> String.trim_leading("\"")
+    |> String.trim_trailing("\"")
+  end
+
+  defp template_value_to_string(nil), do: ""
+  defp template_value_to_string(value) when is_binary(value), do: value
+  defp template_value_to_string(value) when is_atom(value), do: Atom.to_string(value)
+  defp template_value_to_string(value), do: to_string(value)
 end

@@ -5,6 +5,7 @@ defmodule Extravaganza.ProductInstallTemplate do
 
   alias AppKit.Core.InstallTemplate
   alias Extravaganza.{Config, ProductPack}
+  alias Extravaganza.RunProfiles.DefaultCodexProfile
 
   @companion_contract_version "connector-sdk.v1"
   @linear_companion_manifest_hash "sha256:1a0f1e6d8e0d9c4b3a2f105f91c8d7e6a5b4c3d2e1f011223344556677889900"
@@ -51,6 +52,7 @@ defmodule Extravaganza.ProductInstallTemplate do
     %{
       "execution_bindings" => %{
         ProductPack.execution_binding_key(config) => %{
+          "runtime_profile_ref" => DefaultCodexProfile.profile_ref(),
           "placement_ref" => ProductPack.placement_key(config),
           "authority_decision_ref" =>
             "authority-decision://#{ProductPack.pack_slug(config)}/default",

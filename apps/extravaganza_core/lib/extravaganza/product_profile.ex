@@ -9,6 +9,7 @@ defmodule Extravaganza.ProductProfile do
     PolicyPresets,
     ProductInstallTemplate,
     ProductPack,
+    RunProfiles.DefaultCodexProfile,
     WorkClasses.CodingOperations
   }
 
@@ -23,6 +24,7 @@ defmodule Extravaganza.ProductProfile do
           "default_work_class" => config.work_class_name,
           "intake" => %{"source_kind" => config.linear_source_kind},
           "product_surface" => %{"operator_surface" => config.operator_surface_enabled?},
+          "runtime_profile" => DefaultCodexProfile.selection(),
           "app_kit" => %{
             "pack_slug" => ProductPack.pack_slug(config),
             "pack_version" => ProductPack.pack_version(config),

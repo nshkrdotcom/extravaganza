@@ -61,7 +61,7 @@ defmodule Extravaganza.DefaultAuthoringBundle do
   def default_installation_id, do: "default"
 
   defp unsigned_attrs(%Config{} = config, manifest_payload, opts) do
-    attrs = %{
+    %{
       "bundle_id" => bundle_id(config),
       "tenant_id" => config.tenant_id,
       "installation_id" => installation_id(opts),
@@ -73,17 +73,13 @@ defmodule Extravaganza.DefaultAuthoringBundle do
       "context_adapter_descriptors" => [],
       "policy_refs" => @policy_refs,
       "authored_by" => "operator:extravaganza",
+      "expected_installation_revision" => expected_installation_revision(opts),
       "metadata" => %{
         "policy_authority" => "authoring_bundle_installation_revision",
         "product_pack_role" => "seed",
         "workflow_body_role" => "prompt_template"
       }
     }
-
-    case expected_installation_revision(opts) do
-      nil -> attrs
-      revision -> Map.put(attrs, "expected_installation_revision", revision)
-    end
   end
 
   defp bundle_id(%Config{} = config), do: "#{config.program_slug}-default-#{config.pack_version}"

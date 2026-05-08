@@ -32,17 +32,20 @@ defmodule Extravaganza.ProductBootstrap do
     config = Config.load(overrides)
     install_template = ProductInstallTemplate.default(config)
 
-    with {:ok, install_result} <- ensure_installation(config, install_template),
-         {:ok, bundle_import} <- default_bundle_import(config, install_result),
-         {:ok, bundle_result} <- import_authoring_bundle(config, install_result, bundle_import) do
+    with {:ok, bootstrap_install_result} <- ensure_installation(config, install_template),
+         {:ok, bundle_import} <- default_bundle_import(config, bootstrap_install_result),
+         {:ok, bundle_result} <-
+           import_authoring_bundle(config, bootstrap_install_result, bundle_import),
+         {:ok, install_result} <-
+           ensure_post_import_installation(config, install_template, bootstrap_install_result) do
       {:ok,
        %{
          config: config,
          install_template: install_template,
-         install_result: effective_install_result(install_result, bundle_result),
+         install_result: install_result,
          authoring_result: bundle_result,
-         bootstrap_install_result: install_result,
-         installation_ref: bundle_result.installation_ref,
+         bootstrap_install_result: bootstrap_install_result,
+         installation_ref: install_result.installation_ref,
          bundle:
            Map.get(bundle_result.metadata, :bundle) || Map.get(bundle_result.metadata, "bundle"),
          pack: %{
@@ -82,19 +85,28 @@ defmodule Extravaganza.ProductBootstrap do
   defp import_authoring_bundle(%Config{} = config, nil, bundle_import) do
     call_installation_surface(:import_authoring_bundle, [
       AppKitContext.bootstrap_context(config),
-      bundle_import
+      bundle_import,
+      [replace_overlapping_active?: true]
     ])
   end
 
   defp import_authoring_bundle(%Config{} = config, install_result, bundle_import) do
     call_installation_surface(:import_authoring_bundle, [
       AppKitContext.product_context(config, install_result.installation_ref),
-      bundle_import
+      bundle_import,
+      [replace_overlapping_active?: true]
     ])
   end
 
-  defp effective_install_result(nil, bundle_result), do: bundle_result
-  defp effective_install_result(install_result, _bundle_result), do: install_result
+  defp ensure_post_import_installation(config, install_template, nil) do
+    case ensure_installation(config, install_template) do
+      {:ok, nil} -> {:error, :runtime_installation_not_provisioned}
+      result -> result
+    end
+  end
+
+  defp ensure_post_import_installation(_config, _install_template, install_result),
+    do: {:ok, install_result}
 
   # InstallationSurface dispatches to a runtime-configured backend in product hosts.
   defp call_installation_surface(function, args) do
