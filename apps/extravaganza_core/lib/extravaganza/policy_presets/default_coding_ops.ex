@@ -97,7 +97,8 @@ defmodule Extravaganza.PolicyPresets.DefaultCodingOps do
       "run" => %{
         "profile" => "default_codex",
         "runtime_class" => "session",
-        "capability" => "codex.task.execute",
+        "lower_runtime_kind" => "codex_session",
+        "capability" => "codex.session.turn",
         "target" => "codex-default"
       },
       "approval" => %{
@@ -137,10 +138,22 @@ defmodule Extravaganza.PolicyPresets.DefaultCodingOps do
         "fail_closed" => true
       },
       "capability_grants" => [
-        %{"capability_id" => "linear.issue.read", "mode" => "allow"},
-        %{"capability_id" => "linear.issue.update", "mode" => "allow"},
-        %{"capability_id" => "github.issue.read", "mode" => "allow"},
-        %{"capability_id" => "github.pull_request.write", "mode" => "allow"}
+        %{"capability_id" => "codex.session.turn", "mode" => "allow"},
+        %{"capability_id" => "linear.issues.list", "mode" => "allow"},
+        %{"capability_id" => "linear.issues.retrieve", "mode" => "allow"},
+        %{"capability_id" => "linear.issues.update", "mode" => "allow"},
+        %{"capability_id" => "linear.comments.create", "mode" => "allow"},
+        %{"capability_id" => "linear.comments.update", "mode" => "allow"},
+        %{"capability_id" => "linear.graphql.execute", "mode" => "allow"},
+        %{"capability_id" => "github.pr.create", "mode" => "allow"},
+        %{"capability_id" => "github.pr.fetch", "mode" => "allow"},
+        %{"capability_id" => "github.pr.update", "mode" => "allow"},
+        %{"capability_id" => "github.pr.reviews.list", "mode" => "allow"},
+        %{"capability_id" => "github.pr.review_comments.list", "mode" => "allow"},
+        %{"capability_id" => "github.pr.review.create", "mode" => "allow"},
+        %{"capability_id" => "github.pr.review_comment.create", "mode" => "allow"},
+        %{"capability_id" => "github.commit.statuses.get_combined", "mode" => "allow"},
+        %{"capability_id" => "github.check_runs.list_for_ref", "mode" => "allow"}
       ]
     }
   end

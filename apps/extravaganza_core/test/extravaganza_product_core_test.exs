@@ -279,7 +279,16 @@ defmodule ExtravaganzaProductCoreTest do
     assert recipe.workspace_policy.root_ref == "extravaganza_workspaces"
     assert recipe.sandbox_policy_ref == "standard_coding_ops"
     assert recipe.prompt_refs == ["coding_agent_system"]
-    assert recipe.dynamic_tool_manifest.tools == ["linear.comment.update", "github.pr.create"]
+
+    assert recipe.dynamic_tool_manifest.tools == [
+             "linear.comments.update",
+             "linear.graphql.execute",
+             "github.pr.create",
+             "github.pr.fetch",
+             "github.pr.reviews.list",
+             "github.pr.review_comments.list"
+           ]
+
     assert recipe.hook_stages == [:prepare_workspace, :after_turn]
     assert recipe.max_turns == 12
     assert recipe.stall_timeout_ms == 300_000
@@ -363,6 +372,59 @@ defmodule ExtravaganzaProductCoreTest do
              Config.load()
              |> ProductPack.manifest()
              |> Compiler.compile()
+  end
+
+  test "default coding ops policy uses canonical provider capability IDs" do
+    runtime_config = PolicyPresets.DefaultCodingOps.runtime_config()
+
+    assert runtime_config["run"] == %{
+             "profile" => "default_codex",
+             "runtime_class" => "session",
+             "lower_runtime_kind" => "codex_session",
+             "capability" => "codex.session.turn",
+             "target" => "codex-default"
+           }
+
+    capability_ids =
+      runtime_config["capability_grants"]
+      |> Enum.map(&Map.fetch!(&1, "capability_id"))
+
+    assert capability_ids == [
+             "codex.session.turn",
+             "linear.issues.list",
+             "linear.issues.retrieve",
+             "linear.issues.update",
+             "linear.comments.create",
+             "linear.comments.update",
+             "linear.graphql.execute",
+             "github.pr.create",
+             "github.pr.fetch",
+             "github.pr.update",
+             "github.pr.reviews.list",
+             "github.pr.review_comments.list",
+             "github.pr.review.create",
+             "github.pr.review_comment.create",
+             "github.commit.statuses.get_combined",
+             "github.check_runs.list_for_ref"
+           ]
+  end
+
+  test "product runtime code does not import lower governance or execution internals" do
+    forbidden_fragments = [
+      "Jido.Integration.",
+      "Citadel.",
+      "ExecutionPlane.",
+      "Mezzanine.WorkflowRuntime",
+      "Mezzanine.IntegrationBridge",
+      "Mezzanine.Citadel"
+    ]
+
+    for source_file <- product_runtime_source_files(),
+        source = File.read!(source_file),
+        forbidden_fragment <- forbidden_fragments do
+      refute String.contains?(source, forbidden_fragment),
+             "#{source_file} imports lower/internal boundary #{forbidden_fragment}"
+    end
   end
 
   test "product prompt and source workpad preview render from app kit runtime projection", %{
@@ -1245,6 +1307,14 @@ defmodule ExtravaganzaProductCoreTest do
   rescue
     error in [ArgumentError] ->
       assert String.contains?(Exception.message(error), "unknown ProductPack #{field}")
+  end
+
+  defp product_runtime_source_files do
+    [
+      Path.expand("../lib/**/*.ex", __DIR__),
+      Path.expand("../../extravaganza_web/lib/**/*.ex", __DIR__)
+    ]
+    |> Enum.flat_map(&Path.wildcard/1)
   end
 
   defp unique_product_pack_name(prefix),

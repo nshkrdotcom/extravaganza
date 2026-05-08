@@ -93,7 +93,7 @@ not claimed until disposable-auth smoke runs through the governed path.
 | Program slug | `extravaganza_coding_ops` |
 | Source binding | `linear_primary` (Linear → `coding_task` subjects) |
 | Execution recipe | Codex session, 12-turn budget, 300 s stall timeout |
-| Dynamic tools | Declared `linear.comment.update`, `github.pr.create` operations governed by connector manifests |
+| Dynamic tools | Declared `linear.comments.update`, `linear.graphql.execute`, and GitHub PR operations governed by connector manifests |
 | Review gate | Operator review, 72-hour window |
 | Required evidence | `github_pr`, `codex_session`, `source_workpad` |
 | Operator controls | accept, rework, cancel, and refresh through AppKit and Mezzanine governed owner paths |

@@ -149,7 +149,16 @@ defmodule Extravaganza.ProductPack do
           },
           sandbox_policy_ref: :standard_coding_ops,
           prompt_refs: [:coding_agent_system],
-          dynamic_tool_manifest: %{tools: ["linear.comment.update", "github.pr.create"]},
+          dynamic_tool_manifest: %{
+            tools: [
+              "linear.comments.update",
+              "linear.graphql.execute",
+              "github.pr.create",
+              "github.pr.fetch",
+              "github.pr.reviews.list",
+              "github.pr.review_comments.list"
+            ]
+          },
           hook_stages: [:prepare_workspace, :after_turn],
           max_turns: 12,
           stall_timeout_ms: 300_000,
