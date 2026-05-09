@@ -149,6 +149,7 @@ defmodule Extravaganza.PolicyPresets.DefaultCodingOps do
         %{"capability_id" => "linear.graphql.execute", "mode" => "allow"},
         %{"capability_id" => "github.pr.create", "mode" => "allow"},
         %{"capability_id" => "github.pr.fetch", "mode" => "allow"},
+        %{"capability_id" => "github.pr.list", "mode" => "allow"},
         %{"capability_id" => "github.pr.update", "mode" => "allow"},
         %{"capability_id" => "github.pr.reviews.list", "mode" => "allow"},
         %{"capability_id" => "github.pr.review_comments.list", "mode" => "allow"},

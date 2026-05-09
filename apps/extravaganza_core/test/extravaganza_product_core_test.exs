@@ -286,6 +286,7 @@ defmodule ExtravaganzaProductCoreTest do
              "linear.graphql.execute",
              "github.pr.create",
              "github.pr.fetch",
+             "github.pr.list",
              "github.pr.reviews.list",
              "github.pr.review_comments.list"
            ]
@@ -409,6 +410,7 @@ defmodule ExtravaganzaProductCoreTest do
              "linear.graphql.execute",
              "github.pr.create",
              "github.pr.fetch",
+             "github.pr.list",
              "github.pr.update",
              "github.pr.reviews.list",
              "github.pr.review_comments.list",

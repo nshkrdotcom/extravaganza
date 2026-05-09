@@ -155,6 +155,7 @@ defmodule Extravaganza.ProductPack do
               "linear.graphql.execute",
               "github.pr.create",
               "github.pr.fetch",
+              "github.pr.list",
               "github.pr.reviews.list",
               "github.pr.review_comments.list"
             ]
