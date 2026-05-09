@@ -103,6 +103,20 @@ defmodule Extravaganza.HeadlessSurfaceTest do
     assert denied.workflow_effect_state == "rejected_by_authority"
     assert List.last(denied.authority_refs) == "authority:decision-denied"
 
+    for {legacy_action, public_action} <- [
+          {"pause_execution", "pause"},
+          {:resume_execution, "resume"},
+          {"cancel_execution", "cancel"},
+          {:request_rework, "rework"}
+        ] do
+      assert {:ok, %CommandResult{} = aliased} =
+               HeadlessSurface.request_control("subject:fixture", legacy_action, %{
+                 "idempotency_key" => "idem:#{public_action}"
+               })
+
+      assert aliased.command_kind == public_action
+    end
+
     rendered = CommandResultPresenter.present(denied, correlation_id: "corr:denied")
     assert rendered["schema_ref"] == "headless_command_result.v1"
   end

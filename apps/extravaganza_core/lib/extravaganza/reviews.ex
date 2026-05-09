@@ -25,14 +25,27 @@ defmodule Extravaganza.Reviews do
       when is_map(attrs) and is_list(opts) do
     config = Config.load(opts)
 
-    with {:ok, %{context: context}} <- ProductSurface.bootstrapped_context(opts),
-         {:ok, decision_ref} <- decision_ref(review_identity) do
-      ReviewSurface.record_decision(
-        context,
-        decision_ref,
-        Map.new(attrs),
-        ProductSurface.operator_opts(config, opts)
-      )
+    with {:ok, %{context: context}} <- ProductSurface.bootstrapped_context(opts) do
+      review_attrs = Map.new(attrs)
+      operator_opts = ProductSurface.operator_opts(config, opts)
+
+      record_review_decision(context, review_identity, review_attrs, operator_opts)
+    end
+  end
+
+  defp record_review_decision(context, review_identity, review_attrs, operator_opts) do
+    case decision_ref(review_identity) do
+      {:ok, decision_ref} ->
+        ReviewSurface.record_decision(context, decision_ref, review_attrs, operator_opts)
+
+      {:error, _reason} ->
+        record_review_decision_by_id(context, review_identity, review_attrs, operator_opts)
+    end
+  end
+
+  defp record_review_decision_by_id(context, review_identity, review_attrs, operator_opts) do
+    with {:ok, decision_id} <- decision_id(review_identity) do
+      ReviewSurface.record_decision_by_id(context, decision_id, review_attrs, operator_opts)
     end
   end
 
@@ -53,6 +66,16 @@ defmodule Extravaganza.Reviews do
               map_value(attrs, :subject_kind) || get_in(attrs, [:subject_ref, :subject_kind])
           }
     })
+  end
+
+  defp decision_id(%DecisionRef{id: id}) when is_binary(id), do: {:ok, id}
+  defp decision_id(%{decision_ref: %DecisionRef{id: id}}) when is_binary(id), do: {:ok, id}
+
+  defp decision_id(attrs) when is_map(attrs) do
+    case map_value(attrs, :id) || get_in(attrs, [:decision_ref, :id]) do
+      id when is_binary(id) and id != "" -> {:ok, id}
+      _missing -> {:error, :missing_decision_id}
+    end
   end
 
   defp map_value(map, key) when is_map(map),

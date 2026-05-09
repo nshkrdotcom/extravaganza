@@ -206,28 +206,28 @@ defmodule Extravaganza.ProductPack do
       ],
       operator_action_specs: [
         %OperatorActionSpec{
-          action_kind: :pause_execution,
+          action_kind: :pause,
           description: "Pause the active coding execution for operator review",
           applicable_states: [:submitted, :awaiting_review, :retry_submission],
           authorized_roles: [:operator],
           effect: :pause_execution
         },
         %OperatorActionSpec{
-          action_kind: :resume_execution,
+          action_kind: :resume,
           description: "Resume a paused coding execution",
           applicable_states: [:submitted, :awaiting_review, :retry_submission],
           authorized_roles: [:operator],
           effect: :resume_execution
         },
         %OperatorActionSpec{
-          action_kind: :cancel_execution,
+          action_kind: :cancel,
           description: "Cancel the active coding execution",
           applicable_states: [:submitted, :awaiting_review, :retry_submission],
           authorized_roles: [:operator],
           effect: :cancel_active_execution
         },
         %OperatorActionSpec{
-          action_kind: :request_rework,
+          action_kind: :rework,
           description: "Return the coding task to retry submission for rework",
           applicable_states: [:awaiting_review],
           authorized_roles: [:operator],

@@ -314,13 +314,13 @@ defmodule ExtravaganzaProductCoreTest do
     assert compiled_pack.evidence_specs_by_kind["source_workpad"].collector_ref ==
              "linear_workpad_ref"
 
-    assert compiled_pack.operator_actions_by_kind["pause_execution"].effect == :pause_execution
-    assert compiled_pack.operator_actions_by_kind["resume_execution"].effect == :resume_execution
+    assert compiled_pack.operator_actions_by_kind["pause"].effect == :pause_execution
+    assert compiled_pack.operator_actions_by_kind["resume"].effect == :resume_execution
 
-    assert compiled_pack.operator_actions_by_kind["cancel_execution"].effect ==
+    assert compiled_pack.operator_actions_by_kind["cancel"].effect ==
              :cancel_active_execution
 
-    assert compiled_pack.operator_actions_by_kind["request_rework"].effect ==
+    assert compiled_pack.operator_actions_by_kind["rework"].effect ==
              {:advance_lifecycle, "retry_submission"}
 
     install_template = ProductInstallTemplate.default(config)
@@ -943,7 +943,7 @@ defmodule ExtravaganzaProductCoreTest do
 
     assert {:ok, accept_result} =
              Reviews.record_review_decision(
-               review_identity(pending_review),
+               %{id: pending_review.decision_ref.id},
                %{decision: :accept, reason: "accepted from product core test"},
                tenant_id: tenant_id,
                pack_version: pack_version
