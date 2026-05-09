@@ -281,6 +281,11 @@ defmodule ExtravaganzaProductCoreTest do
     assert recipe.sandbox_policy_ref == "standard_coding_ops"
     assert recipe.prompt_refs == ["coding_agent_system"]
 
+    assert compiled_pack.context_sources_by_ref["workspace_memory"].binding_key ==
+             "shared_memory"
+
+    assert compiled_pack.context_sources_by_ref["workspace_memory"].required? == false
+
     assert recipe.dynamic_tool_manifest.tools == [
              "linear.comments.update",
              "linear.graphql.execute",
@@ -295,6 +300,7 @@ defmodule ExtravaganzaProductCoreTest do
     assert recipe.max_turns == 12
     assert recipe.stall_timeout_ms == 300_000
     assert ProductPack.profile_slots(config).runtime_profile_ref == :codex_session
+    assert ProductPack.profile_slots(config).memory_profile_ref == :none
 
     review_gate = compiled_pack.decision_specs_by_kind["operator_review"]
 
@@ -392,6 +398,16 @@ defmodule ExtravaganzaProductCoreTest do
              "lower_runtime_kind" => DefaultCodexProfile.lower_runtime_kind(),
              "capability" => DefaultCodexProfile.capability_id(),
              "target" => DefaultCodexProfile.target_ref()
+           }
+
+    assert runtime_config["memory"] == %{
+             "enabled" => false,
+             "memory_profile_ref" => "none",
+             "context_profile_ref" => "outer_brain_optional_context_v1",
+             "required_for_run" => false,
+             "query_class" => "semantic",
+             "max_results" => 3,
+             "redaction_policy_ref" => "redaction://extravaganza/memory/hash-only"
            }
 
     capability_ids =
@@ -869,6 +885,11 @@ defmodule ExtravaganzaProductCoreTest do
 
     assert metadata["live_provider_allowed"] == false
     assert metadata["evidence_profile_ref"] == "github_pr_plus_workpad"
+    assert metadata["memory_profile_ref"] == "none"
+    assert metadata["context_profile_ref"] == "outer_brain_optional_context_v1"
+    assert metadata["memory_context_required"] == false
+    assert metadata["memory_context_source_refs"] == ["workspace_memory"]
+    assert metadata["memory_context_binding_keys"] == ["shared_memory"]
     assert metadata["redaction_profile_ref"] == "redaction://extravaganza/default"
     assert metadata["prompt_context_recipe_refs"] == [CodingOpsTemplates.prompt_ref()]
     assert String.starts_with?(result.payload.workflow_start_ref, "workflow-start-outbox://")

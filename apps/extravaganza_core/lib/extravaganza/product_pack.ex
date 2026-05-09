@@ -8,6 +8,7 @@ defmodule Extravaganza.ProductPack do
   alias Extravaganza.Config
 
   alias Mezzanine.Pack.{
+    ContextSourceSpec,
     DecisionSpec,
     EvidenceSpec,
     ExecutionRecipeSpec,
@@ -84,6 +85,19 @@ defmodule Extravaganza.ProductPack do
           operation: :update_comment,
           template_ref: :operator_review_workpad,
           idempotency_scope: :subject
+        }
+      ],
+      context_source_specs: [
+        %ContextSourceSpec{
+          source_ref: :workspace_memory,
+          description: "Optional OuterBrain workspace memory context",
+          binding_key: :shared_memory,
+          usage_phase: :retrieval,
+          required?: false,
+          timeout_ms: 1_000,
+          schema_ref: "context/workspace_memory",
+          max_fragments: 3,
+          merge_strategy: :ranked_append
         }
       ],
       lifecycle_specs: [

@@ -137,6 +137,15 @@ defmodule Extravaganza.PolicyPresets.DefaultCodingOps do
         "cost_class" => "production",
         "fail_closed" => true
       },
+      "memory" => %{
+        "enabled" => false,
+        "memory_profile_ref" => "none",
+        "context_profile_ref" => "outer_brain_optional_context_v1",
+        "required_for_run" => false,
+        "query_class" => "semantic",
+        "max_results" => 3,
+        "redaction_policy_ref" => "redaction://extravaganza/memory/hash-only"
+      },
       "capability_grants" => [
         %{"capability_id" => "codex.session.turn", "mode" => "allow"},
         %{"capability_id" => "linear.issues.list", "mode" => "allow"},

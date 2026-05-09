@@ -109,10 +109,17 @@ defmodule Extravaganza.Workflows do
       "runtime_params_ref" => "runtime-params://#{config.program_slug}/#{recipe_ref}/default",
       "live_provider_allowed" => false,
       "evidence_profile_ref" => Atom.to_string(slots.evidence_profile_ref),
+      "memory_profile_ref" => Atom.to_string(slots.memory_profile_ref),
+      "context_profile_ref" => memory_config(policy_config)["context_profile_ref"],
+      "memory_context_required" => memory_config(policy_config)["required_for_run"],
+      "memory_context_source_refs" => ["workspace_memory"],
+      "memory_context_binding_keys" => ["shared_memory"],
       "redaction_profile_ref" => "redaction://extravaganza/default",
       "prompt_context_recipe_refs" => [CodingOpsTemplates.prompt_ref()]
     }
   end
+
+  defp memory_config(policy_config), do: Map.get(policy_config, "memory", %{})
 
   defp capability_ids(policy_config) do
     policy_config
