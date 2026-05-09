@@ -404,6 +404,8 @@ defmodule ExtravaganzaProductCoreTest do
              "linear.issues.update",
              "linear.comments.create",
              "linear.comments.update",
+             "linear.users.get_self",
+             "linear.workflow_states.list",
              "linear.graphql.execute",
              "github.pr.create",
              "github.pr.fetch",

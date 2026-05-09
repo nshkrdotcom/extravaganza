@@ -144,6 +144,8 @@ defmodule Extravaganza.PolicyPresets.DefaultCodingOps do
         %{"capability_id" => "linear.issues.update", "mode" => "allow"},
         %{"capability_id" => "linear.comments.create", "mode" => "allow"},
         %{"capability_id" => "linear.comments.update", "mode" => "allow"},
+        %{"capability_id" => "linear.users.get_self", "mode" => "allow"},
+        %{"capability_id" => "linear.workflow_states.list", "mode" => "allow"},
         %{"capability_id" => "linear.graphql.execute", "mode" => "allow"},
         %{"capability_id" => "github.pr.create", "mode" => "allow"},
         %{"capability_id" => "github.pr.fetch", "mode" => "allow"},
