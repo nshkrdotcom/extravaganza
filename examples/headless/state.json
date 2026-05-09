@@ -1,0 +1,11 @@
+{
+  "ok": true,
+  "schema": "extravaganza.headless.response.v1",
+  "operation": "state",
+  "trace_id": "trace:example:state",
+  "data": {
+    "schema_ref": "headless_state_snapshot.v1"
+  },
+  "refs": {},
+  "warnings": []
+}

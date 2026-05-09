@@ -7,9 +7,18 @@ defmodule Extravaganza.HeadlessSurface do
   surfaces only.
   """
 
-  alias AppKit.Core.RuntimeReadback.ControlRequest
+  alias AppKit.Core.RuntimeReadback.{CommandResult, ControlRequest, RuntimeStateSnapshot}
   alias AppKit.HeadlessSurface, as: AppKitHeadlessSurface
-  alias Extravaganza.{AppKitContext, Config, Operators, ProductSurface, Queries, Reviews}
+
+  alias Extravaganza.{
+    AppKitContext,
+    Config,
+    HeadlessReadback,
+    Operators,
+    ProductSurface,
+    Queries,
+    Reviews
+  }
 
   @actor_ref "actor:extravaganza:operator"
 
@@ -17,6 +26,26 @@ defmodule Extravaganza.HeadlessSurface do
   def state_snapshot(params \\ %{}, opts \\ []) when is_map(params) and is_list(opts) do
     with {:ok, %{context: context}} <- context_bundle(opts) do
       AppKitHeadlessSurface.state_snapshot(context, Map.new(params), opts)
+    end
+  end
+
+  @spec operator_queue(map(), keyword()) :: {:ok, map()} | {:error, term()}
+  def operator_queue(params \\ %{}, opts \\ []) when is_map(params) and is_list(opts) do
+    if fixture_context?() do
+      with {:ok, %RuntimeStateSnapshot{} = snapshot} <- state_snapshot(params, opts) do
+        {:ok,
+         %{
+           page: %{
+             entries: snapshot.rows,
+             total_count: length(snapshot.rows),
+             has_more: false,
+             next_cursor: nil
+           },
+           stats: %{"source" => "headless_fixture"}
+         }}
+      end
+    else
+      Queries.operator_queue(params, opts)
     end
   end
 
@@ -40,6 +69,25 @@ defmodule Extravaganza.HeadlessSurface do
       when is_binary(run_id) and is_map(params) and is_list(opts) do
     with {:ok, %{context: context}} <- context_bundle(opts) do
       AppKitHeadlessSurface.run_detail(context, run_id, Map.new(params), opts)
+    end
+  end
+
+  @spec evidence_chain(String.t(), map(), keyword()) :: {:ok, map()} | {:error, term()}
+  def evidence_chain(run_id, params \\ %{}, opts \\ [])
+      when is_binary(run_id) and is_map(params) and is_list(opts) do
+    with {:ok, run} <- run_detail(run_id, params, opts) do
+      {:ok, HeadlessReadback.evidence_chain(run)}
+    end
+  end
+
+  @spec events(map(), keyword()) :: {:ok, map()} | {:error, term()}
+  def events(params \\ %{}, opts \\ []) when is_map(params) and is_list(opts) do
+    with run_id when is_binary(run_id) <- map_value(params, :run_id) || map_value(params, :run),
+         {:ok, run} <- run_detail(run_id, params, opts) do
+      {:ok, HeadlessReadback.event_page(run, params)}
+    else
+      nil -> {:error, :bad_request}
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -90,13 +138,31 @@ defmodule Extravaganza.HeadlessSurface do
 
   @spec list_reviews(map(), keyword()) :: {:ok, map()} | {:error, term()}
   def list_reviews(params \\ %{}, opts \\ []) when is_map(params) and is_list(opts) do
-    Queries.pending_reviews(params, opts)
+    if fixture_context?(),
+      do: {:ok, fixture_reviews()},
+      else: Queries.pending_reviews(params, opts)
   end
 
   @spec record_review_decision(map(), map(), keyword()) :: {:ok, map()} | {:error, term()}
   def record_review_decision(review_identity, attrs \\ %{}, opts \\ [])
       when is_map(review_identity) and is_map(attrs) and is_list(opts) do
-    Reviews.record_review_decision(review_identity, attrs, opts)
+    if fixture_context?() do
+      fixture_review_decision(review_identity, attrs)
+    else
+      Reviews.record_review_decision(review_identity, attrs, opts)
+    end
+  end
+
+  @spec source_publication_preview(String.t(), keyword()) :: {:ok, map()} | {:error, term()}
+  def source_publication_preview(subject_id, opts \\ [])
+      when is_binary(subject_id) and is_list(opts) do
+    if fixture_context?() do
+      with {:ok, evidence} <- evidence_chain("run:fixture", %{"subject_id" => subject_id}, opts) do
+        {:ok, Map.fetch!(evidence, "source_publication")}
+      end
+    else
+      Operators.source_publication_preview(subject_id, opts)
+    end
   end
 
   defp normalize_control_action(action)
@@ -124,6 +190,55 @@ defmodule Extravaganza.HeadlessSurface do
     else
       ProductSurface.bootstrapped_context(opts)
     end
+  end
+
+  defp fixture_context?,
+    do: Application.get_env(:extravaganza_core, :headless_fixture_context?, false)
+
+  defp fixture_reviews do
+    %{
+      page: %{
+        entries: [
+          %{
+            decision_ref: %{
+              id: "decision:fixture",
+              decision_kind: "operator_review",
+              subject_id: "subject:fixture",
+              subject_kind: "linear_issue"
+            },
+            subject_ref: %{id: "subject:fixture", subject_kind: "linear_issue"},
+            status: "pending",
+            summary: "Fixture review pending",
+            required_by: "2026-05-08T00:00:00Z"
+          }
+        ],
+        total_count: 1,
+        has_more: false,
+        next_cursor: nil
+      }
+    }
+  end
+
+  defp fixture_review_decision(review_identity, attrs) do
+    decision_id = map_value(review_identity, :id) || "decision:fixture"
+    decision = map_value(attrs, :decision) || "accept"
+
+    CommandResult.new(%{
+      command_ref: "command://review/#{decision_id}",
+      command_kind: :review_decision,
+      accepted?: true,
+      coalesced?: false,
+      status: :accepted,
+      authority_state: :allowed,
+      authority_refs: ["authority:fixture"],
+      workflow_effect_state: "pending_signal",
+      projection_state: :pending,
+      trace_id: "trace:fixture:review",
+      correlation_id: "corr:fixture-review",
+      receipt_ref: "review-decision:fixture:#{decision}",
+      idempotency_key: map_value(attrs, :idempotency_key) || "idem:fixture-review",
+      message: "Fixture review decision accepted"
+    })
   end
 
   defp idempotency_key(attrs, fallback) do

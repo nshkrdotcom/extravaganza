@@ -9,7 +9,43 @@
     "workflow_ref": "workflow:fixture",
     "state": "running",
     "updated_at": "2026-04-27T00:09:00Z",
-    "workspace_ref": {"id": "workspace:fixture", "display_label": "Fixture workspace", "path_redacted?": true}
+    "workspace_ref": {"id": "workspace:fixture", "display_label": "Fixture workspace", "path_redacted?": true},
+    "extensions": {
+      "governance": {
+        "runtime_profile_ref": "runtime-profile:local-deterministic",
+        "runtime_profile_kind": "mickey_mouse",
+        "authority_ref": "authority:fixture",
+        "decision_ref": "authority-decision:fixture",
+        "connector_manifest_ref": "manifest:fixture",
+        "connector_manifest_state": "active",
+        "capability_negotiation_ref": "capability-negotiation:fixture"
+      },
+      "lower_envelope": {
+        "lower_request_ref": "lower-request:fixture",
+        "lower_runtime_kind": "deterministic_fixture",
+        "capability_id": "codex.session.turn",
+        "sandbox_profile_ref": "sandbox:fixture",
+        "attestation_requirement_ref": "attestation:fixture",
+        "policy_profile_ref": "policy-profile:fixture",
+        "resource_scope_refs": ["resource-scope:fixture"]
+      },
+      "lower_receipt": {
+        "lower_receipt_ref": "lower-receipt:fixture",
+        "attempt_ref": "attempt:fixture:1",
+        "status": "succeeded"
+      },
+      "retry_receipts": [{"retry_receipt_ref": "retry-receipt:fixture:none", "status": "not_needed"}],
+      "incident_bundles": [],
+      "acceptance": {
+        "scenario_refs": ["stacklab-scenario:headless-local-fixture"],
+        "acceptance_receipt_ref": "acceptance:fixture"
+      },
+      "source_publication": {
+        "source_publication_receipt_ref": "source-publication:fixture",
+        "source_ref": "linear-comment:fixture",
+        "mode": "deterministic_preview"
+      }
+    }
   },
   "events": [
     {"event_ref": "event:run:2", "event_seq": 2, "event_kind": "lower_receipt_observed", "observed_at": "2026-04-27T00:02:00Z", "run_ref": "run:fixture", "message_summary": "Lower receipt observed"},

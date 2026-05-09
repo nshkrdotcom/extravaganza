@@ -1,0 +1,17 @@
+{
+  "ok": true,
+  "schema": "extravaganza.headless.response.v1",
+  "operation": "run",
+  "trace_id": "trace:example:run",
+  "runtime_profile_ref": "runtime-profile:local-deterministic",
+  "data": {
+    "schema_ref": "headless_run_detail.v1"
+  },
+  "refs": {
+    "run_ref": "run:fixture",
+    "authority_ref": "authority:fixture",
+    "lower_request_ref": "lower-request:fixture",
+    "lower_receipt_ref": "lower-receipt:fixture"
+  },
+  "warnings": []
+}

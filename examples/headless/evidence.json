@@ -1,0 +1,16 @@
+{
+  "ok": true,
+  "schema": "extravaganza.headless.response.v1",
+  "operation": "evidence",
+  "trace_id": "trace:example:evidence",
+  "runtime_profile_ref": "runtime-profile:local-deterministic",
+  "data": {
+    "schema_ref": "headless_evidence_chain.v1"
+  },
+  "refs": {
+    "run_ref": "run:fixture",
+    "authority_ref": "authority:fixture",
+    "source_publication_ref": "source-publication:fixture"
+  },
+  "warnings": []
+}

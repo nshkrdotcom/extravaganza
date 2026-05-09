@@ -1,0 +1,13 @@
+{
+  "ok": false,
+  "schema": "extravaganza.headless.error.v1",
+  "operation": "run_detail",
+  "trace_id": "trace:example:error",
+  "error": {
+    "code": "projection_unavailable",
+    "message": "runtime projection is not available for this run",
+    "class": "readback_unavailable",
+    "retryable": true,
+    "missing_refs": ["projection_ref"]
+  }
+}

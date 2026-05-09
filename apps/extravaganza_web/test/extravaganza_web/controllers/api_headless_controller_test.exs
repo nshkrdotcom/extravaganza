@@ -32,10 +32,19 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
     conn = get(conn, ~p"/api/v1/state")
     body = json_response(conn, 200)
 
-    assert body["schema_ref"] == "headless_state_snapshot.v1"
-    assert body["data"]["page"] == %{"page_size" => 25, "cursor" => nil, "total_entries" => 9}
-    assert Enum.any?(body["data"]["rows"], &(&1["state"] == "running"))
-    assert body["data"]["turns"] == []
+    assert body["ok"] == true
+    assert body["schema"] == "extravaganza.headless.response.v1"
+    assert body["operation"] == "state"
+    assert body["data"]["schema_ref"] == "headless_state_snapshot.v1"
+
+    assert body["data"]["data"]["page"] == %{
+             "page_size" => 25,
+             "cursor" => nil,
+             "total_entries" => 9
+           }
+
+    assert Enum.any?(body["data"]["data"]["rows"], &(&1["state"] == "running"))
+    assert body["data"]["data"]["turns"] == []
 
     encoded = Jason.encode!(body)
     refute String.contains?(encoded, "workspace_path")
@@ -49,19 +58,31 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
     subject = get(conn, ~p"/api/v1/subjects/subject:fixture") |> json_response(200)
     issue = get(conn, ~p"/api/v1/ENG-42") |> json_response(200)
 
-    assert subject["schema_ref"] == "headless_subject_detail.v1"
-    assert issue["schema_ref"] == "headless_subject_detail.v1"
-    assert subject["data"]["agent_loop_diagnostics"] == []
-    assert Enum.any?(subject["data"]["events"], &(&1["event_kind"] == "future_m2_state_added"))
+    assert subject["operation"] == "subject"
+    assert issue["operation"] == "subject"
+    assert subject["data"]["schema_ref"] == "headless_subject_detail.v1"
+    assert issue["data"]["schema_ref"] == "headless_subject_detail.v1"
+    assert subject["data"]["data"]["agent_loop_diagnostics"] == []
+
+    assert Enum.any?(
+             subject["data"]["data"]["events"],
+             &(&1["event_kind"] == "future_m2_state_added")
+           )
   end
 
   test "GET /api/v1/runs/:run_id returns ordered events and M2-safe slots", %{conn: conn} do
     body = get(conn, ~p"/api/v1/runs/run:fixture") |> json_response(200)
 
-    assert body["schema_ref"] == "headless_run_detail.v1"
-    assert Enum.map(body["data"]["events"], & &1["event_ref"]) == ["event:run:1", "event:run:2"]
-    assert body["data"]["candidate_fact_refs"] == []
-    assert body["data"]["memory_proof_refs"] == []
+    assert body["operation"] == "run"
+    assert body["data"]["schema_ref"] == "headless_run_detail.v1"
+
+    assert Enum.map(body["data"]["data"]["events"], & &1["event_ref"]) == [
+             "event:run:1",
+             "event:run:2"
+           ]
+
+    assert body["data"]["data"]["candidate_fact_refs"] == []
+    assert body["data"]["data"]["memory_proof_refs"] == []
   end
 
   test "POST refresh and control return command result envelopes", %{conn: conn} do
@@ -69,9 +90,10 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
       post(conn, ~p"/api/v1/refresh", %{"idempotency_key" => "idem:api-refresh"})
       |> json_response(200)
 
-    assert refresh["schema_ref"] == "headless_command_result.v1"
-    assert refresh["data"]["command_kind"] == "refresh"
-    assert refresh["data"]["workflow_effect_state"] == "pending_signal"
+    assert refresh["operation"] == "refresh"
+    assert refresh["data"]["schema_ref"] == "headless_command_result.v1"
+    assert refresh["data"]["data"]["command_kind"] == "refresh"
+    assert refresh["data"]["data"]["workflow_effect_state"] == "pending_signal"
 
     denied =
       post(conn, ~p"/api/v1/subjects/subject:fixture/actions/cancel", %{
@@ -80,8 +102,26 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
       })
       |> json_response(200)
 
-    assert denied["data"]["accepted?"] == false
-    assert denied["data"]["workflow_effect_state"] == "rejected_by_authority"
+    assert denied["operation"] == "control"
+    assert denied["data"]["data"]["accepted?"] == false
+    assert denied["data"]["data"]["workflow_effect_state"] == "rejected_by_authority"
+  end
+
+  test "GET evidence and events use the same standard envelope", %{conn: conn} do
+    evidence = get(conn, ~p"/api/v1/runs/run:fixture/evidence") |> json_response(200)
+    events = get(conn, ~p"/api/v1/events?run_id=run:fixture") |> json_response(200)
+
+    assert evidence["operation"] == "evidence"
+    assert evidence["data"]["schema_ref"] == "headless_evidence_chain.v1"
+    assert evidence["refs"]["authority_ref"] == "authority:fixture"
+
+    assert events["operation"] == "events"
+    assert events["data"]["schema_ref"] == "headless_events.v1"
+
+    assert Enum.map(events["data"]["data"]["entries"], & &1["event_ref"]) == [
+             "event:run:1",
+             "event:run:2"
+           ]
   end
 
   test "standard JSON error envelope maps unavailable states", %{conn: conn} do
@@ -92,8 +132,10 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
 
     body = get(conn, ~p"/api/v1/state") |> json_response(503)
 
+    assert body["ok"] == false
+    assert body["schema"] == "extravaganza.headless.error.v1"
     assert body["error"]["code"] == "unavailable"
-    assert is_binary(body["error"]["correlation_id"])
+    assert is_binary(body["trace_id"])
   end
 
   defmodule UnavailableBackend do

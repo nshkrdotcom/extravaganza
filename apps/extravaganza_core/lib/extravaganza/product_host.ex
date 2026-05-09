@@ -37,6 +37,17 @@ defmodule Extravaganza.ProductHost do
     HeadlessSurface.run_detail(run_id, attrs, opts)
   end
 
+  @spec evidence_chain(String.t(), map(), keyword()) :: {:ok, map()} | {:error, term()}
+  def evidence_chain(run_id, attrs \\ %{}, opts \\ [])
+      when is_binary(run_id) and is_map(attrs) and is_list(opts) do
+    HeadlessSurface.evidence_chain(run_id, attrs, opts)
+  end
+
+  @spec events(map(), keyword()) :: {:ok, map()} | {:error, term()}
+  def events(params \\ %{}, opts \\ []) when is_map(params) and is_list(opts) do
+    HeadlessSurface.events(params, opts)
+  end
+
   @spec request_refresh(map(), keyword()) :: {:ok, struct()} | {:error, term()}
   def request_refresh(attrs \\ %{}, opts \\ []) when is_map(attrs) and is_list(opts) do
     HeadlessSurface.request_refresh(attrs, opts)
@@ -63,7 +74,7 @@ defmodule Extravaganza.ProductHost do
   @spec source_publication_preview(String.t(), keyword()) :: {:ok, map()} | {:error, term()}
   def source_publication_preview(subject_id, opts \\ [])
       when is_binary(subject_id) and is_list(opts) do
-    Operators.source_publication_preview(subject_id, opts)
+    HeadlessSurface.source_publication_preview(subject_id, opts)
   end
 
   @spec apply_subject_action(String.t(), atom() | String.t(), map(), keyword()) ::

@@ -1,0 +1,14 @@
+{
+  "ok": true,
+  "schema": "extravaganza.headless.response.v1",
+  "operation": "events",
+  "trace_id": "trace:example:events",
+  "data": {
+    "schema_ref": "headless_events.v1"
+  },
+  "refs": {
+    "run_ref": "run:fixture",
+    "event_page_ref": "event-page:run:fixture"
+  },
+  "warnings": []
+}
