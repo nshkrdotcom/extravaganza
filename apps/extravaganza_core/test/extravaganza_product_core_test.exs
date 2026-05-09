@@ -867,6 +867,10 @@ defmodule ExtravaganzaProductCoreTest do
     assert metadata["evidence_profile_ref"] == "github_pr_plus_workpad"
     assert metadata["redaction_profile_ref"] == "redaction://extravaganza/default"
     assert metadata["prompt_context_recipe_refs"] == [CodingOpsTemplates.prompt_ref()]
+    assert String.starts_with?(result.payload.workflow_start_ref, "workflow-start-outbox://")
+    assert String.starts_with?(result.payload.workflow_start_outbox_id, "workflow-start:")
+    assert result.payload.workflow_dispatch_state == "queued"
+    assert result.payload.workflow_start_ref == result.payload.run_ref.metadata.workflow_start_ref
   end
 
   test "product-local query facade lists the operator queue through app kit", %{
