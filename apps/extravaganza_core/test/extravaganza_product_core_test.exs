@@ -1351,6 +1351,113 @@ defmodule ExtravaganzaProductCoreTest do
     assert Enum.any?(queue.page.entries, &(&1.subject_ref.id == result.payload.work_object_id))
   end
 
+  test "product-owned local acceptance covers the full headless run and review path", %{
+    tenant_id: tenant_id,
+    pack_version: pack_version
+  } do
+    activate_fixture_registration!(tenant_id: tenant_id, pack_version: pack_version)
+
+    assert {:ok, start_result} =
+             ProductHost.start_run(
+               %{
+                 external_ref: "linear:ENG-950",
+                 title: "Product-owned local acceptance",
+                 description: "Prove the local product path from Extravaganza",
+                 source_kind: "linear",
+                 payload: %{"issue_id" => "ENG-950"},
+                 normalized_payload: %{"issue_id" => "ENG-950"}
+               },
+               tenant_id: tenant_id,
+               pack_version: pack_version
+             )
+
+    assert start_result.surface == :work_control
+    assert start_result.state == :waiting_review
+
+    assert String.starts_with?(
+             start_result.payload.workflow_start_ref,
+             "workflow-start-outbox://"
+           )
+
+    assert start_result.payload.workflow_dispatch_state == "queued"
+
+    metadata = start_result.payload.run_request_metadata
+
+    assert metadata["runtime_profile_ref"] == "codex_session"
+    assert metadata["runtime_profile_kind"] == "temporal_local"
+    assert metadata["lower_runtime_kind"] == "codex_session"
+    assert metadata["requested_action_ids"] == ["codex.session.turn"]
+    assert "codex.session.turn" in metadata["requested_capability_ids"]
+    assert "linear.comments.update" in metadata["requested_capability_ids"]
+    assert "source_binding://linear_primary" in metadata["resource_scope_refs"]
+    assert metadata["live_provider_allowed"] == false
+
+    assert {:ok, status} =
+             ProductHost.run_status(start_result.payload.run_ref, %{}, tenant_id: tenant_id)
+
+    assert status.work_object_id == start_result.payload.work_object_id
+    assert is_list(status.timeline)
+
+    assert {:ok, queue} =
+             ProductHost.operator_queue(%{}, tenant_id: tenant_id, pack_version: pack_version)
+
+    assert Enum.any?(
+             queue.page.entries,
+             &(&1.subject_ref.id == start_result.payload.work_object_id)
+           )
+
+    assert {:ok, reviews_page} =
+             ProductHost.pending_reviews(%{}, tenant_id: tenant_id, pack_version: pack_version)
+
+    pending_review =
+      Enum.find(
+        reviews_page.page.entries,
+        &(&1.subject_ref.id == start_result.payload.work_object_id)
+      ) || flunk("expected pending review for #{start_result.payload.work_object_id}")
+
+    assert {:ok, review_result} =
+             ProductHost.record_review_decision(
+               review_identity(pending_review),
+               %{decision: :accept, reason: "accepted by product-owned local acceptance"},
+               tenant_id: tenant_id,
+               pack_version: pack_version
+             )
+
+    assert review_result.status == :completed
+    assert review_result.action_ref.action_kind in ["review_accept", "review_run"]
+
+    assert {:ok, after_reviews_page} =
+             ProductHost.pending_reviews(%{}, tenant_id: tenant_id, pack_version: pack_version)
+
+    refute Enum.any?(
+             after_reviews_page.page.entries,
+             &(&1.decision_ref.id == pending_review.decision_ref.id)
+           )
+
+    assert {:ok, preview} =
+             ProductHost.source_publication_preview(
+               start_result.payload.work_object_id,
+               tenant_id: tenant_id,
+               pack_version: pack_version,
+               work_query_backend: FakeRuntimeProjectionBackend
+             )
+
+    assert preview.publish_ref == "linear_workpad_review"
+    assert preview.operation == :update_comment
+    assert preview.source_binding_ref == "linear_primary"
+    assert preview.lower_receipt_refs == ["receipt://terminal-success"]
+
+    assert preview.evidence_refs == [
+             "evidence://github-pr",
+             "evidence://codex-session",
+             "evidence://source-workpad"
+           ]
+
+    assert String.contains?(preview.body, "Operator Review Workpad")
+    assert String.contains?(preview.body, "github_pr")
+    assert String.contains?(preview.body, "codex.session.completed=1")
+  end
+
   defp activate_fixture_registration!(opts) do
     pack_slug = ProductPack.pack_slug(opts)
     pack_version = ProductPack.pack_version(opts)
