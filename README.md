@@ -80,13 +80,14 @@ both `product` and `hazmat` profiles so it is a hard rule, not a convention.
 
 ## Default product pack
 
-The coding-ops product pack declares the Linear-to-governed-Codex review lane
-and has deterministic v1 executable evidence for product pack bounds,
+The coding-ops product pack declares the Linear-to-governed-Codex review lane.
+Current deterministic fixture evidence covers product pack bounds,
 authoring-bundle activation, tenant and authority admission, governed Codex
-strict-mode materialization, deterministic receipt projection, governed
-operator controls, and restart/fencing. Optional live provider smoke is not
-part of the v1 release evidence; live Linear, GitHub, or Codex execution is
-not claimed until disposable-auth smoke runs through the governed path.
+strict-mode materialization, deterministic receipt-shaped projection, governed
+operator controls, and restart/fencing. That fixture evidence is not product
+completion: the non-fixture headless start path, same-run deterministic smoke,
+and live Linear, GitHub, or Codex examples must run through the product-owned
+Extravaganza command path before headless completion is claimed.
 
 | Dimension | Default |
 |---|---|

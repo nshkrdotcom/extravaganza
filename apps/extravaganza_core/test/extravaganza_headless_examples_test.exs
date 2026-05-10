@@ -88,6 +88,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     for path <- [
           "scripts/headless/state.exs",
           "scripts/headless/start_fixture_run.exs",
+          "scripts/headless/assert_non_fixture_start.exs",
           "scripts/headless/run_detail.exs",
           "scripts/headless/review_decision.exs",
           "scripts/headless/evidence_chain.exs"
