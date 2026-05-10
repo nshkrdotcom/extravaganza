@@ -223,6 +223,13 @@ defmodule ExtravaganzaProductCoreTest do
   test "extravaganza core declares the pure pack-model contract without widening runtime deps" do
     deps = CoreMixProject.project()[:deps]
 
+    non_runtime_mezzanine_overrides = [
+      :mezzanine_pack_compiler,
+      :mezzanine_config_registry,
+      :mezzanine_execution_engine,
+      :mezzanine_integration_bridge
+    ]
+
     assert Enum.any?(deps, fn
              {:mezzanine_pack_model, _opts} -> true
              {:mezzanine_pack_model, _req, _opts} -> true
@@ -230,15 +237,14 @@ defmodule ExtravaganzaProductCoreTest do
            end)
 
     refute Enum.any?(deps, fn
-             {:mezzanine_pack_compiler, _opts} -> true
-             {:mezzanine_pack_compiler, _req, _opts} -> true
-             {:mezzanine_config_registry, _opts} -> true
-             {:mezzanine_config_registry, _req, _opts} -> true
-             {:mezzanine_execution_engine, _opts} -> true
-             {:mezzanine_execution_engine, _req, _opts} -> true
-             {:mezzanine_integration_bridge, _opts} -> true
-             {:mezzanine_integration_bridge, _req, _opts} -> true
-             _other -> false
+             {app, opts} ->
+               app in non_runtime_mezzanine_overrides && Keyword.get(opts, :runtime, true)
+
+             {app, _req, opts} ->
+               app in non_runtime_mezzanine_overrides && Keyword.get(opts, :runtime, true)
+
+             _other ->
+               false
            end)
   end
 

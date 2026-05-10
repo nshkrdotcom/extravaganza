@@ -5,6 +5,7 @@ end
 defmodule Extravaganza.MixProject do
   use Mix.Project
 
+  @repo_root __DIR__
   @version "0.1.0"
   @source_url "https://github.com/nshkrdotcom/extravaganza"
 
@@ -35,11 +36,13 @@ defmodule Extravaganza.MixProject do
   end
 
   defp deps do
-    [
+    tooling_deps = [
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:ex_doc, "~> 0.40.1", only: [:dev, :test], runtime: false}
     ]
+
+    tooling_deps ++ DependencySources.deps(@repo_root)
   end
 
   defp aliases do

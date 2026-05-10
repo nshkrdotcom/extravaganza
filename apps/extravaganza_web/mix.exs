@@ -42,7 +42,7 @@ defmodule ExtravaganzaWeb.MixProject do
   defp deps do
     [
       {:extravaganza_core, in_umbrella: true},
-      DependencySources.dep(:app_kit_operator_console, @repo_root),
+      DependencySources.dep(:app_kit_operator_console, @repo_root, override: true),
       {:phoenix, "~> 1.8.1"},
       {:phoenix_html, "~> 4.1"},
       {:phoenix_live_view, "~> 1.1.0"},

@@ -8,6 +8,16 @@ defmodule ExtravaganzaCore.MixProject do
   @version "0.1.0"
   @source_url "https://github.com/nshkrdotcom/extravaganza"
   @repo_root Path.expand("../..", __DIR__)
+  @runtime_dependency_apps [
+    :app_kit_core,
+    :mezzanine_pack_model,
+    :app_kit_installation_surface,
+    :app_kit_prompt_surface,
+    :app_kit_work_surface,
+    :app_kit_work_control,
+    :app_kit_review_surface,
+    :app_kit_operator_surface
+  ]
 
   def project do
     [
@@ -45,17 +55,12 @@ defmodule ExtravaganzaCore.MixProject do
   end
 
   defp deps do
-    [
-      {:jason, "~> 1.4"},
-      DependencySources.dep(:app_kit_core, @repo_root),
-      DependencySources.dep(:mezzanine_pack_model, @repo_root),
-      DependencySources.dep(:app_kit_installation_surface, @repo_root),
-      DependencySources.dep(:app_kit_prompt_surface, @repo_root),
-      DependencySources.dep(:app_kit_work_surface, @repo_root),
-      DependencySources.dep(:app_kit_work_control, @repo_root),
-      DependencySources.dep(:app_kit_review_surface, @repo_root),
-      DependencySources.dep(:app_kit_operator_surface, @repo_root)
-    ]
+    [{:jason, "~> 1.4"}] ++
+      dependency_sources(@runtime_dependency_apps, override: true)
+  end
+
+  defp dependency_sources(apps, opts) do
+    Enum.map(apps, &DependencySources.dep(&1, @repo_root, opts))
   end
 
   defp elixirc_paths(:test), do: ["lib", "test/support"]
