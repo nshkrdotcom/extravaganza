@@ -3,6 +3,7 @@
 /deps/
 /doc/
 /tmp/
+/.dependency_sources.local.exs
 erl_crash.dump
 *.ez
 extravaganza-*.tar

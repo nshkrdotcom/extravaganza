@@ -1,3 +1,7 @@
+unless Code.ensure_loaded?(DependencySources) do
+  Code.require_file("build_support/dependency_sources.exs", __DIR__)
+end
+
 defmodule Extravaganza.MixProject do
   use Mix.Project
 

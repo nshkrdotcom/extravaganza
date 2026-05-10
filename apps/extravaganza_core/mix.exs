@@ -1,8 +1,13 @@
+unless Code.ensure_loaded?(DependencySources) do
+  Code.require_file("../../build_support/dependency_sources.exs", __DIR__)
+end
+
 defmodule ExtravaganzaCore.MixProject do
   use Mix.Project
 
   @version "0.1.0"
   @source_url "https://github.com/nshkrdotcom/extravaganza"
+  @repo_root Path.expand("../..", __DIR__)
 
   def project do
     [
@@ -42,14 +47,14 @@ defmodule ExtravaganzaCore.MixProject do
   defp deps do
     [
       {:jason, "~> 1.4"},
-      {:app_kit_core, path: "../../../app_kit/core/app_kit_core"},
-      {:mezzanine_pack_model, path: "../../../mezzanine/core/pack_model"},
-      {:app_kit_installation_surface, path: "../../../app_kit/core/installation_surface"},
-      {:app_kit_prompt_surface, path: "../../../app_kit/core/prompt_surface"},
-      {:app_kit_work_surface, path: "../../../app_kit/core/work_surface"},
-      {:app_kit_work_control, path: "../../../app_kit/core/work_control"},
-      {:app_kit_review_surface, path: "../../../app_kit/core/review_surface"},
-      {:app_kit_operator_surface, path: "../../../app_kit/core/operator_surface"}
+      DependencySources.dep(:app_kit_core, @repo_root),
+      DependencySources.dep(:mezzanine_pack_model, @repo_root),
+      DependencySources.dep(:app_kit_installation_surface, @repo_root),
+      DependencySources.dep(:app_kit_prompt_surface, @repo_root),
+      DependencySources.dep(:app_kit_work_surface, @repo_root),
+      DependencySources.dep(:app_kit_work_control, @repo_root),
+      DependencySources.dep(:app_kit_review_surface, @repo_root),
+      DependencySources.dep(:app_kit_operator_surface, @repo_root)
     ]
   end
 
