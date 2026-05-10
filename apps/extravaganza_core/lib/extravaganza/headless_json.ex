@@ -9,6 +9,7 @@ defmodule Extravaganza.HeadlessJSON do
   @forbidden_keys ~w[
     api_key auth_json authorization_header provider_payload raw_secret raw_token
     target_credentials token_file workspace_path local_path raw_provider_payload secret
+    lease_token attach_token
   ]
 
   @spec success(atom() | String.t(), term(), map() | keyword()) :: map()
@@ -86,6 +87,10 @@ defmodule Extravaganza.HeadlessJSON do
     |> put_ref("idempotency_key", first_path(data, idempotency_paths()))
   end
 
+  def sanitize(%DateTime{} = value), do: DateTime.to_iso8601(value)
+  def sanitize(%NaiveDateTime{} = value), do: NaiveDateTime.to_iso8601(value)
+  def sanitize(%Date{} = value), do: Date.to_iso8601(value)
+  def sanitize(%Time{} = value), do: Time.to_iso8601(value)
   def sanitize(%_{} = value), do: value |> Map.from_struct() |> sanitize()
 
   def sanitize(%{} = map) do
@@ -95,7 +100,7 @@ defmodule Extravaganza.HeadlessJSON do
   end
 
   def sanitize(values) when is_list(values), do: Enum.map(values, &sanitize/1)
-  def sanitize(%DateTime{} = value), do: DateTime.to_iso8601(value)
+  def sanitize(value) when is_tuple(value), do: value |> Tuple.to_list() |> sanitize()
   def sanitize(nil), do: nil
   def sanitize(true), do: true
   def sanitize(false), do: false
@@ -276,6 +281,18 @@ defmodule Extravaganza.HeadlessJSON do
       "retryable" => false,
       "missing_refs" => []
     }
+  end
+
+  defp error_attrs(%AppKit.Core.SurfaceError{} = error) do
+    %{
+      "code" => error.code,
+      "message" => error.message,
+      "class" => error.kind || "surface_error",
+      "retryable" => error.retryable == true,
+      "missing_refs" => [],
+      "details" => sanitize(error.details || %{})
+    }
+    |> compact()
   end
 
   defp error_attrs(reason) do

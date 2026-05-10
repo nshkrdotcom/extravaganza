@@ -24,6 +24,7 @@ defmodule ExtravaganzaProductCoreTest do
     CodingOpsTemplates,
     Config,
     DefaultAuthoringBundle,
+    HeadlessSameRunSmoke,
     PolicyPresets,
     ProductBootstrap,
     ProductHost,
@@ -1462,6 +1463,50 @@ defmodule ExtravaganzaProductCoreTest do
     assert String.contains?(preview.body, "Operator Review Workpad")
     assert String.contains?(preview.body, "github_pr")
     assert String.contains?(preview.body, "codex.session.completed=1")
+  end
+
+  test "same-run deterministic smoke keeps all public readbacks on one subject and run", %{
+    tenant_id: tenant_id,
+    pack_version: pack_version
+  } do
+    assert {:ok, smoke} =
+             ProductHost.same_run_smoke(tenant_id: tenant_id, pack_version: pack_version)
+
+    proof = Map.fetch!(smoke, "proof")
+
+    assert proof["proof_class"] == "product_same_run_deterministic"
+    assert proof["all_readbacks_share_refs"] == true
+    assert is_binary(proof["subject_ref"])
+    assert is_binary(proof["run_ref"])
+    assert is_binary(proof["workflow_ref"])
+
+    readback_names = Enum.map(proof["readbacks"], & &1["name"])
+
+    assert readback_names == [
+             "state",
+             "queue",
+             "subject",
+             "run",
+             "evidence",
+             "events",
+             "reviews",
+             "review_decision",
+             "source_preview",
+             "source_publication",
+             "refresh",
+             "control",
+             "read_lease",
+             "stream_attach_lease"
+           ]
+
+    assert :ok = HeadlessSameRunSmoke.assert_same_run!(proof)
+
+    mismatched =
+      update_in(proof, ["readbacks", Access.at!(0), "run_ref"], fn _ -> "run://mismatch" end)
+
+    assert_raise ArgumentError, ~r/same-run readback refs diverged: state/, fn ->
+      HeadlessSameRunSmoke.assert_same_run!(mismatched)
+    end
   end
 
   defp activate_fixture_registration!(opts) do

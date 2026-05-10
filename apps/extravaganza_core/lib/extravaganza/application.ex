@@ -5,11 +5,23 @@ defmodule Extravaganza.Application do
 
   @impl true
   def start(_type, _args) do
-    children = [
-      Extravaganza.BootstrapWorker
-    ]
+    children =
+      configured_repo_children() ++
+        [
+          Extravaganza.BootstrapWorker
+        ]
 
     opts = [strategy: :one_for_one, name: Extravaganza.Supervisor]
     Supervisor.start_link(children, opts)
   end
+
+  defp configured_repo_children do
+    :extravaganza_core
+    |> Application.get_env(:ecto_repos, [])
+    |> Enum.uniq()
+    |> Enum.reject(&repo_started?/1)
+    |> Enum.map(&{&1, []})
+  end
+
+  defp repo_started?(repo), do: is_pid(Process.whereis(repo))
 end

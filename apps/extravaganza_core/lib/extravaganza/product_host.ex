@@ -3,7 +3,14 @@ defmodule Extravaganza.ProductHost do
   Product-local operator host facade over the current AppKit surfaces.
   """
 
-  alias Extravaganza.{HeadlessSurface, Operators, Queries, Reviews, Workflows}
+  alias Extravaganza.{
+    HeadlessSameRunSmoke,
+    HeadlessSurface,
+    Operators,
+    Queries,
+    Reviews,
+    Workflows
+  }
 
   @spec state_snapshot(map(), keyword()) :: {:ok, struct()} | {:error, term()}
   def state_snapshot(params \\ %{}, opts \\ []) when is_map(params) and is_list(opts) do
@@ -23,6 +30,11 @@ defmodule Extravaganza.ProductHost do
   @spec start_run(map(), keyword()) :: {:ok, AppKit.Core.Result.t()} | {:error, term()}
   def start_run(domain_call, opts \\ []) when is_map(domain_call) and is_list(opts) do
     Workflows.start_run(domain_call, opts)
+  end
+
+  @spec same_run_smoke(keyword() | map()) :: {:ok, map()} | {:error, term()}
+  def same_run_smoke(opts \\ []) do
+    HeadlessSameRunSmoke.run(opts)
   end
 
   @spec run_status(AppKit.Core.RunRef.t(), map(), keyword()) :: {:ok, map()} | {:error, term()}
