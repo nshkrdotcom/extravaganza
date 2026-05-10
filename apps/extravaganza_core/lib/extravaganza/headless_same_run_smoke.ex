@@ -1,8 +1,6 @@
 defmodule Extravaganza.HeadlessSameRunSmoke do
   @moduledoc false
 
-  alias AppKit.Core.{ExecutionRef, SubjectRef}
-
   alias AppKit.Core.RuntimeReadback.RuntimeRunDetail
   alias Extravaganza.{HeadlessJSON, ProductHost}
 
@@ -129,6 +127,7 @@ defmodule Extravaganza.HeadlessSameRunSmoke do
     metadata = run_ref.metadata || %{}
     subject_ref = Map.fetch!(payload, :work_object_id)
     workflow_ref = Map.fetch!(payload, :workflow_start_ref)
+    execution_id = Map.fetch!(payload, :execution_id)
 
     {:ok,
      %{
@@ -136,17 +135,16 @@ defmodule Extravaganza.HeadlessSameRunSmoke do
        run_ref: run_ref.run_id,
        workflow_ref: workflow_ref,
        runtime_profile_ref: Map.get(metadata, :runtime_profile_ref),
-       authority_ref: "authority://deterministic-same-run/#{run_ref.run_id}",
-       decision_ref: "decision://deterministic-same-run/#{run_ref.run_id}",
-       connector_manifest_ref: "connector-manifest://deterministic-same-run/#{run_ref.run_id}",
-       capability_negotiation_ref:
-         "capability-negotiation://deterministic-same-run/#{run_ref.run_id}",
-       lower_request_ref: "lower-request://deterministic-same-run/#{run_ref.run_id}",
-       lower_receipt_ref: "lower-receipt://deterministic-same-run/#{run_ref.run_id}",
+       authority_ref: "authority-packet://pending/#{run_ref.run_id}",
+       decision_ref: "permission-decision://pending/#{run_ref.run_id}",
+       connector_manifest_ref: "connector-manifest://pending/#{run_ref.run_id}",
+       capability_negotiation_ref: "capability-negotiation://pending/#{run_ref.run_id}",
+       lower_request_ref: "lower-request://pending/#{run_ref.run_id}",
+       lower_receipt_ref: "lower-receipt://pending/#{execution_id}",
        source_publication_ref: "source-publication://deterministic-same-run/#{run_ref.run_id}",
        evidence_chain_ref: "evidence-chain:#{run_ref.run_id}",
        event_page_ref: "event-page:#{run_ref.run_id}",
-       execution_ref: "execution://deterministic-same-run/#{subject_ref}",
+       execution_ref: execution_id,
        trace_id: Map.get(metadata, :trace_id),
        review_unit_id: Map.get(payload, :review_unit_id)
      }}
@@ -203,9 +201,10 @@ defmodule Extravaganza.HeadlessSameRunSmoke do
         "profile_loaded",
         "source_admitted",
         "scheduled",
-        "deterministic_authority_projected",
-        "deterministic_lower_projected",
-        "deterministic_receipt_projected",
+        "workflow_start_outbox_queued",
+        "current_execution_row_created",
+        "mezzanine_runtime_projection_projected",
+        "pending_lower_receipt_projected",
         "review_projected",
         "source_previewed",
         "source_published",
@@ -348,7 +347,7 @@ defmodule Extravaganza.HeadlessSameRunSmoke do
       "publish_ref" => preview.publish_ref,
       "operation" => to_string(preview.operation),
       "lower_receipt_ref" => refs.lower_receipt_ref,
-      "provider_readback_ref" => "provider-readback://deterministic-same-run/#{refs.run_ref}"
+      "provider_readback_ref" => "provider-readback://pending/#{refs.run_ref}"
     }
   end
 
@@ -364,11 +363,7 @@ defmodule Extravaganza.HeadlessSameRunSmoke do
   end
 
   defp readback_opts(product_opts, same_run) do
-    Keyword.merge(product_opts,
-      work_query_backend: Extravaganza.HeadlessSameRunSmoke.WorkQueryBackend,
-      operator_backend: Extravaganza.HeadlessSameRunSmoke.OperatorBackend,
-      same_run_context: same_run
-    )
+    Keyword.merge(product_opts, same_run_context: same_run)
   end
 
   defp product_opts(opts) do
@@ -410,260 +405,5 @@ defmodule Extravaganza.HeadlessSameRunSmoke do
 
   defp unique_suffix do
     "#{System.system_time(:microsecond)}-#{System.unique_integer([:positive])}"
-  end
-
-  @doc false
-  def subject_ref!(same_run) do
-    config = Extravaganza.Config.load([])
-
-    unwrap!(
-      SubjectRef.new(%{
-        id: same_run.refs.subject_ref,
-        subject_kind: config.work_class_kind
-      })
-    )
-  end
-
-  @doc false
-  def execution_ref!(same_run) do
-    unwrap!(
-      ExecutionRef.new(%{
-        id: same_run.refs.execution_ref,
-        subject_ref: subject_ref!(same_run),
-        recipe_ref: "coding_operations",
-        dispatch_state: "terminal_success"
-      })
-    )
-  end
-
-  defp unwrap!({:ok, value}), do: value
-end
-
-defmodule Extravaganza.HeadlessSameRunSmoke.WorkQueryBackend do
-  @moduledoc false
-
-  alias AppKit.Core.{
-    DecisionRef,
-    EvidenceProjection,
-    ExecutionStateProjection,
-    LowerReceiptSummary,
-    PageResult,
-    ReviewProjection,
-    RuntimeEventSummary,
-    RuntimeFactsProjection,
-    SourceBindingProjection,
-    SubjectDetail,
-    SubjectRuntimeProjection,
-    SubjectSummary,
-    WorkspaceRef
-  }
-
-  alias Extravaganza.HeadlessSameRunSmoke
-
-  def get_subject(_context, _subject_ref, opts) do
-    same_run = Keyword.fetch!(opts, :same_run_context)
-    subject_ref = HeadlessSameRunSmoke.subject_ref!(same_run)
-    execution_ref = HeadlessSameRunSmoke.execution_ref!(same_run)
-
-    SubjectDetail.new(%{
-      subject_ref: subject_ref,
-      lifecycle_state: "awaiting_review",
-      title: same_run.subject_attrs.title,
-      description: same_run.subject_attrs.description,
-      current_execution_ref: execution_ref,
-      pending_decision_refs: [decision_ref!(same_run, subject_ref)],
-      schema_ref: "extravaganza/same_run_subject",
-      schema_version: 1,
-      payload: %{
-        "external_ref" => same_run.subject_attrs.external_ref,
-        "source_kind" => same_run.subject_attrs.source_kind,
-        "control_mode" => "normal"
-      }
-    })
-  end
-
-  def get_runtime_projection(_context, _subject_ref, opts) do
-    same_run = Keyword.fetch!(opts, :same_run_context)
-    subject_ref = HeadlessSameRunSmoke.subject_ref!(same_run)
-    execution_ref = HeadlessSameRunSmoke.execution_ref!(same_run)
-
-    with {:ok, source_binding} <-
-           SourceBindingProjection.new(%{
-             binding_ref: "linear_primary",
-             source_ref: "source://linear/#{same_run.refs.subject_ref}",
-             source_kind: "linear",
-             external_system: "linear",
-             source_state: "In Review",
-             source_url: "https://linear.app/example/issue/#{same_run.refs.subject_ref}",
-             workpad_refs: ["source-workpad://linear/#{same_run.refs.subject_ref}"]
-           }),
-         {:ok, workspace_ref} <-
-           WorkspaceRef.new(%{
-             id: "workspace://deterministic-same-run/#{same_run.refs.subject_ref}",
-             tenant_id: "tenant-deterministic-same-run"
-           }),
-         {:ok, execution_state} <-
-           ExecutionStateProjection.new(%{
-             execution_ref: execution_ref,
-             lifecycle_state: "awaiting_review",
-             dispatch_state: "terminal_success"
-           }),
-         {:ok, lower_receipt} <-
-           LowerReceiptSummary.new(%{
-             receipt_ref: "receipt://deterministic-same-run/#{same_run.refs.run_ref}",
-             receipt_state: "succeeded",
-             lower_receipt_ref: same_run.refs.lower_receipt_ref,
-             run_ref: same_run.refs.run_ref,
-             attempt_ref: "attempt://deterministic-same-run/#{same_run.refs.run_ref}/1",
-             execution_ref: execution_ref
-           }),
-         {:ok, runtime_event} <-
-           RuntimeEventSummary.new(%{
-             event_kind: "codex.session.completed",
-             count: 1,
-             latest_event_ref: "runtime-event://deterministic-same-run/#{same_run.refs.run_ref}"
-           }),
-         {:ok, runtime} <-
-           RuntimeFactsProjection.new(%{
-             token_totals: %{"input" => 100, "output" => 40, "total" => 140},
-             rate_limit: %{"status" => "ok"},
-             events: [runtime_event]
-           }),
-         {:ok, review} <-
-           ReviewProjection.new(%{
-             status: "accepted",
-             pending_decision_refs: [decision_ref!(same_run, subject_ref)]
-           }) do
-      SubjectRuntimeProjection.new(%{
-        subject_ref: subject_ref,
-        lifecycle_state: "awaiting_review",
-        source_bindings: [source_binding],
-        workspace_ref: workspace_ref,
-        execution_state: execution_state,
-        lower_receipts: [lower_receipt],
-        runtime: runtime,
-        evidence: evidence!(same_run),
-        review: review,
-        updated_at: DateTime.utc_now(),
-        schema_ref: "app_kit.subject_runtime_projection.v1",
-        schema_version: 1
-      })
-    end
-  end
-
-  def list_subjects(_context, _filters, _page_request, opts) do
-    same_run = Keyword.fetch!(opts, :same_run_context)
-    subject_ref = HeadlessSameRunSmoke.subject_ref!(same_run)
-
-    with {:ok, summary} <-
-           SubjectSummary.new(%{
-             subject_ref: subject_ref,
-             lifecycle_state: "awaiting_review",
-             title: same_run.subject_attrs.title,
-             summary: same_run.subject_attrs.description,
-             opened_at: DateTime.utc_now(),
-             updated_at: DateTime.utc_now(),
-             schema_ref: "extravaganza/same_run_subject",
-             schema_version: 1
-           }) do
-      PageResult.new(%{entries: [summary], total_count: 1, has_more: false})
-    end
-  end
-
-  def queue_stats(_context, _filters, _opts), do: {:ok, %{queued_count: 1, running_count: 0}}
-  def ingest_subject(_context, _attrs, _opts), do: {:error, :not_supported}
-  def get_projection(_context, _projection_ref, _opts), do: {:error, :not_supported}
-
-  defp decision_ref!(same_run, subject_ref) do
-    unwrap!(
-      DecisionRef.new(%{
-        id: same_run.refs.review_unit_id || same_run.refs.decision_ref,
-        decision_kind: "operator_review",
-        subject_ref: subject_ref
-      })
-    )
-  end
-
-  defp evidence!(same_run) do
-    [
-      evidence!("authority", same_run.refs.decision_ref, same_run.refs.authority_ref),
-      evidence!(
-        "lower_receipt",
-        same_run.refs.lower_receipt_ref,
-        same_run.refs.lower_request_ref
-      ),
-      evidence!(
-        "source_publication",
-        same_run.refs.source_publication_ref,
-        "provider-readback://deterministic-same-run/#{same_run.refs.run_ref}"
-      )
-    ]
-  end
-
-  defp evidence!(kind, evidence_ref, content_ref) do
-    unwrap!(
-      EvidenceProjection.new(%{
-        evidence_ref: evidence_ref,
-        evidence_kind: kind,
-        status: "present",
-        content_ref: content_ref
-      })
-    )
-  end
-
-  defp unwrap!({:ok, value}), do: value
-end
-
-defmodule Extravaganza.HeadlessSameRunSmoke.OperatorBackend do
-  @moduledoc false
-
-  alias AppKit.Core.{ReadLease, ReadLeaseRef, StreamAttachLease, StreamAttachLeaseRef}
-  alias Extravaganza.HeadlessSameRunSmoke
-
-  def issue_read_lease(_context, _execution_ref, opts) do
-    same_run = Keyword.fetch!(opts, :same_run_context)
-    execution_ref = HeadlessSameRunSmoke.execution_ref!(same_run)
-
-    with {:ok, lease_ref} <-
-           ReadLeaseRef.new(%{
-             id: "read-lease://deterministic-same-run/#{same_run.refs.run_ref}",
-             allowed_family: "headless_same_run",
-             execution_ref: execution_ref
-           }) do
-      ReadLease.new(%{
-        lease_ref: lease_ref,
-        trace_id: same_run.refs.trace_id,
-        expires_at: DateTime.add(DateTime.utc_now(), 300, :second),
-        lease_token: "redacted-read-lease-#{same_run.refs.run_ref}",
-        allowed_operations: ["fetch_run", "fetch_evidence", "fetch_events"],
-        authorization_scope: %{"subject_ref" => same_run.refs.subject_ref},
-        scope: %{"run_ref" => same_run.refs.run_ref},
-        lineage_anchor: %{"workflow_ref" => same_run.refs.workflow_ref}
-      })
-    end
-  end
-
-  def issue_stream_attach_lease(_context, _execution_ref, opts) do
-    same_run = Keyword.fetch!(opts, :same_run_context)
-    execution_ref = HeadlessSameRunSmoke.execution_ref!(same_run)
-
-    with {:ok, lease_ref} <-
-           StreamAttachLeaseRef.new(%{
-             id: "stream-lease://deterministic-same-run/#{same_run.refs.run_ref}",
-             allowed_family: "headless_same_run",
-             execution_ref: execution_ref
-           }) do
-      StreamAttachLease.new(%{
-        lease_ref: lease_ref,
-        trace_id: same_run.refs.trace_id,
-        expires_at: DateTime.add(DateTime.utc_now(), 300, :second),
-        attach_token: "redacted-stream-lease-#{same_run.refs.run_ref}",
-        authorization_scope: %{"subject_ref" => same_run.refs.subject_ref},
-        scope: %{"run_ref" => same_run.refs.run_ref},
-        lineage_anchor: %{"workflow_ref" => same_run.refs.workflow_ref},
-        reconnect_cursor: 0,
-        poll_interval_ms: 1_000
-      })
-    end
   end
 end

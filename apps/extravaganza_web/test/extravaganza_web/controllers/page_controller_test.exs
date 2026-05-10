@@ -241,6 +241,7 @@ defmodule ExtravaganzaWeb.PageControllerTest do
       tenant_id: tenant_id,
       installation_id: installation_id,
       subject_id: result.payload.work_object_id,
+      occurred_at: DateTime.add(DateTime.utc_now(), 1, :second),
       execution_attrs: %{
         supersedes_execution_id: Ecto.UUID.generate(),
         barrier_id: barrier_id,

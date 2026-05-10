@@ -1136,6 +1136,7 @@ defmodule ExtravaganzaProductCoreTest do
         tenant_id: tenant_id,
         installation_id: installation_id,
         subject_id: subject_id,
+        occurred_at: DateTime.add(DateTime.utc_now(), 1, :second),
         execution_attrs: %{
           supersedes_execution_id: supersedes_execution_id,
           barrier_id: barrier_id,
@@ -1481,6 +1482,15 @@ defmodule ExtravaganzaProductCoreTest do
     assert is_binary(proof["workflow_ref"])
 
     readback_names = Enum.map(proof["readbacks"], & &1["name"])
+    proof_steps = Map.fetch!(proof, "steps")
+
+    assert "workflow_start_outbox_queued" in proof_steps
+    assert "current_execution_row_created" in proof_steps
+    assert "mezzanine_runtime_projection_projected" in proof_steps
+    assert "pending_lower_receipt_projected" in proof_steps
+    refute "deterministic_authority_projected" in proof_steps
+    refute "deterministic_lower_projected" in proof_steps
+    refute "deterministic_receipt_projected" in proof_steps
 
     assert readback_names == [
              "state",
