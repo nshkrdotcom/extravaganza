@@ -10,6 +10,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
     LeasePresenter,
     ReviewPresenter,
     RunPresenter,
+    SourcePresenter,
     StatePresenter,
     SubjectPresenter
   }
@@ -120,6 +121,20 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
     end
   end
 
+  def source_publication(conn, %{"subject_id" => subject_id}) do
+    case HeadlessSurface.source_publication_preview(subject_id) do
+      {:ok, preview} ->
+        render_success(
+          conn,
+          :source_publication,
+          SourcePresenter.present_publication_preview(preview, presenter_opts(conn))
+        )
+
+      {:error, reason} ->
+        render_error(conn, reason)
+    end
+  end
+
   def reviews(conn, params) do
     case HeadlessSurface.list_reviews(params) do
       {:ok, reviews_page} ->
@@ -178,8 +193,13 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
     end
   end
 
+  def method_not_allowed(conn, _params), do: render_error(conn, :method_not_allowed)
+  def not_found(conn, _params), do: render_error(conn, :not_found)
+
   defp render_success(conn, operation, data) do
-    json(conn, HeadlessJSON.success(operation, data, presenter_opts(conn)))
+    conn
+    |> put_status(success_status(operation, data))
+    |> json(HeadlessJSON.success(operation, data, presenter_opts(conn)))
   end
 
   defp render_error(conn, reason) do
@@ -207,6 +227,20 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
   defp error_code(:method_not_allowed), do: {"method_not_allowed", "Method not allowed"}
   defp error_code(:bad_request), do: {"bad_request", "Bad request"}
   defp error_code(_reason), do: {"internal_error", "Internal error"}
+
+  defp success_status(operation, data) when operation in [:refresh, :review, :control] do
+    if accepted_command?(data), do: :accepted, else: :ok
+  end
+
+  defp success_status(_operation, _data), do: :ok
+
+  defp accepted_command?(%{} = data) do
+    case get_in(data, ["data", "status"]) || get_in(data, ["data", "workflow_effect_state"]) do
+      "accepted" -> true
+      "pending_signal" -> true
+      _other -> false
+    end
+  end
 
   defp presenter_opts(conn) do
     [

@@ -33,17 +33,58 @@ defmodule ExtravaganzaWeb.Router do
     pipe_through(:api)
 
     get("/state", HeadlessController, :state)
+    match(:*, "/state", HeadlessController, :method_not_allowed)
+
     get("/subjects/:subject_id", HeadlessController, :subject)
+    match(:*, "/subjects/:subject_id", HeadlessController, :method_not_allowed)
+
+    get("/subjects/:subject_id/source-publication", HeadlessController, :source_publication)
+    match(:*, "/subjects/:subject_id/source-publication", HeadlessController, :method_not_allowed)
+
     get("/runs/:run_id", HeadlessController, :run)
+    match(:*, "/runs/:run_id", HeadlessController, :method_not_allowed)
+
     get("/runs/:run_id/evidence", HeadlessController, :evidence)
+    match(:*, "/runs/:run_id/evidence", HeadlessController, :method_not_allowed)
+
     get("/events", HeadlessController, :events)
+    match(:*, "/events", HeadlessController, :method_not_allowed)
+
     post("/refresh", HeadlessController, :refresh)
+    match(:*, "/refresh", HeadlessController, :method_not_allowed)
+
     post("/subjects/:subject_id/actions/:action", HeadlessController, :control)
+    match(:*, "/subjects/:subject_id/actions/:action", HeadlessController, :method_not_allowed)
+
     post("/subjects/:subject_id/control/:action", HeadlessController, :control)
+    match(:*, "/subjects/:subject_id/control/:action", HeadlessController, :method_not_allowed)
+
     post("/subjects/:subject_id/read-lease", HeadlessController, :read_lease)
+    match(:*, "/subjects/:subject_id/read-lease", HeadlessController, :method_not_allowed)
+
     post("/subjects/:subject_id/stream-attach-lease", HeadlessController, :stream_attach_lease)
+
+    match(
+      :*,
+      "/subjects/:subject_id/stream-attach-lease",
+      HeadlessController,
+      :method_not_allowed
+    )
+
     get("/reviews", HeadlessController, :reviews)
+    match(:*, "/reviews", HeadlessController, :method_not_allowed)
+
     post("/reviews/:decision_id/decisions/:decision", HeadlessController, :review_decision)
+
+    match(
+      :*,
+      "/reviews/:decision_id/decisions/:decision",
+      HeadlessController,
+      :method_not_allowed
+    )
+
     get("/:issue_identifier", HeadlessController, :issue_subject)
+    match(:*, "/:issue_identifier", HeadlessController, :method_not_allowed)
+    match(:*, "/*path", HeadlessController, :not_found)
   end
 end

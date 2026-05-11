@@ -9,6 +9,7 @@ defmodule Extravaganza.HeadlessCLI do
     EvidencePresenter,
     ReviewPresenter,
     RunPresenter,
+    SourcePresenter,
     StatePresenter,
     SubjectPresenter
   }
@@ -160,7 +161,7 @@ defmodule Extravaganza.HeadlessCLI do
     HeadlessJSON.wrap(
       :source_preview,
       HeadlessSurface.source_publication_preview(subject_id, []),
-      fn value -> value end,
+      &SourcePresenter.present_publication_preview/1,
       opts
     )
   end

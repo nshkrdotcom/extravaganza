@@ -216,6 +216,7 @@ defmodule Extravaganza.HeadlessJSON do
 
   defp source_publication_paths do
     [
+      ["data", "source_publication_receipt_ref"],
       ["data", "source_publication", "source_publication_receipt_ref"],
       ["source_publication", "source_publication_receipt_ref"],
       [
@@ -285,6 +286,66 @@ defmodule Extravaganza.HeadlessJSON do
       "message" => "request is missing required headless parameters",
       "class" => "invalid_request",
       "retryable" => false,
+      "missing_refs" => []
+    }
+  end
+
+  defp error_attrs(:not_found) do
+    %{
+      "code" => "not_found",
+      "message" => "headless resource was not found",
+      "class" => "not_found",
+      "retryable" => false,
+      "missing_refs" => []
+    }
+  end
+
+  defp error_attrs(:method_not_allowed) do
+    %{
+      "code" => "method_not_allowed",
+      "message" => "HTTP method is not allowed for this headless route",
+      "class" => "invalid_request",
+      "retryable" => false,
+      "missing_refs" => []
+    }
+  end
+
+  defp error_attrs(:invalid_action) do
+    %{
+      "code" => "invalid_action",
+      "message" => "requested action is not supported by this headless surface",
+      "class" => "invalid_request",
+      "retryable" => false,
+      "missing_refs" => []
+    }
+  end
+
+  defp error_attrs(:action_denied) do
+    %{
+      "code" => "action_denied",
+      "message" => "headless action was denied by authority",
+      "class" => "denied",
+      "retryable" => false,
+      "missing_refs" => []
+    }
+  end
+
+  defp error_attrs(:unauthorized_lower_read) do
+    %{
+      "code" => "unauthorized_lower_read",
+      "message" => "lower read is not authorized for this request",
+      "class" => "unauthorized",
+      "retryable" => false,
+      "missing_refs" => []
+    }
+  end
+
+  defp error_attrs(:snapshot_timeout) do
+    %{
+      "code" => "snapshot_timeout",
+      "message" => "headless snapshot timed out",
+      "class" => "timeout",
+      "retryable" => true,
       "missing_refs" => []
     }
   end
