@@ -26,6 +26,8 @@ defmodule Extravaganza.HeadlessCLI do
     :reviews,
     :review,
     :source_preview,
+    :source_sync,
+    :live_linear_source,
     :evidence,
     :events,
     :smoke
@@ -163,6 +165,26 @@ defmodule Extravaganza.HeadlessCLI do
     )
   end
 
+  defp dispatch(:source_sync, opts) do
+    HeadlessJSON.wrap(
+      :source_sync,
+      ProductHost.sync_linear_source(%{issues: [default_linear_issue(opts)]}, product_opts(opts)),
+      fn value -> value end,
+      opts
+    )
+  end
+
+  defp dispatch(:live_linear_source, opts) do
+    HeadlessJSON.wrap(
+      "live.linear-source",
+      ProductHost.live_linear_source_example(
+        credential_available?: Map.get(opts, :api_key_stdin?, false)
+      ),
+      fn value -> value end,
+      opts
+    )
+  end
+
   defp dispatch(:evidence, opts) do
     run_id = positional(opts, 0) || Map.get(opts, :run_id) || "run:fixture"
 
@@ -263,6 +285,9 @@ defmodule Extravaganza.HeadlessCLI do
 
   defp parse(["--same-run" | rest], opts), do: parse(rest, Map.put(opts, :same_run?, true))
 
+  defp parse(["--api-key-stdin" | rest], opts),
+    do: parse(rest, Map.put(opts, :api_key_stdin?, true))
+
   defp parse([value | rest], opts) do
     parse(rest, Map.update!(opts, :positionals, &(&1 ++ [value])))
   end
@@ -311,6 +336,23 @@ defmodule Extravaganza.HeadlessCLI do
         "state" => "Todo",
         "labels" => ["headless", "deterministic"]
       }
+    }
+  end
+
+  defp default_linear_issue(opts) do
+    issue_id = Map.get(opts, :issue_id) || "HEADLESS-#{unique_suffix()}"
+    title = Map.get(opts, :title) || "Headless deterministic source #{issue_id}"
+    description = Map.get(opts, :description) || "Admitted by the headless source command path."
+
+    %{
+      id: issue_id,
+      identifier: issue_id,
+      title: title,
+      description: description,
+      state: %{name: "Todo", type: "unstarted"},
+      labels: ["headless", "deterministic"],
+      url: "https://linear.app/example/issue/#{issue_id}",
+      updated_at: DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601()
     }
   end
 

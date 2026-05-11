@@ -122,6 +122,26 @@ defmodule Mix.Tasks.Extravaganza.Headless.SourcePreview do
   def run(argv), do: TaskSupport.run(:source_preview, argv)
 end
 
+defmodule Mix.Tasks.Extravaganza.Headless.Source.Sync do
+  use Mix.Task
+
+  alias Mix.Tasks.Extravaganza.Headless.TaskSupport
+
+  @moduledoc false
+  @shortdoc "Sync a deterministic Linear-shaped source page"
+  def run(argv), do: TaskSupport.run(:source_sync, argv)
+end
+
+defmodule Mix.Tasks.Extravaganza.Headless.Live.LinearSource do
+  use Mix.Task
+
+  alias Mix.Tasks.Extravaganza.Headless.TaskSupport
+
+  @moduledoc false
+  @shortdoc "Run the live-gated Linear source example"
+  def run(argv), do: TaskSupport.run(:live_linear_source, argv)
+end
+
 defmodule Mix.Tasks.Extravaganza.Headless.Evidence do
   use Mix.Task
 

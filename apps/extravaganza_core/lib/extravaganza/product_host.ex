@@ -9,6 +9,7 @@ defmodule Extravaganza.ProductHost do
     Operators,
     Queries,
     Reviews,
+    Sources,
     Workflows
   }
 
@@ -87,6 +88,34 @@ defmodule Extravaganza.ProductHost do
   def source_publication_preview(subject_id, opts \\ [])
       when is_binary(subject_id) and is_list(opts) do
     HeadlessSurface.source_publication_preview(subject_id, opts)
+  end
+
+  @spec sync_linear_source(map(), keyword()) :: {:ok, map()} | {:error, term()}
+  def sync_linear_source(source_page, opts \\ []) when is_map(source_page) and is_list(opts) do
+    Sources.sync_linear_issues(source_page, opts)
+  end
+
+  @spec sync_linear_issue(map(), keyword()) ::
+          {:ok, AppKit.Core.SubjectDetail.t()} | {:error, term()}
+  def sync_linear_issue(issue, opts \\ []) when is_map(issue) and is_list(opts) do
+    Sources.sync_linear_issue(issue, opts)
+  end
+
+  @spec live_linear_source_example(keyword()) :: {:ok, map()} | {:error, term()}
+  def live_linear_source_example(opts \\ []) when is_list(opts) do
+    skip_reason =
+      if Keyword.get(opts, :credential_available?, false) do
+        %{code: "provider_fetch_deferred", provider: "linear"}
+      else
+        %{code: "missing_credential", credential_ref: "LINEAR_API_KEY"}
+      end
+
+    {:ok,
+     %{
+       status: "skipped",
+       operation: "live.linear-source",
+       skip_reason: skip_reason
+     }}
   end
 
   @spec apply_subject_action(String.t(), atom() | String.t(), map(), keyword()) ::

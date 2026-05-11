@@ -17,7 +17,8 @@ defmodule Extravaganza.HeadlessSurface do
     Operators,
     ProductSurface,
     Queries,
-    Reviews
+    Reviews,
+    Sources
   }
 
   @actor_ref "actor:extravaganza:operator"
@@ -163,6 +164,12 @@ defmodule Extravaganza.HeadlessSurface do
     else
       Operators.source_publication_preview(subject_id, opts)
     end
+  end
+
+  @spec sync_linear_source(map(), keyword()) :: {:ok, map()} | {:error, term()}
+  def sync_linear_source(source_page, opts \\ [])
+      when is_map(source_page) and is_list(opts) do
+    Sources.sync_linear_issues(source_page, opts)
   end
 
   defp normalize_control_action(action)

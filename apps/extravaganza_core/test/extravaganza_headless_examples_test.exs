@@ -42,10 +42,32 @@ defmodule Extravaganza.HeadlessExamplesTest do
              :reviews,
              :review,
              :source_preview,
+             :source_sync,
+             :live_linear_source,
              :evidence,
              :events,
              :smoke
            ]
+  end
+
+  test "live Linear source example skips explicitly without a supplied credential" do
+    output =
+      capture_io(fn ->
+        assert :ok = HeadlessCLI.run(:live_linear_source, ["--json", "--trace-id", "trace:live"])
+      end)
+
+    decoded = Jason.decode!(output)
+
+    assert decoded["ok"] == true
+    assert decoded["operation"] == "live.linear-source"
+    assert decoded["data"]["status"] == "skipped"
+
+    assert decoded["data"]["skip_reason"] == %{
+             "code" => "missing_credential",
+             "credential_ref" => "LINEAR_API_KEY"
+           }
+
+    refute String.contains?(output, "env-linear")
   end
 
   test "CLI emits stable JSON envelopes for fixture state, run, evidence, and events" do
@@ -91,7 +113,9 @@ defmodule Extravaganza.HeadlessExamplesTest do
           "scripts/headless/assert_non_fixture_start.exs",
           "scripts/headless/run_detail.exs",
           "scripts/headless/review_decision.exs",
-          "scripts/headless/evidence_chain.exs"
+          "scripts/headless/evidence_chain.exs",
+          "scripts/headless/source_sync.exs",
+          "scripts/headless/live_linear_source.exs"
         ] do
       assert File.regular?(Path.join(root, path))
     end

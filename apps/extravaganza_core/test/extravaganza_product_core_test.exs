@@ -782,7 +782,21 @@ defmodule ExtravaganzaProductCoreTest do
       state: "Todo",
       labels: ["ops"],
       team: "Platform",
-      url: "https://linear.app/example/issue/ENG-101"
+      url: "https://linear.app/example/issue/ENG-101",
+      blockers: [
+        %{
+          id: "rel-blocks-101",
+          type: "blocks",
+          direction: "inbound",
+          issue: %{
+            id: "lin-issue-099",
+            identifier: "ENG-099",
+            title: "Restore queue credentials",
+            url: "https://linear.app/example/issue/ENG-099",
+            state: %{id: "state-started", name: "In Progress", type: "started"}
+          }
+        }
+      ]
     }
 
     assert {:ok, first_subject} =
@@ -792,8 +806,10 @@ defmodule ExtravaganzaProductCoreTest do
                pack_version: pack_version
              )
 
-    assert first_subject.payload.external_ref == "linear:ENG-101"
+    assert first_subject.payload.external_ref == "linear://#{tenant_id}/issue/ENG-101"
     assert first_subject.title == "Investigate operator queue"
+    assert [%{blocker_kind: "source_blocked"}] = first_subject.blocking_conditions
+    assert first_subject.next_step_preview.status == "blocked"
 
     updated_issue =
       issue
@@ -809,7 +825,7 @@ defmodule ExtravaganzaProductCoreTest do
 
     assert second_subject.subject_ref.id == first_subject.subject_ref.id
     assert second_subject.title == "Investigate operator queue hard failure"
-    assert second_subject.payload.external_ref == "linear:ENG-101"
+    assert second_subject.payload.external_ref == "linear://#{tenant_id}/issue/ENG-101"
   end
 
   test "product-local facades start a run and expose operator status through app kit", %{

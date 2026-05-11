@@ -1,17 +1,11 @@
 defmodule Extravaganza.TestSupport.LinearIssueFixture do
   @moduledoc false
 
-  alias AppKit.WorkSurface
-  alias Extravaganza.{AppKitContext, Config, ProductBootstrap}
+  alias Extravaganza.{Config, Sources}
 
   @spec ingest_issue(map(), keyword()) :: {:ok, AppKit.Core.SubjectDetail.t()} | {:error, term()}
   def ingest_issue(issue, opts \\ []) when is_map(issue) do
-    with {:ok, profile} <- ProductBootstrap.ensure_bootstrapped(opts),
-         context = AppKitContext.product_context(profile.config, profile.installation_ref),
-         attrs = build_subject_attrs(issue, profile.config),
-         {:ok, subject_ref} <- WorkSurface.ingest_subject(context, attrs) do
-      WorkSurface.get_subject(context, subject_ref)
-    end
+    Sources.sync_linear_issue(issue, opts)
   end
 
   @spec build_subject_attrs(map(), Config.t()) :: map()
