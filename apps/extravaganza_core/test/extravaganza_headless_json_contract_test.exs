@@ -61,6 +61,30 @@ defmodule Extravaganza.HeadlessJSONContractTest do
     refute String.contains?(encoded, "/home/")
   end
 
+  test "success envelopes redact absolute workspace roots and cwd values" do
+    envelope =
+      HeadlessJSON.success(
+        "workspace_readback",
+        %{
+          workspace: %{
+            workspace_root: "/tmp/extravaganza/subject-1",
+            cwd: "/tmp/extravaganza/subject-1",
+            workspace_ref: "workspace://tenant-1/subject-1",
+            path_redacted?: true
+          }
+        },
+        generated_at: "2026-05-08T00:00:00Z"
+      )
+
+    encoded = Jason.encode!(envelope)
+
+    refute String.contains?(encoded, "/tmp/extravaganza")
+    assert String.contains?(encoded, "[redacted-path]")
+
+    assert get_in(envelope, ["data", "workspace", "workspace_ref"]) ==
+             "workspace://tenant-1/subject-1"
+  end
+
   test "evidence chain and event page are first-class headless readback operations" do
     assert {:ok, evidence_chain} = HeadlessSurface.evidence_chain("run:fixture")
     evidence = EvidencePresenter.present(evidence_chain)

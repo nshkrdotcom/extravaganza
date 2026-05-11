@@ -106,11 +106,17 @@ defmodule Extravaganza.HeadlessJSON do
   def sanitize(false), do: false
 
   def sanitize(value) when is_binary(value) do
-    if String.starts_with?(value, "/home/"), do: "[redacted-path]", else: value
+    if absolute_path?(value), do: "[redacted-path]", else: value
   end
 
   def sanitize(value) when is_atom(value), do: Atom.to_string(value)
   def sanitize(value), do: value
+
+  defp absolute_path?(value) do
+    Path.type(value) == :absolute
+  rescue
+    ArgumentError -> false
+  end
 
   defp subject_paths do
     [

@@ -84,6 +84,14 @@ defmodule Extravaganza.HeadlessSurfaceTest do
 
     assert Enum.map(rendered_run["data"]["events"], & &1["event_seq"]) == [1, 2]
     assert rendered_run["data"]["memory_proof_refs"] == []
+    assert rendered_run["data"]["persistence_posture"]["durable?"] == false
+
+    assert rendered_run["data"]["persistence_posture"]["retention_policy_ref"] ==
+             "retention://lost-on-process-exit"
+
+    encoded_run = Jason.encode!(rendered_run)
+    refute String.contains?(encoded_run, "restart_safe")
+    refute String.contains?(encoded_run, "integration_postgres")
   end
 
   test "refresh and control commands return typed command results" do
