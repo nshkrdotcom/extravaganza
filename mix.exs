@@ -107,6 +107,8 @@ defmodule Extravaganza.MixProject do
       homepage_url: @source_url,
       extras: [
         "README.md",
+        "guides/headless_live_demo.md",
+        "guides/headless_symphony_headless_gap_analysis.md",
         "docs/overview.md",
         "docs/stack_position.md",
         "docs/product_direction.md",
@@ -116,6 +118,10 @@ defmodule Extravaganza.MixProject do
       ],
       groups_for_extras: [
         Overview: ["README.md", "docs/overview.md"],
+        Guides: [
+          "guides/headless_live_demo.md",
+          "guides/headless_symphony_headless_gap_analysis.md"
+        ],
         Architecture: ["docs/stack_position.md", "docs/product_direction.md"],
         Composition: ["docs/product_profile.md"],
         Project: ["CHANGELOG.md", "LICENSE"]

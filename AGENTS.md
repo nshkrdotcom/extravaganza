@@ -44,12 +44,16 @@ Do not invent raw `temporal server start-dev` commands for normal work. Do not r
 
 ## Live Provider Checks
 
-For live provider checks, use `~/scripts/with_bash_secrets <command>`. It sources
-`~/.bash/bash_secrets` and execs the command. Do not print secret values. Pipe
-`LINEAR_API_KEY` via stdin for Linear examples. GitHub live examples use `gh auth`
-or `GH_TOKEN`/`GITHUB_TOKEN` from the wrapper. Codex SDK examples use the existing
-Codex/OpenAI machine auth through the wrapper. Live provider smoke is not product
-acceptance unless it runs the product-owned Extravaganza command path.
+For live checks, set provider credentials in the shell env and run the product
+command paths directly. Do not print secret values.
+
+- Linear examples: `LINEAR_API_KEY`
+- Codex examples: `OPENAI_API_KEY` and `CODEX_API_KEY`
+- GitHub examples: `GH_TOKEN` or `GITHUB_TOKEN`
+
+Linear examples also accept `--api-key-stdin` when piping a key into the command
+line for short local sessions. Live provider smoke is not product acceptance
+unless it runs the product-owned Extravaganza command path.
 
 <!-- gn-ten:repo-agent:start repo=extravaganza source_sha=ab276c0640772b73065ab12bf05d77be51f1bb67 -->
 # extravaganza Agent Instructions Draft

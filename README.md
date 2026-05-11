@@ -13,6 +13,61 @@
 
 # Extravaganza
 
+## Quickstart
+
+1. Clone and enter the repo:
+
+   ```bash
+   git clone git@github.com:nshkrdotcom/extravaganza.git
+   cd extravaganza
+   ```
+
+2. Install deps and run the baseline checks:
+
+   ```bash
+   mix deps.get
+   mix ci
+   ```
+
+3. Run the fixture-backed headless smoke proof:
+
+   ```bash
+   MIX_ENV=test mix extravaganza.headless.smoke --deterministic --same-run --json
+   ```
+
+4. Run live provider paths through the same product command surface:
+
+   ```bash
+   mix extravaganza.headless.live.smoke --live-product-path --json
+   ```
+
+   If you want live examples to attempt provider execution, export provider
+   credentials in the shell before running the command, for example:
+
+   ```bash
+   export LINEAR_API_KEY=...
+   export OPENAI_API_KEY=...
+   export CODEX_API_KEY=...
+   export GH_TOKEN=... # or GITHUB_TOKEN
+   ```
+
+   Then rerun:
+
+   ```bash
+   mix extravaganza.headless.live.smoke --live-product-path --json
+   ```
+
+   See `guides/headless_provider_credentials.md` for the full example
+   matrix and verification checks by provider.
+
+5. For the full API/operator view:
+
+   ```bash
+   mix phx.server
+   ```
+
+   Then use the `guides/headless_live_demo.md` walkthrough for route-level and script-level onboarding.
+
 Extravaganza is the first proving-ground product application for the nshkr
 stack. It is an Elixir/OTP umbrella (`extravaganza_core` + `extravaganza_web`)
 that stays intentionally thin: its job is to prove a coherent operator surface
@@ -220,6 +275,12 @@ modules directly from product business code.
 - [Product Profile](docs/product_profile.md)
 - `docs/persistence.md`
 - `docs/product_no_bypass.md`
+
+## Guides
+
+- [Headless Live Demo Onboarding](guides/headless_live_demo.md)
+- [Headless Symphony Gap Analysis](guides/headless_symphony_headless_gap_analysis.md)
+- [Headless Provider Credentials and Verification](guides/headless_provider_credentials.md)
 
 ## Persistence Documentation
 
