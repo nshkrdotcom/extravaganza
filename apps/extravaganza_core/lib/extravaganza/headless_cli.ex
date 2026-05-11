@@ -29,9 +29,21 @@ defmodule Extravaganza.HeadlessCLI do
     :source_preview,
     :source_sync,
     :live_linear_source,
+    :live_codex_turn,
+    :live_linear_publication,
+    :live_github_evidence,
+    :live_smoke,
     :evidence,
     :events,
     :smoke
+  ]
+
+  @live_operations [
+    :live_linear_source,
+    :live_codex_turn,
+    :live_linear_publication,
+    :live_github_evidence,
+    :live_smoke
   ]
 
   @spec operations() :: [atom()]
@@ -39,7 +51,11 @@ defmodule Extravaganza.HeadlessCLI do
 
   @spec run(atom(), [String.t()]) :: :ok
   def run(operation, argv) when operation in @operations and is_list(argv) do
-    opts = parse(argv)
+    opts =
+      argv
+      |> parse()
+      |> maybe_default_live_fixture(operation)
+
     maybe_install_fixture_backend(opts)
 
     operation
@@ -178,9 +194,43 @@ defmodule Extravaganza.HeadlessCLI do
   defp dispatch(:live_linear_source, opts) do
     HeadlessJSON.wrap(
       "live.linear-source",
-      ProductHost.live_linear_source_example(
-        credential_available?: Map.get(opts, :api_key_stdin?, false)
-      ),
+      ProductHost.live_linear_source_example(live_opts(opts)),
+      fn value -> value end,
+      opts
+    )
+  end
+
+  defp dispatch(:live_codex_turn, opts) do
+    HeadlessJSON.wrap(
+      "live.codex-turn",
+      ProductHost.live_codex_turn_example(live_opts(opts)),
+      fn value -> value end,
+      opts
+    )
+  end
+
+  defp dispatch(:live_linear_publication, opts) do
+    HeadlessJSON.wrap(
+      "live.linear-publication",
+      ProductHost.live_linear_publication_example(live_opts(opts)),
+      fn value -> value end,
+      opts
+    )
+  end
+
+  defp dispatch(:live_github_evidence, opts) do
+    HeadlessJSON.wrap(
+      "live.github-evidence",
+      ProductHost.live_github_evidence_example(live_opts(opts)),
+      fn value -> value end,
+      opts
+    )
+  end
+
+  defp dispatch(:live_smoke, opts) do
+    HeadlessJSON.wrap(
+      "live.smoke",
+      ProductHost.live_smoke(live_opts(opts)),
       fn value -> value end,
       opts
     )
@@ -286,6 +336,9 @@ defmodule Extravaganza.HeadlessCLI do
 
   defp parse(["--same-run" | rest], opts), do: parse(rest, Map.put(opts, :same_run?, true))
 
+  defp parse(["--live-product-path" | rest], opts),
+    do: parse(rest, Map.put(opts, :live_product_path?, true))
+
   defp parse(["--api-key-stdin" | rest], opts),
     do: parse(rest, Map.put(opts, :api_key_stdin?, true))
 
@@ -300,6 +353,16 @@ defmodule Extravaganza.HeadlessCLI do
 
   defp maybe_install_fixture_backend(_opts), do: :ok
 
+  defp maybe_default_live_fixture(%{live_product_path?: true} = opts, _operation), do: opts
+
+  defp maybe_default_live_fixture(%{fixture: _fixture} = opts, _operation), do: opts
+
+  defp maybe_default_live_fixture(opts, operation) when operation in @live_operations do
+    Map.put(opts, :fixture, "headless_live")
+  end
+
+  defp maybe_default_live_fixture(opts, _operation), do: opts
+
   defp positional(opts, index), do: opts |> Map.get(:positionals, []) |> Enum.at(index)
 
   defp product_opts(opts) do
@@ -310,6 +373,20 @@ defmodule Extravaganza.HeadlessCLI do
     |> Map.put_new(:tenant_id, "extravaganza-headless-#{unique}")
     |> Map.put_new(:pack_version, "1.0.0-headless.#{unique}")
     |> Enum.to_list()
+  end
+
+  defp live_opts(opts) do
+    opts
+    |> Map.take([
+      :api_key_stdin?,
+      :credential_available?,
+      :fixture,
+      :live_product_path?,
+      :tenant_id,
+      :pack_version,
+      :trace_id
+    ])
+    |> Map.put_new(:credential_available?, Map.get(opts, :api_key_stdin?, false))
   end
 
   defp default_linear_subject(opts) do

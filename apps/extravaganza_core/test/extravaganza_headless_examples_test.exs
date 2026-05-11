@@ -44,30 +44,103 @@ defmodule Extravaganza.HeadlessExamplesTest do
              :source_preview,
              :source_sync,
              :live_linear_source,
+             :live_codex_turn,
+             :live_linear_publication,
+             :live_github_evidence,
+             :live_smoke,
              :evidence,
              :events,
              :smoke
            ]
   end
 
-  test "live Linear source example skips explicitly without a supplied credential" do
+  @tag :live_provider
+  test "live provider examples skip explicitly without supplied credentials but exercise product path" do
+    for {operation, expected_operation, provider, credential_refs} <- [
+          {:live_linear_source, "live.linear-source", "linear", ["LINEAR_API_KEY"]},
+          {:live_codex_turn, "live.codex-turn", "codex", ["OPENAI_API_KEY", "CODEX_API_KEY"]},
+          {:live_linear_publication, "live.linear-publication", "linear", ["LINEAR_API_KEY"]},
+          {:live_github_evidence, "live.github-evidence", "github", ["GH_TOKEN", "GITHUB_TOKEN"]}
+        ] do
+      output =
+        capture_io(fn ->
+          assert :ok = HeadlessCLI.run(operation, ["--json", "--trace-id", "trace:live"])
+        end)
+
+      decoded = Jason.decode!(output)
+
+      assert decoded["ok"] == true
+      assert decoded["operation"] == expected_operation
+      assert decoded["data"]["status"] == "skipped"
+      assert decoded["data"]["provider"] == provider
+      assert decoded["data"]["credential_refs"] == credential_refs
+      assert decoded["data"]["product_path_exercised?"] == true
+      assert decoded["data"]["product_path"]["appkit_surfaces"] == ["AppKit.HeadlessSurface"]
+      assert decoded["data"]["product_path"]["lower_path"] == []
+
+      assert decoded["data"]["product_path"]["lower_path_status"] ==
+               "skipped_before_live_provider_effect"
+
+      assert decoded["data"]["provider_effect"]["skip_reason"]["code"] ==
+               "credential_not_supplied_to_product_command"
+
+      assert decoded["refs"]["run_ref"] == "run:fixture"
+      assert decoded["refs"]["source_publication_ref"] == "source-publication:fixture"
+      refute String.contains?(output, "env-linear")
+      refute String.contains?(output, "env-github")
+      refute String.contains?(output, "env-codex")
+    end
+  end
+
+  @tag :live_provider
+  test "aggregate live smoke emits a receipt for all live-gated provider examples" do
     output =
       capture_io(fn ->
-        assert :ok = HeadlessCLI.run(:live_linear_source, ["--json", "--trace-id", "trace:live"])
+        assert :ok = HeadlessCLI.run(:live_smoke, ["--json", "--trace-id", "trace:live"])
       end)
 
     decoded = Jason.decode!(output)
 
     assert decoded["ok"] == true
-    assert decoded["operation"] == "live.linear-source"
+    assert decoded["operation"] == "live.smoke"
     assert decoded["data"]["status"] == "skipped"
+    assert decoded["data"]["receipt_state"] == "recorded"
+    assert decoded["data"]["product_path_exercised?"] == true
+    assert decoded["data"]["product_path"]["entrypoint"] == "Extravaganza.ProductHost.live_smoke"
 
-    assert decoded["data"]["skip_reason"] == %{
-             "code" => "missing_credential",
-             "credential_ref" => "LINEAR_API_KEY"
-           }
+    assert decoded["data"]["examples"] |> Map.keys() |> Enum.sort() == [
+             "live.codex-turn",
+             "live.github-evidence",
+             "live.linear-publication",
+             "live.linear-source"
+           ]
 
     refute String.contains?(output, "env-linear")
+    refute String.contains?(output, "env-github")
+    refute String.contains?(output, "env-codex")
+  end
+
+  @tag :live_provider
+  test "live command defaults to fixture-backed skip path without app runtime boot" do
+    Application.delete_env(:app_kit_core, :headless_backend)
+    Application.delete_env(:extravaganza_core, :headless_fixture_context?)
+
+    output =
+      capture_io(fn ->
+        assert :ok = HeadlessCLI.run(:live_smoke, ["--json", "--trace-id", "trace:live"])
+      end)
+
+    decoded = Jason.decode!(output)
+
+    assert decoded["ok"] == true
+    assert decoded["operation"] == "live.smoke"
+    assert decoded["data"]["status"] == "skipped"
+    assert decoded["data"]["product_path"]["proof_source"] == "fixture_headless_surface"
+
+    assert decoded["data"]["product_path"]["lower_path_status"] ==
+             "skipped_before_live_provider_effect"
+
+    assert decoded["refs"]["run_ref"] == "run:fixture"
   end
 
   test "CLI emits stable JSON envelopes for fixture state, run, evidence, and events" do
@@ -115,7 +188,11 @@ defmodule Extravaganza.HeadlessExamplesTest do
           "scripts/headless/review_decision.exs",
           "scripts/headless/evidence_chain.exs",
           "scripts/headless/source_sync.exs",
-          "scripts/headless/live_linear_source.exs"
+          "scripts/headless/live_linear_source.exs",
+          "scripts/headless/live_codex_turn.exs",
+          "scripts/headless/live_linear_publication.exs",
+          "scripts/headless/live_github_evidence.exs",
+          "scripts/headless/live_smoke.exs"
         ] do
       assert File.regular?(Path.join(root, path))
     end

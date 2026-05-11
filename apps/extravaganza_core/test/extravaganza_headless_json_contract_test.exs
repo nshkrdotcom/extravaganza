@@ -61,6 +61,41 @@ defmodule Extravaganza.HeadlessJSONContractTest do
     refute String.contains?(encoded, "/home/")
   end
 
+  test "success envelopes extract same-run proof refs into the standard refs block" do
+    envelope =
+      HeadlessJSON.success(
+        :smoke,
+        %{
+          "proof" => %{
+            "subject_ref" => "subject://same-run",
+            "run_ref" => "run://same-run",
+            "workflow_ref" => "workflow://same-run",
+            "runtime_profile_ref" => "runtime-profile://same-run",
+            "authority_ref" => "authority://same-run",
+            "decision_ref" => "decision://same-run",
+            "connector_manifest_ref" => "manifest://same-run",
+            "capability_negotiation_ref" => "capability-negotiation://same-run",
+            "lower_request_ref" => "lower-request://same-run",
+            "lower_receipt_ref" => "lower-receipt://same-run",
+            "source_publication_ref" => "source-publication://same-run",
+            "evidence_chain_ref" => "evidence-chain://same-run",
+            "event_page_ref" => "event-page://same-run"
+          }
+        },
+        generated_at: "2026-05-08T00:00:00Z"
+      )
+
+    assert envelope["refs"]["subject_ref"] == "subject://same-run"
+    assert envelope["refs"]["run_ref"] == "run://same-run"
+    assert envelope["refs"]["workflow_ref"] == "workflow://same-run"
+    assert envelope["refs"]["authority_ref"] == "authority://same-run"
+    assert envelope["refs"]["lower_request_ref"] == "lower-request://same-run"
+    assert envelope["refs"]["lower_receipt_ref"] == "lower-receipt://same-run"
+    assert envelope["refs"]["source_publication_ref"] == "source-publication://same-run"
+    assert envelope["refs"]["evidence_chain_ref"] == "evidence-chain://same-run"
+    assert envelope["refs"]["event_page_ref"] == "event-page://same-run"
+  end
+
   test "success envelopes redact absolute workspace roots and cwd values" do
     envelope =
       HeadlessJSON.success(

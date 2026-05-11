@@ -4,6 +4,7 @@ defmodule Extravaganza.ProductHost do
   """
 
   alias Extravaganza.{
+    HeadlessLiveExamples,
     HeadlessSameRunSmoke,
     HeadlessSurface,
     Operators,
@@ -101,22 +102,22 @@ defmodule Extravaganza.ProductHost do
     Sources.sync_linear_issue(issue, opts)
   end
 
-  @spec live_linear_source_example(keyword()) :: {:ok, map()} | {:error, term()}
-  def live_linear_source_example(opts \\ []) when is_list(opts) do
-    skip_reason =
-      if Keyword.get(opts, :credential_available?, false) do
-        %{code: "provider_fetch_deferred", provider: "linear"}
-      else
-        %{code: "missing_credential", credential_ref: "LINEAR_API_KEY"}
-      end
+  @spec live_linear_source_example(keyword() | map()) :: {:ok, map()} | {:error, term()}
+  def live_linear_source_example(opts \\ []), do: HeadlessLiveExamples.run(:linear_source, opts)
 
-    {:ok,
-     %{
-       status: "skipped",
-       operation: "live.linear-source",
-       skip_reason: skip_reason
-     }}
-  end
+  @spec live_codex_turn_example(keyword() | map()) :: {:ok, map()} | {:error, term()}
+  def live_codex_turn_example(opts \\ []), do: HeadlessLiveExamples.run(:codex_turn, opts)
+
+  @spec live_linear_publication_example(keyword() | map()) :: {:ok, map()} | {:error, term()}
+  def live_linear_publication_example(opts \\ []),
+    do: HeadlessLiveExamples.run(:linear_publication, opts)
+
+  @spec live_github_evidence_example(keyword() | map()) :: {:ok, map()} | {:error, term()}
+  def live_github_evidence_example(opts \\ []),
+    do: HeadlessLiveExamples.run(:github_evidence, opts)
+
+  @spec live_smoke(keyword() | map()) :: {:ok, map()} | {:error, term()}
+  def live_smoke(opts \\ []), do: HeadlessLiveExamples.run(:smoke, opts)
 
   @spec apply_subject_action(String.t(), atom() | String.t(), map(), keyword()) ::
           {:ok, AppKit.Core.ActionResult.t()} | {:error, term()}

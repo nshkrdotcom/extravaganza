@@ -47,6 +47,19 @@ defmodule Extravaganza.MixProject do
 
   defp aliases do
     [
+      "extravaganza.headless.live.linear_source": [
+        "run --no-start scripts/headless/live_linear_source.exs --"
+      ],
+      "extravaganza.headless.live.codex_turn": [
+        "run --no-start scripts/headless/live_codex_turn.exs --"
+      ],
+      "extravaganza.headless.live.linear_publication": [
+        "run --no-start scripts/headless/live_linear_publication.exs --"
+      ],
+      "extravaganza.headless.live.github_evidence": [
+        "run --no-start scripts/headless/live_github_evidence.exs --"
+      ],
+      "extravaganza.headless.live.smoke": ["run --no-start scripts/headless/live_smoke.exs --"],
       test: ["cmd --cd #{core_app_path()} env MIX_ENV=test mix ash.setup --quiet", "test"],
       ci: [
         "deps.get",

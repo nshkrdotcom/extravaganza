@@ -120,6 +120,8 @@ defmodule Extravaganza.HeadlessJSON do
 
   defp subject_paths do
     [
+      ["data", "proof", "subject_ref"],
+      ["proof", "subject_ref"],
       ["data", "subject_ref"],
       ["data", "runtime_row", "subject_ref"],
       ["subject_ref"],
@@ -129,6 +131,8 @@ defmodule Extravaganza.HeadlessJSON do
 
   defp run_paths do
     [
+      ["data", "proof", "run_ref"],
+      ["proof", "run_ref"],
       ["data", "run_ref"],
       ["data", "runtime_row", "run_ref"],
       ["run_ref"],
@@ -137,11 +141,19 @@ defmodule Extravaganza.HeadlessJSON do
   end
 
   defp workflow_paths do
-    [["data", "runtime_row", "workflow_ref"], ["runtime_row", "workflow_ref"], ["workflow_ref"]]
+    [
+      ["data", "proof", "workflow_ref"],
+      ["proof", "workflow_ref"],
+      ["data", "runtime_row", "workflow_ref"],
+      ["runtime_row", "workflow_ref"],
+      ["workflow_ref"]
+    ]
   end
 
   defp runtime_profile_paths do
     [
+      ["data", "proof", "runtime_profile_ref"],
+      ["proof", "runtime_profile_ref"],
       ["runtime_profile_ref"],
       ["data", "runtime_profile_ref"],
       ["data", "runtime_row", "extensions", "governance", "runtime_profile_ref"],
@@ -153,6 +165,8 @@ defmodule Extravaganza.HeadlessJSON do
 
   defp authority_paths do
     [
+      ["data", "proof", "authority_ref"],
+      ["proof", "authority_ref"],
       ["data", "governance", "authority_ref"],
       ["governance", "authority_ref"],
       ["data", "runtime_row", "extensions", "governance", "authority_ref"],
@@ -162,6 +176,8 @@ defmodule Extravaganza.HeadlessJSON do
 
   defp decision_paths do
     [
+      ["data", "proof", "decision_ref"],
+      ["proof", "decision_ref"],
       ["data", "governance", "decision_ref"],
       ["governance", "decision_ref"],
       ["data", "runtime_row", "extensions", "governance", "decision_ref"],
@@ -171,6 +187,8 @@ defmodule Extravaganza.HeadlessJSON do
 
   defp manifest_paths do
     [
+      ["data", "proof", "connector_manifest_ref"],
+      ["proof", "connector_manifest_ref"],
       ["data", "governance", "connector_manifest_ref"],
       ["governance", "connector_manifest_ref"],
       ["data", "runtime_row", "extensions", "governance", "connector_manifest_ref"],
@@ -180,6 +198,8 @@ defmodule Extravaganza.HeadlessJSON do
 
   defp negotiation_paths do
     [
+      ["data", "proof", "capability_negotiation_ref"],
+      ["proof", "capability_negotiation_ref"],
       ["data", "governance", "capability_negotiation_ref"],
       ["governance", "capability_negotiation_ref"],
       ["data", "runtime_row", "extensions", "governance", "capability_negotiation_ref"],
@@ -189,6 +209,8 @@ defmodule Extravaganza.HeadlessJSON do
 
   defp lower_request_paths do
     [
+      ["data", "proof", "lower_request_ref"],
+      ["proof", "lower_request_ref"],
       ["data", "lower", "lower_request_ref"],
       ["lower", "lower_request_ref"],
       ["data", "runtime_row", "extensions", "lower_envelope", "lower_request_ref"],
@@ -198,6 +220,8 @@ defmodule Extravaganza.HeadlessJSON do
 
   defp lower_receipt_paths do
     [
+      ["data", "proof", "lower_receipt_ref"],
+      ["proof", "lower_receipt_ref"],
       ["data", "lower_receipt", "lower_receipt_ref"],
       ["lower_receipt", "lower_receipt_ref"],
       ["data", "runtime_row", "extensions", "lower_receipt", "lower_receipt_ref"],
@@ -216,9 +240,15 @@ defmodule Extravaganza.HeadlessJSON do
 
   defp source_publication_paths do
     [
+      ["data", "proof", "source_publication_ref"],
+      ["proof", "source_publication_ref"],
       ["data", "source_publication_receipt_ref"],
+      ["data", "source_publication_ref"],
+      ["source_publication_ref"],
       ["data", "source_publication", "source_publication_receipt_ref"],
+      ["data", "source_publication", "source_publication_ref"],
       ["source_publication", "source_publication_receipt_ref"],
+      ["source_publication", "source_publication_ref"],
       [
         "data",
         "runtime_row",
@@ -230,8 +260,23 @@ defmodule Extravaganza.HeadlessJSON do
     ]
   end
 
-  defp evidence_chain_paths, do: [["data", "evidence_chain_ref"], ["evidence_chain_ref"]]
-  defp event_page_paths, do: [["data", "event_page_ref"], ["event_page_ref"]]
+  defp evidence_chain_paths do
+    [
+      ["data", "proof", "evidence_chain_ref"],
+      ["proof", "evidence_chain_ref"],
+      ["data", "evidence_chain_ref"],
+      ["evidence_chain_ref"]
+    ]
+  end
+
+  defp event_page_paths do
+    [
+      ["data", "proof", "event_page_ref"],
+      ["proof", "event_page_ref"],
+      ["data", "event_page_ref"],
+      ["event_page_ref"]
+    ]
+  end
 
   defp idempotency_paths do
     [
