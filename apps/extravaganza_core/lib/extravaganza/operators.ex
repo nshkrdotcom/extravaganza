@@ -97,7 +97,7 @@ defmodule Extravaganza.Operators do
           {:ok, AppKit.Core.StreamAttachLease.t()} | {:error, term()}
   def issue_stream_attach_lease(subject_id, opts \\ [])
       when is_binary(subject_id) and is_list(opts) do
-    with_current_execution(subject_id, opts, fn config, context, execution_ref ->
+    with_lineage_execution(subject_id, opts, fn config, context, execution_ref ->
       OperatorSurface.issue_stream_attach_lease(
         context,
         execution_ref,
@@ -115,20 +115,6 @@ defmodule Extravaganza.Operators do
         callback.(config, context, execution_ref)
       else
         nil -> {:error, :missing_lineage_execution}
-        {:error, reason} -> {:error, reason}
-      end
-    end)
-  end
-
-  defp with_current_execution(subject_id, opts, callback) when is_function(callback, 3) do
-    with_bootstrapped_subject(subject_id, opts, fn config, context, subject_ref ->
-      query_opts = ProductSurface.work_query_opts(config, opts)
-
-      with {:ok, subject} <- WorkSurface.get_subject(context, subject_ref, query_opts),
-           %ExecutionRef{} = execution_ref <- subject.current_execution_ref do
-        callback.(config, context, execution_ref)
-      else
-        nil -> {:error, :missing_current_execution}
         {:error, reason} -> {:error, reason}
       end
     end)

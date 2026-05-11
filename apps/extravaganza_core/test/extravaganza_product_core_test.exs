@@ -1487,10 +1487,11 @@ defmodule ExtravaganzaProductCoreTest do
     assert "workflow_start_outbox_queued" in proof_steps
     assert "current_execution_row_created" in proof_steps
     assert "mezzanine_runtime_projection_projected" in proof_steps
-    assert "pending_lower_receipt_projected" in proof_steps
-    refute "deterministic_authority_projected" in proof_steps
-    refute "deterministic_lower_projected" in proof_steps
-    refute "deterministic_receipt_projected" in proof_steps
+    assert "deterministic_authority_projected" in proof_steps
+    assert "deterministic_lower_projected" in proof_steps
+    assert "deterministic_receipt_projected" in proof_steps
+    refute "pending_lower_receipt_projected" in proof_steps
+    refute String.contains?(proof["lower_receipt_ref"], "/pending/")
 
     assert readback_names == [
              "state",

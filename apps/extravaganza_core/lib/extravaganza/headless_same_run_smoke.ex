@@ -25,11 +25,14 @@ defmodule Extravaganza.HeadlessSameRunSmoke do
   def run(opts \\ []) do
     opts = opts_map(opts)
     product_opts = product_opts(opts)
+    start_opts = Keyword.put(product_opts, :deterministic_lower_lane?, true)
     subject_attrs = linear_subject(opts)
 
-    with {:ok, start_result} <- ProductHost.start_run(subject_attrs, product_opts),
-         {:ok, refs} <- refs_from_start(start_result),
-         same_run = same_run_context(refs, start_result, subject_attrs),
+    with {:ok, start_result} <- ProductHost.start_run(subject_attrs, start_opts),
+         {:ok, runtime_projection} <-
+           ProductHost.runtime_projection(start_result.payload.work_object_id, product_opts),
+         {:ok, refs} <- refs_from_start(start_result, runtime_projection),
+         same_run = same_run_context(refs, start_result, subject_attrs, runtime_projection),
          readback_opts = readback_opts(product_opts, same_run),
          {:ok, state} <- ProductHost.state_snapshot(%{}, product_opts),
          {:ok, queue} <- ProductHost.operator_queue(%{}, product_opts),
@@ -121,13 +124,19 @@ defmodule Extravaganza.HeadlessSameRunSmoke do
 
   def assert_same_run!(_proof), do: raise(ArgumentError, "invalid same-run proof")
 
-  defp refs_from_start(start_result) do
+  defp refs_from_start(start_result, runtime_projection) do
     payload = start_result.payload
     run_ref = Map.fetch!(payload, :run_ref)
     metadata = run_ref.metadata || %{}
     subject_ref = Map.fetch!(payload, :work_object_id)
     workflow_ref = Map.fetch!(payload, :workflow_start_ref)
     execution_id = Map.fetch!(payload, :execution_id)
+    lower_receipt = first_lower_receipt!(runtime_projection)
+    lower_metadata = lower_receipt.metadata || %{}
+    runtime_metadata = runtime_projection.runtime.metadata || %{}
+    lower_envelope = lower_envelope(lower_metadata, runtime_metadata)
+    governance = Map.get(runtime_metadata, "governance", %{})
+    source_publication = source_publication(lower_metadata, runtime_metadata)
 
     {:ok,
      %{
@@ -135,13 +144,20 @@ defmodule Extravaganza.HeadlessSameRunSmoke do
        run_ref: run_ref.run_id,
        workflow_ref: workflow_ref,
        runtime_profile_ref: Map.get(metadata, :runtime_profile_ref),
-       authority_ref: "authority-packet://pending/#{run_ref.run_id}",
-       decision_ref: "permission-decision://pending/#{run_ref.run_id}",
-       connector_manifest_ref: "connector-manifest://pending/#{run_ref.run_id}",
-       capability_negotiation_ref: "capability-negotiation://pending/#{run_ref.run_id}",
-       lower_request_ref: "lower-request://pending/#{run_ref.run_id}",
-       lower_receipt_ref: "lower-receipt://pending/#{execution_id}",
-       source_publication_ref: "source-publication://deterministic-same-run/#{run_ref.run_id}",
+       authority_ref: required_projected_ref(governance, lower_metadata, "authority_ref"),
+       decision_ref:
+         Map.get(governance, "authority_decision_hash") ||
+           get_in(lower_metadata, ["authority_decision", "authority_decision_hash"]),
+       connector_manifest_ref:
+         first_ref(Map.get(governance, "connector_manifest_refs")) ||
+           Map.get(lower_envelope, "connector_manifest_ref"),
+       capability_negotiation_ref:
+         first_ref(Map.get(governance, "capability_negotiation_refs")) ||
+           Map.get(lower_envelope, "capability_negotiation_ref"),
+       lower_request_ref: Map.fetch!(lower_envelope, "lower_request_ref"),
+       lower_receipt_ref: lower_receipt.lower_receipt_ref,
+       source_publication_ref: Map.fetch!(source_publication, "source_publication_receipt_ref"),
+       source_publication: source_publication,
        evidence_chain_ref: "evidence-chain:#{run_ref.run_id}",
        event_page_ref: "event-page:#{run_ref.run_id}",
        execution_ref: execution_id,
@@ -204,7 +220,9 @@ defmodule Extravaganza.HeadlessSameRunSmoke do
         "workflow_start_outbox_queued",
         "current_execution_row_created",
         "mezzanine_runtime_projection_projected",
-        "pending_lower_receipt_projected",
+        "deterministic_authority_projected",
+        "deterministic_lower_projected",
+        "deterministic_receipt_projected",
         "review_projected",
         "source_previewed",
         "source_published",
@@ -270,45 +288,28 @@ defmodule Extravaganza.HeadlessSameRunSmoke do
 
   defp compact_smoke_data(_name, value), do: HeadlessJSON.sanitize(value)
 
-  defp same_run_context(refs, start_result, subject_attrs) do
+  defp same_run_context(refs, start_result, subject_attrs, runtime_projection) do
     %{
       refs: refs,
       start_result: start_result,
       subject_attrs: subject_attrs,
-      agent_loop_projection: agent_loop_projection(refs, start_result)
+      runtime_projection: runtime_projection,
+      agent_loop_projection: agent_loop_projection(refs, start_result, runtime_projection)
     }
   end
 
-  defp agent_loop_projection(refs, start_result) do
+  defp agent_loop_projection(refs, start_result, runtime_projection) do
     %{
       subject_ref: refs.subject_ref,
       run_ref: refs.run_ref,
       workflow_ref: refs.workflow_ref,
       status: "waiting_review",
-      runtime_events: [
-        %{
-          event_ref: "event://deterministic-same-run/#{refs.run_ref}/scheduled",
-          event_seq: 1,
-          event_kind: "scheduler.dispatched",
-          observed_at: DateTime.utc_now(),
-          subject_ref: refs.subject_ref,
-          run_ref: refs.run_ref,
-          workflow_ref: refs.workflow_ref,
-          payload_ref: "payload://redacted/#{refs.run_ref}/scheduled"
-        },
-        %{
-          event_ref: "event://deterministic-same-run/#{refs.run_ref}/receipt",
-          event_seq: 2,
-          event_kind: "lower.receipt",
-          observed_at: DateTime.utc_now(),
-          subject_ref: refs.subject_ref,
-          run_ref: refs.run_ref,
-          workflow_ref: refs.workflow_ref,
-          payload_ref: "payload://redacted/#{refs.run_ref}/receipt"
-        }
-      ],
+      runtime_events: runtime_events(refs, runtime_projection),
       turn_states: [%{"turn_ref" => "turn://deterministic-same-run/#{refs.run_ref}/1"}],
-      budget_state: %{"status" => "within_budget"},
+      budget_state: %{
+        "status" => "within_budget",
+        "token_totals" => runtime_projection.runtime.token_totals
+      },
       candidate_fact_refs: ["candidate-fact://deterministic-same-run/#{refs.subject_ref}"],
       memory_proof_refs: ["memory-proof://deterministic-same-run/#{refs.run_ref}"],
       action_receipts: [
@@ -341,14 +342,66 @@ defmodule Extravaganza.HeadlessSameRunSmoke do
   end
 
   defp source_publication_receipt(refs, preview) do
-    %{
-      "source_publication_receipt_ref" => refs.source_publication_ref,
-      "status" => "previewed",
+    refs.source_publication
+    |> Map.merge(%{
       "publish_ref" => preview.publish_ref,
       "operation" => to_string(preview.operation),
-      "lower_receipt_ref" => refs.lower_receipt_ref,
-      "provider_readback_ref" => "provider-readback://pending/#{refs.run_ref}"
-    }
+      "lower_receipt_ref" => refs.lower_receipt_ref
+    })
+  end
+
+  defp first_lower_receipt!(runtime_projection) do
+    case runtime_projection.lower_receipts do
+      [receipt | _] ->
+        if String.contains?(receipt.lower_receipt_ref || "", "/pending/") do
+          raise KeyError, key: :lower_receipt_ref, term: receipt
+        else
+          receipt
+        end
+
+      _other ->
+        raise KeyError, key: :lower_receipts, term: runtime_projection
+    end
+  end
+
+  defp lower_envelope(lower_metadata, runtime_metadata) do
+    Map.get(runtime_metadata, "lower_envelope") ||
+      Map.get(lower_metadata, "governed_lower_envelope") ||
+      Map.get(lower_metadata, "lower_envelope") ||
+      %{}
+  end
+
+  defp source_publication(lower_metadata, runtime_metadata) do
+    Map.get(runtime_metadata, "source_publication") ||
+      Map.get(lower_metadata, "source_publication") ||
+      %{}
+  end
+
+  defp required_projected_ref(governance, lower_metadata, key) do
+    Map.get(governance, key) ||
+      get_in(lower_metadata, ["authority_decision", key]) ||
+      raise(KeyError, key: key, term: %{governance: governance, lower_metadata: lower_metadata})
+  end
+
+  defp first_ref([ref | _]), do: ref
+  defp first_ref(_value), do: nil
+
+  defp runtime_events(refs, runtime_projection) do
+    runtime_projection.runtime.events
+    |> Enum.with_index(1)
+    |> Enum.map(fn {event, seq} ->
+      %{
+        event_ref: "event://deterministic-same-run/#{refs.run_ref}/#{event.event_kind}",
+        event_seq: seq,
+        event_kind: event.event_kind,
+        observed_at: DateTime.utc_now(),
+        subject_ref: refs.subject_ref,
+        run_ref: refs.run_ref,
+        workflow_ref: refs.workflow_ref,
+        payload_ref: "payload://redacted/#{refs.run_ref}/#{event.event_kind}",
+        count: event.count
+      }
+    end)
   end
 
   defp start_summary(refs, start_result) do
