@@ -429,6 +429,8 @@ defmodule Extravaganza.HeadlessCLI do
   defp parse(["--no-create-fallback" | rest], opts),
     do: parse(rest, Map.put(opts, :allow_create_fallback?, false))
 
+  defp parse(["--dry-run" | rest], opts), do: parse(rest, Map.put(opts, :dry_run?, true))
+
   defp parse(["--repo", repo | rest], opts), do: parse(rest, Map.put(opts, :repo, repo))
 
   defp parse(["--pull-number", pull_number | rest], opts),
@@ -534,6 +536,7 @@ defmodule Extravaganza.HeadlessCLI do
           :team_id,
           :message,
           :allow_create_fallback?,
+          :dry_run?,
           :tenant_id,
           :pack_version,
           :trace_id

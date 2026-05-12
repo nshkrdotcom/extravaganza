@@ -694,6 +694,46 @@ defmodule Extravaganza.HeadlessExamplesTest do
   end
 
   @tag :live_provider
+  test "linear publication dry-run reports a governed lower denial through the product path" do
+    secret = "linear-secret-value"
+
+    output =
+      capture_io(secret <> "\n", fn ->
+        assert :ok =
+                 HeadlessCLI.run(:live_linear_publication, [
+                   "--json",
+                   "--api-key-stdin",
+                   "--issue-id",
+                   "lin-issue-321",
+                   "--dry-run",
+                   "--trace-id",
+                   "trace:live-publication-dry-run"
+                 ])
+      end)
+
+    decoded = Jason.decode!(output)
+    provider_effect = decoded["data"]["provider_effect"]
+
+    assert decoded["ok"] == true
+    assert decoded["data"]["status"] == "completed"
+    assert provider_effect["status"] == "governed_denial_recorded"
+    assert provider_effect["operation"] == "linear.comments.create"
+    assert provider_effect["credential_present?"] == true
+    assert provider_effect["credential_redeemed?"] == true
+    assert provider_effect["provider_request_sent?"] == false
+    assert provider_effect["provider_response_received?"] == false
+    assert provider_effect["lower_denial_ref"] =~ "policy_denied"
+    assert provider_effect["dry_run?"] == true
+    refute Map.has_key?(decoded["refs"], "source_publication_ref")
+    refute output =~ secret
+
+    assert_received {:publish_linear_source, "extravaganza", attrs, opts}
+    assert attrs.issue_id == "lin-issue-321"
+    assert Keyword.fetch!(opts, :dry_run?) == true
+    assert Keyword.fetch!(opts, :linear_api_key) == secret
+  end
+
+  @tag :live_provider
   test "aggregate live smoke emits a receipt for all live-gated provider examples" do
     output =
       capture_io(fn ->
@@ -1061,6 +1101,25 @@ defmodule Extravaganza.HeadlessExamplesTest do
 
       receipt =
         cond do
+          Keyword.get(opts, :dry_run?) == true ->
+            %{
+              source_publication_denial_ref:
+                "lower-denial://linear/publication-dry-run/policy_denied",
+              source_publish_ref: attrs.source_publish_ref,
+              source_binding_id: attrs.source_binding_id,
+              source_ref: attrs.source_ref,
+              status: "dry_run_denied",
+              capability_id: "linear.comments.create",
+              issue_id: attrs.issue_id,
+              lower_request_ref: "lower-request://linear/publication-dry-run",
+              lower_denial_ref: "lower-denial://linear/publication-dry-run/policy_denied",
+              denial_class: "policy_denied",
+              denial_reason: "dry run requested before provider dispatch",
+              provider_request_sent?: false,
+              provider_response_received?: false,
+              workpad_refs: []
+            }
+
           Map.get(attrs, :state_id) || Map.get(attrs, :state_name) ->
             %{
               source_publication_receipt_ref: "source-publication://linear-primary/state-update",
@@ -1121,8 +1180,10 @@ defmodule Extravaganza.HeadlessExamplesTest do
       {:ok,
        %{
          source_publication_receipt: receipt,
-         provider_request_sent?: true,
-         provider_response_received?: true
+         credential_redeemed?: true,
+         provider_request_sent?: Keyword.get(opts, :dry_run?) != true,
+         provider_response_received?: Keyword.get(opts, :dry_run?) != true,
+         lower_denial_ref: Map.get(receipt, :lower_denial_ref)
        }}
     end
   end

@@ -211,25 +211,30 @@ defmodule Extravaganza.HeadlessLiveExamples do
         case HeadlessSurface.publish_linear_source(attrs, surface_opts(opts)) do
           {:ok, result} ->
             receipt = value(result, :source_publication_receipt) || result
+            denial? = source_publication_denial?(receipt)
 
             %{
               "provider" => example.provider,
               "effect" => example.provider_effect,
               "capability_ids" => example.capability_ids,
-              "status" => "receipt_recorded",
+              "status" => source_publication_effect_status(receipt),
               "operation" => value(receipt, :capability_id) || "linear.comments.create",
               "source_binding_id" => value(receipt, :source_binding_id) || "linear-primary",
-              "source_publication_ref" =>
-                value(receipt, :source_publication_receipt_ref) ||
-                  value(receipt, :source_publication_ref),
+              "source_publication_ref" => source_publication_ref(receipt, denial?),
               "credential_present?" => true,
               "credential_redeemed?" => truthy?(value(result, :credential_redeemed?)),
-              "provider_request_sent?" => true,
-              "provider_response_received?" => true,
-              "receipt_recorded?" => true,
+              "provider_request_sent?" => truthy?(value(result, :provider_request_sent?)),
+              "provider_response_received?" =>
+                truthy?(value(result, :provider_response_received?)),
+              "receipt_recorded?" => not denial?,
               "product_readback_confirmed?" => product_readback_confirmed?(proof),
               "lower_request_ref" => value(receipt, :lower_request_ref),
               "lower_receipt_ref" => value(receipt, :lower_receipt_ref),
+              "lower_denial_ref" =>
+                value(receipt, :lower_denial_ref) || value(result, :lower_denial_ref),
+              "denial_class" => value(receipt, :denial_class),
+              "denial_reason" => value(receipt, :denial_reason),
+              "dry_run?" => value(receipt, :status) == "dry_run_denied",
               "workpad_refs" => value(receipt, :workpad_refs),
               "comment_ref" => value(receipt, :comment_ref),
               "fallback_from" => value(receipt, :fallback_from),
@@ -355,8 +360,26 @@ defmodule Extravaganza.HeadlessLiveExamples do
   end
 
   defp example_status(%{"status" => "receipt_recorded"}), do: "completed"
+  defp example_status(%{"status" => "governed_denial_recorded"}), do: "completed"
   defp example_status(%{"status" => "failed"}), do: "failed"
   defp example_status(_provider_effect), do: "skipped"
+
+  defp source_publication_effect_status(receipt) do
+    if source_publication_denial?(receipt),
+      do: "governed_denial_recorded",
+      else: "receipt_recorded"
+  end
+
+  defp source_publication_denial?(receipt) do
+    value(receipt, :status) in ["dry_run_denied", "denied"] or
+      present?(value(receipt, :lower_denial_ref))
+  end
+
+  defp source_publication_ref(_receipt, true), do: nil
+
+  defp source_publication_ref(receipt, false) do
+    value(receipt, :source_publication_receipt_ref) || value(receipt, :source_publication_ref)
+  end
 
   defp linear_source_binding(_opts) do
     %{
@@ -498,7 +521,7 @@ defmodule Extravaganza.HeadlessLiveExamples do
 
   defp surface_opts(opts) do
     opts
-    |> Map.take([:tenant_id, :pack_version, :trace_id, :linear_api_key])
+    |> Map.take([:tenant_id, :pack_version, :trace_id, :linear_api_key, :dry_run?])
     |> Enum.to_list()
   end
 

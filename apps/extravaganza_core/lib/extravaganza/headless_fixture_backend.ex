@@ -120,20 +120,22 @@ defmodule Extravaganza.HeadlessFixtureBackend do
   end
 
   @impl true
-  def publish_linear_source(_context, attrs, _opts) do
+  def publish_linear_source(_context, attrs, opts) do
     source_binding_id = Map.get(attrs, :source_binding_id, "linear-primary")
-    receipt = fixture_publication_receipt(source_binding_id, attrs)
+    receipt = fixture_publication_receipt(source_binding_id, attrs, opts)
+    denied? = Map.get(receipt, :status) in ["dry_run_denied", "denied"]
 
     {:ok,
      %{
        credential_redeemed?: true,
-       provider_request_sent?: true,
-       provider_response_received?: true,
+       provider_request_sent?: not denied?,
+       provider_response_received?: not denied?,
+       lower_denial_ref: Map.get(receipt, :lower_denial_ref),
        source_publication_receipt: receipt
      }}
   end
 
-  defp fixture_publication_receipt(source_binding_id, attrs) do
+  defp fixture_publication_receipt(source_binding_id, attrs, opts) do
     base = %{
       source_publication_receipt_ref: "source-publication://#{source_binding_id}/fixture",
       source_publish_ref: Map.get(attrs, :source_publish_ref, "source-publish://fixture"),
@@ -143,6 +145,24 @@ defmodule Extravaganza.HeadlessFixtureBackend do
     }
 
     cond do
+      Keyword.get(opts, :dry_run?) == true ->
+        base
+        |> Map.delete(:source_publication_receipt_ref)
+        |> Map.merge(%{
+          source_publication_denial_ref:
+            "lower-denial://fixture/linear/publication-dry-run/policy_denied",
+          status: "dry_run_denied",
+          capability_id: fixture_publication_capability(attrs),
+          issue_id: Map.get(attrs, :issue_id),
+          lower_request_ref: "lower-request://fixture/linear/publication-dry-run",
+          lower_denial_ref: "lower-denial://fixture/linear/publication-dry-run/policy_denied",
+          denial_class: "policy_denied",
+          denial_reason: "dry run requested before provider dispatch",
+          provider_request_sent?: false,
+          provider_response_received?: false,
+          workpad_refs: []
+        })
+
       Map.get(attrs, :state_id) || Map.get(attrs, :state_name) ->
         Map.merge(base, %{
           capability_id: "linear.issues.update",
@@ -169,6 +189,14 @@ defmodule Extravaganza.HeadlessFixtureBackend do
           lower_receipt_ref: "lower-receipt://fixture/linear/publication",
           workpad_refs: ["linear-comment://fixture/comment-1"]
         })
+    end
+  end
+
+  defp fixture_publication_capability(attrs) do
+    cond do
+      Map.get(attrs, :state_id) || Map.get(attrs, :state_name) -> "linear.issues.update"
+      Map.get(attrs, :comment_id) -> "linear.comments.update"
+      true -> "linear.comments.create"
     end
   end
 
