@@ -430,6 +430,97 @@ defmodule Extravaganza.HeadlessExamplesTest do
   end
 
   @tag :live_provider
+  test "aggregate live smoke product path completes only with all provider effects on one trace" do
+    Application.put_env(:app_kit_core, :agent_intake_backend, __MODULE__.CodexAgentBackend)
+    Application.put_env(:app_kit_core, :headless_backend, __MODULE__.CodexAgentBackend)
+    Application.put_env(:app_kit_core, :runtime_backend, __MODULE__.GitHubEvidenceBackend)
+
+    secret = "linear-secret-value"
+
+    output =
+      capture_io(secret <> "\n", fn ->
+        assert :ok =
+                 HeadlessCLI.run(:live_smoke, [
+                   "--json",
+                   "--api-key-stdin",
+                   "--live-product-path",
+                   "--repo",
+                   "nshkrdotcom/extravaganza",
+                   "--pull-number",
+                   "17",
+                   "--ref",
+                   "head-sha",
+                   "--trace-id",
+                   "trace:live-smoke-product"
+                 ])
+      end)
+
+    decoded = Jason.decode!(output)
+    data = decoded["data"]
+    examples = data["examples"]
+
+    assert decoded["ok"] == true
+    assert decoded["operation"] == "live.smoke"
+    assert data["status"] == "completed"
+    assert data["trace_id"] == "trace:live-smoke-product"
+    assert data["correlation_ref"] == "live-smoke://trace-live-smoke-product"
+    assert data["all_provider_effects_completed?"] == true
+    assert data["product_readback_confirmed?"] == true
+
+    assert data["completed_operations"] |> Enum.sort() == [
+             "live.codex-turn",
+             "live.github-evidence",
+             "live.linear-publication",
+             "live.linear-source"
+           ]
+
+    assert data["skipped_operations"] == []
+    assert data["failed_operations"] == []
+
+    assert data["source_publication_ref"] ==
+             examples["live.linear-publication"]["source_publication_ref"]
+
+    for operation <- data["completed_operations"] do
+      assert examples[operation]["status"] == "completed"
+      assert examples[operation]["trace_id"] == "trace:live-smoke-product"
+      assert examples[operation]["provider_effect"]["status"] == "receipt_recorded"
+      assert examples[operation]["provider_effect"]["provider_request_sent?"] == true
+      assert examples[operation]["provider_effect"]["provider_response_received?"] == true
+      assert examples[operation]["provider_effect"]["receipt_recorded?"] == true
+      assert examples[operation]["provider_effect"]["product_readback_confirmed?"] == true
+    end
+
+    assert examples["live.github-evidence"]["provider_effect"]["write_operations"] == []
+    refute output =~ secret
+    refute output =~ "live_provider_effect_deferred"
+
+    assert_received {:fetch_linear_candidates, tenant_id, _source_binding, source_opts}
+    assert String.starts_with?(tenant_id, "extravaganza-live-")
+    assert Keyword.fetch!(source_opts, :trace_id) == "trace:live-smoke-product"
+    assert Keyword.fetch!(source_opts, :linear_api_key) == secret
+
+    assert_received {:start_agent_run, _tenant_id, request, codex_opts}
+    assert request.trace_id == "trace:live-smoke-product"
+    assert Keyword.fetch!(codex_opts, :trace_id) == "trace:live-smoke-product"
+
+    assert_received {:runtime_run_detail, "run://codex/live-product", _readback_request,
+                     codex_readback_opts}
+
+    assert Keyword.fetch!(codex_readback_opts, :trace_id) == "trace:live-smoke-product"
+
+    assert_received {:publish_linear_source, _tenant_id, attrs, publication_opts}
+    assert attrs.issue_id == "lin-issue-321"
+    assert Keyword.fetch!(publication_opts, :trace_id) == "trace:live-smoke-product"
+    assert Keyword.fetch!(publication_opts, :linear_api_key) == secret
+
+    assert_received {:fetch_github_pr_evidence, _tenant_id, github_request, github_opts}
+    assert github_request.repo == "nshkrdotcom/extravaganza"
+    assert github_request.pull_number == 17
+    assert github_request.ref == "head-sha"
+    assert Keyword.fetch!(github_opts, :trace_id) == "trace:live-smoke-product"
+  end
+
+  @tag :live_provider
   test "linear source stdin default fixture path installs the product fixture source backend" do
     Application.delete_env(:app_kit_core, :source_backend)
     secret = "linear-secret-value"

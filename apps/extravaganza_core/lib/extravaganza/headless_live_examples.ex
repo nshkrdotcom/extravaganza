@@ -66,6 +66,7 @@ defmodule Extravaganza.HeadlessLiveExamples do
 
   def run(:smoke, opts) do
     opts = opts_map(opts)
+    trace_id = live_trace_id(opts, "live.smoke")
 
     with {:ok, proof} <- product_proof(opts) do
       examples =
@@ -76,18 +77,28 @@ defmodule Extravaganza.HeadlessLiveExamples do
         end)
         |> Map.new()
 
-      {:ok,
-       proof
-       |> common_refs()
-       |> Map.merge(%{
-         "status" => aggregate_status(examples),
-         "operation" => "live.smoke",
-         "receipt_ref" => live_receipt_ref("live.smoke", proof),
-         "receipt_state" => "recorded",
-         "product_path_exercised?" => true,
-         "product_path" => product_path(proof, "Extravaganza.ProductHost.live_smoke"),
-         "examples" => examples
-       })}
+      summary = aggregate_summary(examples)
+
+      data =
+        proof
+        |> common_refs()
+        |> Map.delete("source_publication_ref")
+        |> Map.merge(%{
+          "status" => aggregate_status(summary),
+          "operation" => "live.smoke",
+          "trace_id" => trace_id,
+          "correlation_ref" => live_smoke_correlation_ref(trace_id),
+          "receipt_ref" => live_receipt_ref("live.smoke", proof),
+          "receipt_state" => "recorded",
+          "product_path_exercised?" => true,
+          "product_readback_confirmed?" => product_readback_confirmed?(proof),
+          "product_path" => product_path(proof, "Extravaganza.ProductHost.live_smoke"),
+          "examples" => examples
+        })
+        |> maybe_put("source_publication_ref", aggregate_source_publication_ref(examples))
+        |> Map.merge(summary)
+
+      {:ok, data}
     end
   end
 
@@ -110,6 +121,7 @@ defmodule Extravaganza.HeadlessLiveExamples do
       |> Map.merge(%{
         "status" => example_status(provider_effect),
         "operation" => example.operation,
+        "trace_id" => live_trace_id(opts, example.operation),
         "receipt_ref" => live_receipt_ref(example.operation, proof),
         "receipt_state" => "recorded",
         "provider" => example.provider,
@@ -857,13 +869,52 @@ defmodule Extravaganza.HeadlessLiveExamples do
   defp ascii_alnum_dash_byte(_byte, {chars, true}), do: {chars, true}
   defp ascii_alnum_dash_byte(_byte, {chars, false}), do: {[?- | chars], true}
 
-  defp aggregate_status(examples) do
-    if Enum.all?(examples, fn {_operation, example} -> example["status"] == "skipped" end) do
-      "skipped"
-    else
-      "completed"
+  defp aggregate_summary(examples) do
+    required_operations = Enum.map(@example_order, &example!(&1).operation)
+    completed_operations = operations_with_status(required_operations, examples, "completed")
+    skipped_operations = operations_with_status(required_operations, examples, "skipped")
+    failed_operations = operations_with_status(required_operations, examples, "failed")
+
+    %{
+      "required_operations" => required_operations,
+      "completed_operations" => completed_operations,
+      "skipped_operations" => skipped_operations,
+      "failed_operations" => failed_operations,
+      "provider_effect_count" => length(completed_operations),
+      "all_provider_effects_completed?" => completed_operations == required_operations
+    }
+  end
+
+  defp operations_with_status(required_operations, examples, status) do
+    Enum.filter(required_operations, fn operation ->
+      get_in(examples, [operation, "status"]) == status
+    end)
+  end
+
+  defp aggregate_status(%{"failed_operations" => [_ | _]}), do: "failed"
+  defp aggregate_status(%{"skipped_operations" => [_ | _]}), do: "skipped"
+  defp aggregate_status(%{"all_provider_effects_completed?" => true}), do: "completed"
+  defp aggregate_status(_summary), do: "failed"
+
+  defp aggregate_source_publication_ref(examples) do
+    examples
+    |> value("live.linear-publication")
+    |> case do
+      %{} = publication ->
+        value(publication, :source_publication_ref) ||
+          publication |> value(:provider_effect) |> value(:source_publication_ref)
+
+      _missing ->
+        nil
     end
   end
+
+  defp live_trace_id(opts, operation) do
+    string_value(opts, :trace_id) ||
+      "trace://extravaganza/#{operation |> String.replace(".", "-") |> String.replace("_", "-")}"
+  end
+
+  defp live_smoke_correlation_ref(trace_id), do: "live-smoke://#{ref_suffix(trace_id)}"
 
   defp live_receipt_ref(operation, proof) do
     run_ref = proof |> Map.fetch!("run_ref") |> URI.encode_www_form()
