@@ -14,7 +14,13 @@ defmodule Extravaganza.HeadlessCLI do
     SubjectPresenter
   }
 
-  alias Extravaganza.{HeadlessFixtureBackend, HeadlessJSON, HeadlessSurface, ProductHost}
+  alias Extravaganza.{
+    HeadlessFixtureBackend,
+    HeadlessJSON,
+    HeadlessSurface,
+    ProductHost,
+    SymphonyWorkflowImport
+  }
 
   @operations [
     :state,
@@ -28,6 +34,9 @@ defmodule Extravaganza.HeadlessCLI do
     :review,
     :source_preview,
     :source_sync,
+    :profile,
+    :profile_reload,
+    :profile_validate,
     :live_linear_source,
     :live_codex_turn,
     :live_linear_publication,
@@ -191,6 +200,43 @@ defmodule Extravaganza.HeadlessCLI do
     )
   end
 
+  defp dispatch(:profile, opts) do
+    HeadlessJSON.wrap(
+      :profile,
+      SymphonyWorkflowImport.profile(import_opts(opts)),
+      fn value -> value end,
+      opts
+    )
+  end
+
+  defp dispatch(:profile_validate, opts) do
+    with {:ok, profile} <- SymphonyWorkflowImport.profile(import_opts(opts)) do
+      case profile["validation"] do
+        %{"status" => "valid"} ->
+          HeadlessJSON.success(
+            :profile_validate,
+            %{"status" => "valid", "profile" => profile},
+            opts
+          )
+
+        %{"reason" => %{"code" => code, "value" => value}} ->
+          HeadlessJSON.error(:profile_validate, {code, value}, opts)
+
+        %{"reason" => reason} ->
+          HeadlessJSON.error(:profile_validate, reason, opts)
+      end
+    end
+  end
+
+  defp dispatch(:profile_reload, opts) do
+    HeadlessJSON.wrap(
+      :profile_reload,
+      SymphonyWorkflowImport.reload(import_opts(opts)),
+      fn value -> value end,
+      opts
+    )
+  end
+
   defp dispatch(:live_linear_source, opts) do
     HeadlessJSON.wrap(
       "live.linear-source",
@@ -307,6 +353,22 @@ defmodule Extravaganza.HeadlessCLI do
   defp parse(["--pack-version", pack_version | rest], opts),
     do: parse(rest, Map.put(opts, :pack_version, pack_version))
 
+  defp parse(["--workflow", workflow_path | rest], opts),
+    do: parse(rest, Map.put(opts, :workflow_path, workflow_path))
+
+  defp parse(["--workflow-path", workflow_path | rest], opts),
+    do: parse(rest, Map.put(opts, :workflow_path, workflow_path))
+
+  defp parse(["--cwd", cwd | rest], opts), do: parse(rest, Map.put(opts, :cwd, cwd))
+
+  defp parse(["--profile-cache", profile_cache_path | rest], opts),
+    do: parse(rest, Map.put(opts, :profile_cache_path, profile_cache_path))
+
+  defp parse(["--env", assignment | rest], opts) do
+    parsed = parse_env_assignment(assignment)
+    parse(rest, Map.update(opts, :env, parsed, &Map.merge(&1, parsed)))
+  end
+
   defp parse(["--run", run_id | rest], opts), do: parse(rest, Map.put(opts, :run_id, run_id))
   defp parse(["--run-id", run_id | rest], opts), do: parse(rest, Map.put(opts, :run_id, run_id))
 
@@ -387,6 +449,19 @@ defmodule Extravaganza.HeadlessCLI do
       :trace_id
     ])
     |> Map.put_new(:credential_available?, Map.get(opts, :api_key_stdin?, false))
+  end
+
+  defp import_opts(opts) do
+    opts
+    |> Map.take([:workflow_path, :cwd, :env, :profile_cache_path])
+    |> Enum.to_list()
+  end
+
+  defp parse_env_assignment(assignment) when is_binary(assignment) do
+    case String.split(assignment, "=", parts: 2) do
+      [key, value] when key != "" -> %{key => value}
+      _other -> %{}
+    end
   end
 
   defp default_linear_subject(opts) do

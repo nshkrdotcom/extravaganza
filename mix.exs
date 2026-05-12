@@ -110,6 +110,7 @@ defmodule Extravaganza.MixProject do
         "guides/headless_live_demo.md",
         "guides/headless_provider_credentials.md",
         "guides/headless_symphony_headless_gap_analysis.md",
+        "guides/headless_symphony_workflow_profiles.md",
         "docs/overview.md",
         "docs/stack_position.md",
         "docs/product_direction.md",
@@ -122,7 +123,8 @@ defmodule Extravaganza.MixProject do
         Guides: [
           "guides/headless_live_demo.md",
           "guides/headless_provider_credentials.md",
-          "guides/headless_symphony_headless_gap_analysis.md"
+          "guides/headless_symphony_headless_gap_analysis.md",
+          "guides/headless_symphony_workflow_profiles.md"
         ],
         Architecture: ["docs/stack_position.md", "docs/product_direction.md"],
         Composition: ["docs/product_profile.md"],

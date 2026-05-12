@@ -55,7 +55,7 @@ defmodule ExtravaganzaCore.MixProject do
   end
 
   defp deps do
-    [{:jason, "~> 1.4"}] ++
+    [{:jason, "~> 1.4"}, {:solid, "~> 1.2"}] ++
       dependency_sources(@runtime_dependency_apps, override: true)
   end
 

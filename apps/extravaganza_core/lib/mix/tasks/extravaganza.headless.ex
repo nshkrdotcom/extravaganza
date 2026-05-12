@@ -8,6 +8,11 @@ defmodule Mix.Tasks.Extravaganza.Headless.TaskSupport do
     :live_github_evidence,
     :live_smoke
   ]
+  @no_start_operations [
+    :profile,
+    :profile_reload,
+    :profile_validate
+  ]
 
   @spec run(atom(), [String.t()]) :: :ok
   def run(operation, argv) when is_atom(operation) and is_list(argv) do
@@ -22,6 +27,7 @@ defmodule Mix.Tasks.Extravaganza.Headless.TaskSupport do
   defp start_app?(operation, argv) do
     cond do
       "--fixture" in argv -> false
+      operation in @no_start_operations -> false
       operation in @live_operations -> "--live-product-path" in argv
       true -> true
     end
@@ -154,6 +160,36 @@ defmodule Mix.Tasks.Extravaganza.Headless.SourceSync do
   @moduledoc false
   @shortdoc "Sync a deterministic Linear-shaped source page"
   def run(argv), do: TaskSupport.run(:source_sync, argv)
+end
+
+defmodule Mix.Tasks.Extravaganza.Headless.Profile do
+  use Mix.Task
+
+  alias Mix.Tasks.Extravaganza.Headless.TaskSupport
+
+  @moduledoc false
+  @shortdoc "Print imported Symphony workflow profile JSON"
+  def run(argv), do: TaskSupport.run(:profile, argv)
+end
+
+defmodule Mix.Tasks.Extravaganza.Headless.ProfileReload do
+  use Mix.Task
+
+  alias Mix.Tasks.Extravaganza.Headless.TaskSupport
+
+  @moduledoc false
+  @shortdoc "Reload an imported Symphony workflow profile"
+  def run(argv), do: TaskSupport.run(:profile_reload, argv)
+end
+
+defmodule Mix.Tasks.Extravaganza.Headless.ProfileValidate do
+  use Mix.Task
+
+  alias Mix.Tasks.Extravaganza.Headless.TaskSupport
+
+  @moduledoc false
+  @shortdoc "Validate an imported Symphony workflow profile"
+  def run(argv), do: TaskSupport.run(:profile_validate, argv)
 end
 
 defmodule Mix.Tasks.Extravaganza.Headless.Live.LinearSource do
