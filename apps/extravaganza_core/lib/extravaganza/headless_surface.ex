@@ -174,6 +174,14 @@ defmodule Extravaganza.HeadlessSurface do
     Sources.sync_linear_issues(source_page, opts)
   end
 
+  @spec fetch_linear_candidates(map(), keyword()) :: {:ok, map()} | {:error, term()}
+  def fetch_linear_candidates(source_binding, opts \\ [])
+      when is_map(source_binding) and is_list(opts) do
+    with {:ok, %{context: context}} <- context_bundle(opts) do
+      AppKitSourceSurface.fetch_linear_candidates(context, source_binding, opts)
+    end
+  end
+
   @spec publish_linear_source(map(), keyword()) :: {:ok, map()} | {:error, term()}
   def publish_linear_source(attrs, opts \\ []) when is_map(attrs) and is_list(opts) do
     with {:ok, %{context: context}} <- context_bundle(opts) do

@@ -64,7 +64,8 @@ defmodule Extravaganza.ProductBootstrap do
       {:ok, install_result} ->
         {:ok, install_result}
 
-      {:error, %SurfaceError{code: "pack_registration_not_found"}} ->
+      {:error, %SurfaceError{code: code}}
+      when code in ["pack_registration_not_found", "pack_registration_not_active"] ->
         {:ok, nil}
 
       {:error, reason} ->

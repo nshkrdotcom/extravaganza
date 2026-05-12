@@ -7,15 +7,27 @@ defmodule Extravaganza.HeadlessExamplesTest do
 
   setup do
     previous_backend = Application.get_env(:app_kit_core, :headless_backend)
+    previous_source_backend = Application.get_env(:app_kit_core, :source_backend)
     previous_fixture_context = Application.get_env(:extravaganza_core, :headless_fixture_context?)
+    Process.put(:headless_examples_test_pid, self())
     Application.put_env(:app_kit_core, :headless_backend, HeadlessFixtureBackend)
+    Application.put_env(:app_kit_core, :source_backend, __MODULE__.SourceBackend)
     Application.put_env(:extravaganza_core, :headless_fixture_context?, true)
 
     on_exit(fn ->
+      Process.delete(:headless_examples_test_pid)
+      Process.delete(:headless_examples_source_response)
+
       if previous_backend do
         Application.put_env(:app_kit_core, :headless_backend, previous_backend)
       else
         Application.delete_env(:app_kit_core, :headless_backend)
+      end
+
+      if previous_source_backend do
+        Application.put_env(:app_kit_core, :source_backend, previous_source_backend)
+      else
+        Application.delete_env(:app_kit_core, :source_backend)
       end
 
       if is_nil(previous_fixture_context) do
@@ -150,6 +162,189 @@ defmodule Extravaganza.HeadlessExamplesTest do
   end
 
   @tag :live_provider
+  test "linear api key stdin must be non-empty before it counts as supplied" do
+    output =
+      capture_io("", fn ->
+        assert :ok =
+                 HeadlessCLI.run(:live_linear_source, [
+                   "--json",
+                   "--api-key-stdin",
+                   "--trace-id",
+                   "trace:live-stdin"
+                 ])
+      end)
+
+    decoded = Jason.decode!(output)
+
+    assert decoded["ok"] == false
+    assert decoded["operation"] == "live.linear-source"
+    assert decoded["error"]["code"] == "credential_stdin_empty"
+    refute output =~ "live_provider_effect_deferred"
+  end
+
+  @tag :live_provider
+  test "linear source stdin executes the AppKit source path with redacted live-effect stages" do
+    secret = "linear-secret-value"
+
+    output =
+      capture_io(secret <> "\n", fn ->
+        assert :ok =
+                 HeadlessCLI.run(:live_linear_source, [
+                   "--json",
+                   "--api-key-stdin",
+                   "--trace-id",
+                   "trace:live-source"
+                 ])
+      end)
+
+    decoded = Jason.decode!(output)
+
+    assert decoded["ok"] == true
+    assert decoded["operation"] == "live.linear-source"
+    assert decoded["data"]["status"] == "completed"
+    assert decoded["data"]["provider_effect"]["status"] == "receipt_recorded"
+    assert decoded["data"]["provider_effect"]["credential_present?"] == true
+    assert decoded["data"]["provider_effect"]["provider_request_sent?"] == true
+    assert decoded["data"]["provider_effect"]["provider_response_received?"] == true
+    assert decoded["data"]["provider_effect"]["receipt_recorded?"] == true
+    assert decoded["data"]["provider_effect"]["product_readback_confirmed?"] == true
+    assert decoded["data"]["provider_effect"]["operation"] == "linear.issues.list"
+    refute output =~ secret
+    refute output =~ "live_provider_effect_deferred"
+
+    assert_received {:fetch_linear_candidates, "extravaganza", source_binding, _opts}
+    assert source_binding.source_binding_id == "linear-primary"
+  end
+
+  @tag :live_provider
+  test "linear source live product path passes stdin credential to AppKit without rendering it" do
+    secret = "linear-secret-value"
+
+    output =
+      capture_io(secret <> "\n", fn ->
+        assert :ok =
+                 HeadlessCLI.run(:live_linear_source, [
+                   "--json",
+                   "--api-key-stdin",
+                   "--live-product-path",
+                   "--trace-id",
+                   "trace:live-source-product"
+                 ])
+      end)
+
+    decoded = Jason.decode!(output)
+
+    assert decoded["ok"] == true
+    assert decoded["data"]["status"] == "completed"
+    assert_received {:fetch_linear_candidates, tenant_id, _source_binding, opts}
+    assert String.starts_with?(tenant_id, "extravaganza-live-")
+    assert opts |> Keyword.fetch!(:pack_version) |> String.starts_with?("1.0.0-live.")
+    assert Keyword.fetch!(opts, :linear_api_key) == secret
+    refute output =~ secret
+  end
+
+  @tag :live_provider
+  test "linear source live product path renders lower struct errors without leaking credentials" do
+    secret = "linear-secret-value"
+
+    Process.put(
+      :headless_examples_source_response,
+      {:error,
+       %AppKit.Core.SurfaceError{
+         code: "unsupported_runtime_profile_change",
+         message: "Unsupported runtime profile change",
+         kind: :validation,
+         retryable: false,
+         details: %{linear_api_key: secret}
+       }}
+    )
+
+    output =
+      capture_io(secret <> "\n", fn ->
+        assert :ok =
+                 HeadlessCLI.run(:live_linear_source, [
+                   "--json",
+                   "--api-key-stdin",
+                   "--live-product-path",
+                   "--trace-id",
+                   "trace:live-source-error"
+                 ])
+      end)
+
+    decoded = Jason.decode!(output)
+
+    assert decoded["ok"] == true
+    assert decoded["data"]["status"] == "failed"
+    assert decoded["data"]["provider_effect"]["error"] =~ "unsupported_runtime_profile_change"
+    assert decoded["data"]["provider_effect"]["error"] =~ "[REDACTED]"
+    refute output =~ secret
+  end
+
+  @tag :live_provider
+  test "linear source stdin default fixture path installs the product fixture source backend" do
+    Application.delete_env(:app_kit_core, :source_backend)
+    secret = "linear-secret-value"
+
+    output =
+      capture_io(secret <> "\n", fn ->
+        assert :ok =
+                 HeadlessCLI.run(:live_linear_source, [
+                   "--json",
+                   "--api-key-stdin",
+                   "--trace-id",
+                   "trace:live-source-fixture"
+                 ])
+      end)
+
+    decoded = Jason.decode!(output)
+
+    assert decoded["ok"] == true
+    assert decoded["data"]["status"] == "completed"
+    assert decoded["data"]["provider_effect"]["operation"] == "linear.issues.list"
+    assert decoded["data"]["product_path"]["appkit_surfaces"] == ["AppKit.HeadlessSurface"]
+    refute output =~ secret
+    refute output =~ "missing_authorized_source_invocation"
+  end
+
+  @tag :live_provider
+  test "linear publication stdin executes the AppKit source publication path" do
+    secret = "linear-secret-value"
+
+    output =
+      capture_io(secret <> "\n", fn ->
+        assert :ok =
+                 HeadlessCLI.run(:live_linear_publication, [
+                   "--json",
+                   "--api-key-stdin",
+                   "--trace-id",
+                   "trace:live-publication"
+                 ])
+      end)
+
+    decoded = Jason.decode!(output)
+
+    assert decoded["ok"] == true
+    assert decoded["operation"] == "live.linear-publication"
+    assert decoded["data"]["status"] == "completed"
+    assert decoded["data"]["provider_effect"]["status"] == "receipt_recorded"
+    assert decoded["data"]["provider_effect"]["operation"] == "linear.comments.create"
+    assert decoded["data"]["provider_effect"]["credential_present?"] == true
+    assert decoded["data"]["provider_effect"]["provider_request_sent?"] == true
+    assert decoded["data"]["provider_effect"]["provider_response_received?"] == true
+    assert decoded["refs"]["source_publication_ref"] == "source-publication://linear-primary/test"
+    refute output =~ secret
+    refute output =~ "live_provider_effect_deferred"
+
+    assert_received {:fetch_linear_candidates, "extravaganza", source_binding, _source_opts}
+    assert source_binding.source_binding_id == "linear-primary"
+
+    assert_received {:publish_linear_source, "extravaganza", attrs, opts}
+    assert attrs.source_binding_id == "linear-primary"
+    assert attrs.issue_id == "lin-issue-321"
+    assert Keyword.fetch!(opts, :linear_api_key) == secret
+  end
+
+  @tag :live_provider
   test "aggregate live smoke emits a receipt for all live-gated provider examples" do
     output =
       capture_io(fn ->
@@ -262,4 +457,74 @@ defmodule Extravaganza.HeadlessExamplesTest do
 
   defp common_args,
     do: ["--json", "--fixture", "headless_m1", "--trace-id", "trace:examples"]
+
+  defmodule SourceBackend do
+    @behaviour AppKit.Core.Backends.SourceBackend
+
+    @impl true
+    def sync_linear_issues(_context, _source_page, _opts), do: {:ok, %{}}
+
+    @impl true
+    def current_linear_issue_states(_context, issue_ids, _source_binding, _opts) do
+      {:ok, %{requested_issue_ids: issue_ids, missing_issue_ids: []}}
+    end
+
+    @impl true
+    def fetch_linear_candidates(context, source_binding, opts) do
+      if pid = Process.get(:headless_examples_test_pid) do
+        send(pid, {:fetch_linear_candidates, context.tenant_ref.id, source_binding, opts})
+      end
+
+      if response = Process.get(:headless_examples_source_response) do
+        response
+      else
+        default_fetch_linear_candidates(source_binding)
+      end
+    end
+
+    defp default_fetch_linear_candidates(source_binding) do
+      {:ok,
+       %{
+         source_binding_id: source_binding.source_binding_id,
+         source_intake: %{
+           operation: "linear.issues.list",
+           subject_attrs: [
+             %{
+               source_ref: "linear://installation/issue/ENG-321",
+               provider_external_ref: "lin-issue-321",
+               title: "Investigate rollback"
+             }
+           ]
+         },
+         provider_request_sent?: true,
+         provider_response_received?: true,
+         lower_request_ref: "lower-request://linear/source",
+         lower_receipt_ref: "lower-receipt://linear/source"
+       }}
+    end
+
+    @impl true
+    def publish_linear_source(context, attrs, opts) do
+      if pid = Process.get(:headless_examples_test_pid) do
+        send(pid, {:publish_linear_source, context.tenant_ref.id, attrs, opts})
+      end
+
+      {:ok,
+       %{
+         source_publication_receipt: %{
+           source_publication_receipt_ref: "source-publication://linear-primary/test",
+           source_publish_ref: attrs.source_publish_ref,
+           source_binding_id: attrs.source_binding_id,
+           source_ref: attrs.source_ref,
+           status: "published",
+           capability_id: "linear.comments.create",
+           lower_request_ref: "lower-request://linear/publication",
+           lower_receipt_ref: "lower-receipt://linear/publication",
+           workpad_refs: ["linear-comment://comment-1"]
+         },
+         provider_request_sent?: true,
+         provider_response_received?: true
+       }}
+    end
+  end
 end

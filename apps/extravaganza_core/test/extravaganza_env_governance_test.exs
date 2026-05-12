@@ -44,6 +44,8 @@ defmodule ExtravaganzaEnvGovernanceTest do
     install_template = ProductInstallTemplate.default(config)
 
     assert config.linear_source_kind == "linear"
+    assert config.policy_bundle_name == "extravaganza_default_coding_ops"
+    assert ProductProfile.profile(config).policy_bundle.name == config.policy_bundle_name
     assert ProductPack.source_binding_key(config) == "linear_primary"
     assert ProductPack.placement_key(config) == "local_default"
     assert ProductPack.profile_slots(config).runtime_profile_ref == :codex_session

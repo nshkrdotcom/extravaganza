@@ -283,48 +283,23 @@ defmodule Extravaganza.HeadlessCLI do
   end
 
   defp dispatch(:live_linear_source, opts) do
-    HeadlessJSON.wrap(
-      "live.linear-source",
-      ProductHost.live_linear_source_example(live_opts(opts)),
-      fn value -> value end,
-      opts
-    )
+    dispatch_live("live.linear-source", &ProductHost.live_linear_source_example/1, opts)
   end
 
   defp dispatch(:live_codex_turn, opts) do
-    HeadlessJSON.wrap(
-      "live.codex-turn",
-      ProductHost.live_codex_turn_example(live_opts(opts)),
-      fn value -> value end,
-      opts
-    )
+    dispatch_live("live.codex-turn", &ProductHost.live_codex_turn_example/1, opts)
   end
 
   defp dispatch(:live_linear_publication, opts) do
-    HeadlessJSON.wrap(
-      "live.linear-publication",
-      ProductHost.live_linear_publication_example(live_opts(opts)),
-      fn value -> value end,
-      opts
-    )
+    dispatch_live("live.linear-publication", &ProductHost.live_linear_publication_example/1, opts)
   end
 
   defp dispatch(:live_github_evidence, opts) do
-    HeadlessJSON.wrap(
-      "live.github-evidence",
-      ProductHost.live_github_evidence_example(live_opts(opts)),
-      fn value -> value end,
-      opts
-    )
+    dispatch_live("live.github-evidence", &ProductHost.live_github_evidence_example/1, opts)
   end
 
   defp dispatch(:live_smoke, opts) do
-    HeadlessJSON.wrap(
-      "live.smoke",
-      ProductHost.live_smoke(live_opts(opts)),
-      fn value -> value end,
-      opts
-    )
+    dispatch_live("live.smoke", &ProductHost.live_smoke/1, opts)
   end
 
   defp dispatch(:evidence, opts) do
@@ -366,6 +341,16 @@ defmodule Extravaganza.HeadlessCLI do
       HeadlessJSON.success(:smoke, results, opts)
     else
       HeadlessJSON.error(:smoke, :unavailable, opts)
+    end
+  end
+
+  defp dispatch_live(operation, callback, opts) when is_function(callback, 1) do
+    case live_opts(opts) do
+      {:ok, live_opts} ->
+        HeadlessJSON.wrap(operation, callback.(live_opts), fn value -> value end, opts)
+
+      {:error, reason} ->
+        HeadlessJSON.error(operation, reason, opts)
     end
   end
 
@@ -467,6 +452,11 @@ defmodule Extravaganza.HeadlessCLI do
 
   defp maybe_install_fixture_backend(%{fixture: _fixture}) do
     Application.put_env(:app_kit_core, :headless_backend, HeadlessFixtureBackend)
+
+    unless Application.get_env(:app_kit_core, :source_backend) do
+      Application.put_env(:app_kit_core, :source_backend, HeadlessFixtureBackend)
+    end
+
     Application.put_env(:extravaganza_core, :headless_fixture_context?, true)
   end
 
@@ -501,18 +491,59 @@ defmodule Extravaganza.HeadlessCLI do
   end
 
   defp live_opts(opts) do
-    opts
-    |> Map.take([
-      :api_key_stdin?,
-      :credential_available?,
-      :fixture,
-      :live_product_path?,
-      :tenant_id,
-      :pack_version,
-      :trace_id
-    ])
-    |> Map.put_new(:credential_available?, Map.get(opts, :api_key_stdin?, false))
+    with {:ok, stdin_credential} <- stdin_credential(opts) do
+      live_opts =
+        opts
+        |> Map.take([
+          :api_key_stdin?,
+          :credential_available?,
+          :fixture,
+          :live_product_path?,
+          :tenant_id,
+          :pack_version,
+          :trace_id
+        ])
+        |> Map.merge(stdin_credential)
+        |> live_product_defaults()
+        |> Map.put_new(:credential_available?, false)
+
+      {:ok, live_opts}
+    end
   end
+
+  defp live_product_defaults(%{live_product_path?: true} = opts) do
+    unique = unique_suffix()
+
+    opts
+    |> Map.put_new(:tenant_id, "extravaganza-live-#{unique}")
+    |> Map.put_new(:pack_version, "1.0.0-live.#{unique}")
+  end
+
+  defp live_product_defaults(opts), do: opts
+
+  defp stdin_credential(%{api_key_stdin?: true}) do
+    case IO.read(:stdio, :eof) do
+      value when is_binary(value) ->
+        case String.trim(value) do
+          "" ->
+            {:error, :credential_stdin_empty}
+
+          trimmed ->
+            {:ok,
+             %{
+               credential_available?: true,
+               credential_source: "stdin",
+               credential_length: byte_size(trimmed),
+               linear_api_key: trimmed
+             }}
+        end
+
+      _other ->
+        {:error, :credential_stdin_empty}
+    end
+  end
+
+  defp stdin_credential(_opts), do: {:ok, %{}}
 
   defp import_opts(opts) do
     opts

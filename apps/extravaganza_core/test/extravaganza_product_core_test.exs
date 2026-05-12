@@ -691,6 +691,31 @@ defmodule ExtravaganzaProductCoreTest do
              profile.config.execution_timeout_ms
   end
 
+  test "cold bootstrap activates an existing registered pack before installation", %{
+    tenant_id: tenant_id,
+    pack_version: pack_version
+  } do
+    {:ok, compiled_pack} =
+      [tenant_id: tenant_id, pack_version: pack_version]
+      |> ProductPack.manifest()
+      |> Compiler.compile()
+
+    %PackRegistration{status: :registered} =
+      MezzanineConfigRegistry.register_pack!(compiled_pack)
+
+    assert {:ok, profile} =
+             ProductBootstrap.ensure_bootstrapped(
+               tenant_id: tenant_id,
+               pack_version: pack_version
+             )
+
+    assert profile.bootstrap_install_result == nil
+    assert profile.installation_ref.status == :active
+
+    assert {:ok, %PackRegistration{status: :active}} =
+             PackRegistration.by_slug_version(ProductPack.pack_slug(profile.config), pack_version)
+  end
+
   test "product runtime does not hardcode app kit bridge implementations" do
     refute File.exists?(Path.expand("../lib/extravaganza/app_kit_backends.ex", __DIR__))
 

@@ -89,27 +89,319 @@ defmodule Extravaganza.HeadlessLiveExamples do
   end
 
   defp example_payload(kind, example, proof, opts) do
-    proof
-    |> common_refs()
-    |> Map.merge(%{
-      "status" => "skipped",
-      "operation" => example.operation,
-      "receipt_ref" => live_receipt_ref(example.operation, proof),
-      "receipt_state" => "recorded",
-      "provider" => example.provider,
-      "capability_ids" => example.capability_ids,
-      "credential_refs" => example.credential_refs,
-      "command" => example.command,
-      "product_path_exercised?" => true,
-      "product_path" => product_path(proof, example.product_entrypoint),
-      "provider_effect" => %{
+    provider_effect = provider_effect(kind, example, proof, opts)
+
+    payload =
+      proof
+      |> common_refs()
+      |> Map.merge(%{
+        "status" => example_status(provider_effect),
+        "operation" => example.operation,
+        "receipt_ref" => live_receipt_ref(example.operation, proof),
+        "receipt_state" => "recorded",
         "provider" => example.provider,
-        "effect" => example.provider_effect,
         "capability_ids" => example.capability_ids,
-        "status" => "skipped",
-        "skip_reason" => skip_reason(kind, example, opts)
+        "credential_refs" => example.credential_refs,
+        "command" => example.command,
+        "product_path_exercised?" => true,
+        "product_path" => product_path(proof, example.product_entrypoint),
+        "provider_effect" => provider_effect
+      })
+
+    payload
+    |> maybe_put("source_publication_ref", Map.get(provider_effect, "source_publication_ref"))
+    |> maybe_put("lower_request_ref", Map.get(provider_effect, "lower_request_ref"))
+    |> maybe_put("lower_receipt_ref", Map.get(provider_effect, "lower_receipt_ref"))
+  end
+
+  defp provider_effect(kind, example, proof, opts) do
+    cond do
+      not credential_supplied?(kind, opts) ->
+        %{
+          "provider" => example.provider,
+          "effect" => example.provider_effect,
+          "capability_ids" => example.capability_ids,
+          "status" => "skipped",
+          "skip_reason" => skip_reason(kind, example, opts)
+        }
+
+      kind == :linear_source ->
+        linear_source_effect(example, proof, opts)
+
+      kind == :linear_publication ->
+        linear_publication_effect(example, proof, opts)
+
+      true ->
+        %{
+          "provider" => example.provider,
+          "effect" => example.provider_effect,
+          "capability_ids" => example.capability_ids,
+          "status" => "skipped",
+          "skip_reason" => skip_reason(kind, example, opts)
+        }
+    end
+  end
+
+  defp linear_source_effect(example, proof, opts) do
+    case HeadlessSurface.fetch_linear_candidates(linear_source_binding(opts), surface_opts(opts)) do
+      {:ok, result} ->
+        %{
+          "provider" => example.provider,
+          "effect" => example.provider_effect,
+          "capability_ids" => example.capability_ids,
+          "status" => "receipt_recorded",
+          "operation" => source_intake_operation(result) || "linear.issues.list",
+          "source_binding_id" => value(result, :source_binding_id) || "linear-primary",
+          "subject_count" => source_subject_count(result),
+          "credential_present?" => true,
+          "credential_redeemed?" => truthy?(value(result, :credential_redeemed?)),
+          "provider_request_sent?" => truthy?(value(result, :provider_request_sent?)),
+          "provider_response_received?" => truthy?(value(result, :provider_response_received?)),
+          "receipt_recorded?" => true,
+          "product_readback_confirmed?" => product_readback_confirmed?(proof),
+          "lower_request_ref" => value(result, :lower_request_ref),
+          "lower_receipt_ref" => value(result, :lower_receipt_ref)
+        }
+        |> compact_map()
+
+      {:error, reason} ->
+        failed_effect(example, reason)
+    end
+  end
+
+  defp linear_publication_effect(example, proof, opts) do
+    case linear_publication_attrs(opts) do
+      {:ok, attrs} ->
+        case HeadlessSurface.publish_linear_source(attrs, surface_opts(opts)) do
+          {:ok, result} ->
+            receipt = value(result, :source_publication_receipt) || result
+
+            %{
+              "provider" => example.provider,
+              "effect" => example.provider_effect,
+              "capability_ids" => example.capability_ids,
+              "status" => "receipt_recorded",
+              "operation" => value(receipt, :capability_id) || "linear.comments.create",
+              "source_binding_id" => value(receipt, :source_binding_id) || "linear-primary",
+              "source_publication_ref" =>
+                value(receipt, :source_publication_receipt_ref) ||
+                  value(receipt, :source_publication_ref),
+              "credential_present?" => true,
+              "credential_redeemed?" => truthy?(value(result, :credential_redeemed?)),
+              "provider_request_sent?" => true,
+              "provider_response_received?" => true,
+              "receipt_recorded?" => true,
+              "product_readback_confirmed?" => product_readback_confirmed?(proof),
+              "lower_request_ref" => value(receipt, :lower_request_ref),
+              "lower_receipt_ref" => value(receipt, :lower_receipt_ref)
+            }
+            |> compact_map()
+
+          {:error, reason} ->
+            failed_effect(example, reason)
+        end
+
+      {:error, reason} ->
+        failed_effect(example, reason)
+    end
+  end
+
+  defp failed_effect(example, reason) do
+    %{
+      "provider" => example.provider,
+      "effect" => example.provider_effect,
+      "capability_ids" => example.capability_ids,
+      "status" => "failed",
+      "credential_present?" => true,
+      "credential_redeemed?" => false,
+      "provider_request_sent?" => false,
+      "provider_response_received?" => false,
+      "receipt_recorded?" => false,
+      "product_readback_confirmed?" => false,
+      "error" => reason |> redact_secret_fields() |> inspect()
+    }
+  end
+
+  defp example_status(%{"status" => "receipt_recorded"}), do: "completed"
+  defp example_status(%{"status" => "failed"}), do: "failed"
+  defp example_status(_provider_effect), do: "skipped"
+
+  defp linear_source_binding(_opts) do
+    %{
+      source_binding_id: "linear-primary",
+      provider: "linear",
+      connection_ref: "linear-primary",
+      candidate_filters: %{assignee: "me"},
+      state_mapping: %{
+        "submitted" => ["Todo", "Backlog"],
+        "retry_submission" => ["Todo"],
+        "completed" => ["Done", "Completed"],
+        "rejected" => ["Canceled", "Cancelled", "Duplicate"]
       }
-    })
+    }
+  end
+
+  defp linear_publication_source_binding(_opts) do
+    %{
+      source_binding_id: "linear-primary",
+      provider: "linear",
+      connection_ref: "linear-primary",
+      candidate_filters: %{},
+      state_mapping: %{}
+    }
+  end
+
+  defp linear_publication_attrs(opts) do
+    case string_value(opts, :issue_id) do
+      issue_id when is_binary(issue_id) ->
+        {:ok, linear_publication_attrs!(opts, issue_id)}
+
+      nil ->
+        with {:ok, issue} <- resolve_live_publication_issue(opts),
+             {:ok, issue_id} <- publication_issue_id(issue) do
+          {:ok,
+           linear_publication_attrs!(opts, issue_id, publication_source_ref(issue, issue_id))}
+        end
+    end
+  end
+
+  defp linear_publication_attrs!(opts, issue_id, source_ref \\ nil) do
+    %{
+      source_publish_ref: "linear_live_publication",
+      source_binding_id: "linear-primary",
+      source_ref: source_ref || "linear://primary/issue/#{issue_id}",
+      issue_id: issue_id,
+      body: string_value(opts, :message) || "Extravaganza headless live publication proof",
+      allow_create_fallback?: true
+    }
+  end
+
+  defp resolve_live_publication_issue(opts) do
+    source_opts = surface_opts(opts) |> Keyword.put_new(:first, 1)
+
+    case HeadlessSurface.fetch_linear_candidates(
+           linear_publication_source_binding(opts),
+           source_opts
+         ) do
+      {:ok, result} -> result |> publication_candidates() |> first_publication_issue()
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp publication_candidates(result) do
+    source_intake = value(result, :source_intake)
+
+    (source_intake |> value(:subject_attrs) |> List.wrap()) ++
+      (source_intake |> value(:issues) |> List.wrap())
+  end
+
+  defp first_publication_issue(candidates) do
+    candidates
+    |> Enum.find(&publication_issue?/1)
+    |> case do
+      %{} = issue -> {:ok, issue}
+      _missing -> {:error, :missing_live_linear_publication_issue}
+    end
+  end
+
+  defp publication_issue?(%{} = issue) do
+    is_binary(string_value(issue, :provider_external_ref) || string_value(issue, :id))
+  end
+
+  defp publication_issue?(_issue), do: false
+
+  defp publication_issue_id(issue) do
+    case string_value(issue, :provider_external_ref) || string_value(issue, :id) do
+      issue_id when is_binary(issue_id) -> {:ok, issue_id}
+      _missing -> {:error, :missing_live_linear_publication_issue}
+    end
+  end
+
+  defp publication_source_ref(issue, issue_id) do
+    string_value(issue, :source_ref) ||
+      case string_value(issue, :identifier) do
+        identifier when is_binary(identifier) -> "linear://primary/issue/#{identifier}"
+        _missing -> "linear://primary/issue/#{issue_id}"
+      end
+  end
+
+  defp source_intake_operation(result) do
+    result
+    |> value(:source_intake)
+    |> value(:operation)
+  end
+
+  defp source_subject_count(result) do
+    result
+    |> value(:source_intake)
+    |> value(:subject_attrs)
+    |> List.wrap()
+    |> length()
+  end
+
+  defp product_readback_confirmed?(proof), do: Map.get(proof, "readback_count", 0) > 0
+
+  defp surface_opts(opts) do
+    opts
+    |> Map.take([:tenant_id, :pack_version, :trace_id, :linear_api_key])
+    |> Enum.to_list()
+  end
+
+  defp redact_secret_fields(%_{} = struct) do
+    struct
+    |> Map.from_struct()
+    |> redact_secret_fields()
+  end
+
+  defp redact_secret_fields(%{} = map) do
+    map
+    |> Enum.map(fn {key, value} ->
+      if secret_key?(key) do
+        {key, "[REDACTED]"}
+      else
+        {key, redact_secret_fields(value)}
+      end
+    end)
+    |> Map.new()
+  end
+
+  defp redact_secret_fields(list) when is_list(list), do: Enum.map(list, &redact_secret_fields/1)
+
+  defp redact_secret_fields(tuple) when is_tuple(tuple),
+    do: tuple |> Tuple.to_list() |> redact_secret_fields() |> List.to_tuple()
+
+  defp redact_secret_fields(value), do: value
+
+  defp secret_key?(key) when key in [:api_key, :linear_api_key, :secret, :token], do: true
+
+  defp secret_key?(key) when is_binary(key) do
+    key
+    |> String.downcase()
+    |> then(&(&1 in ["api_key", "linear_api_key", "secret", "token"]))
+  end
+
+  defp secret_key?(_key), do: false
+
+  defp maybe_put(map, _key, nil), do: map
+  defp maybe_put(map, _key, ""), do: map
+  defp maybe_put(map, key, value), do: Map.put(map, key, value)
+
+  defp value(%_{} = struct, key), do: struct |> Map.from_struct() |> value(key)
+  defp value(%{} = map, key), do: Map.get(map, key) || Map.get(map, Atom.to_string(key))
+  defp value(_value, _key), do: nil
+
+  defp string_value(map, key) do
+    case value(map, key) do
+      value when is_binary(value) and value != "" -> value
+      value when is_atom(value) and not is_nil(value) -> Atom.to_string(value)
+      _other -> nil
+    end
+  end
+
+  defp compact_map(map) do
+    map
+    |> Enum.reject(fn {_key, value} -> value in [nil, "", [], %{}] end)
+    |> Map.new()
   end
 
   defp product_proof(%{fixture: _fixture}), do: fixture_product_proof()

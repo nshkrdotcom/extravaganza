@@ -227,6 +227,17 @@ defmodule Extravaganza.HeadlessRuntimeSurfaceTest do
       do: {:ok, %{}}
 
     @impl true
+    def fetch_linear_candidates(_context, source_binding, _opts) do
+      {:ok,
+       %{
+         source_binding_id: Map.get(source_binding, :source_binding_id) || "linear-primary",
+         source_intake: %{operation: "linear.issues.list", subject_attrs: []},
+         provider_request_sent?: true,
+         provider_response_received?: true
+       }}
+    end
+
+    @impl true
     def publish_linear_source(context, attrs, _opts) do
       {:ok,
        %{
