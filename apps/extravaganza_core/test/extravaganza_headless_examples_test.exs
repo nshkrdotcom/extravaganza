@@ -3,10 +3,19 @@ defmodule Extravaganza.HeadlessExamplesTest do
 
   import ExUnit.CaptureIO
 
+  alias AppKit.Core.AgentIntake.RunOutcomeFuture
+
+  alias AppKit.Core.RuntimeReadback.{
+    RuntimeEventRow,
+    RuntimeRow,
+    RuntimeRunDetail
+  }
+
   alias Extravaganza.{HeadlessCLI, HeadlessFixtureBackend}
 
   setup do
     previous_backend = Application.get_env(:app_kit_core, :headless_backend)
+    previous_agent_intake_backend = Application.get_env(:app_kit_core, :agent_intake_backend)
     previous_source_backend = Application.get_env(:app_kit_core, :source_backend)
     previous_fixture_context = Application.get_env(:extravaganza_core, :headless_fixture_context?)
     Process.put(:headless_examples_test_pid, self())
@@ -22,6 +31,12 @@ defmodule Extravaganza.HeadlessExamplesTest do
         Application.put_env(:app_kit_core, :headless_backend, previous_backend)
       else
         Application.delete_env(:app_kit_core, :headless_backend)
+      end
+
+      if previous_agent_intake_backend do
+        Application.put_env(:app_kit_core, :agent_intake_backend, previous_agent_intake_backend)
+      else
+        Application.delete_env(:app_kit_core, :agent_intake_backend)
       end
 
       if previous_source_backend do
@@ -281,6 +296,63 @@ defmodule Extravaganza.HeadlessExamplesTest do
   end
 
   @tag :live_provider
+  test "codex turn live product path enters AgentIntake and confirms run-detail readback" do
+    Application.put_env(:app_kit_core, :agent_intake_backend, __MODULE__.CodexAgentBackend)
+    Application.put_env(:app_kit_core, :headless_backend, __MODULE__.CodexAgentBackend)
+
+    output =
+      capture_io(fn ->
+        assert :ok =
+                 HeadlessCLI.run(:live_codex_turn, [
+                   "--json",
+                   "--live-product-path",
+                   "--trace-id",
+                   "trace:live-codex-product"
+                 ])
+      end)
+
+    decoded = Jason.decode!(output)
+    data = decoded["data"]
+    provider_effect = data["provider_effect"]
+
+    assert decoded["ok"] == true
+    assert decoded["operation"] == "live.codex-turn"
+    assert data["status"] == "completed"
+
+    assert data["product_path"]["appkit_surfaces"] == [
+             "AppKit.AgentIntake",
+             "AppKit.HeadlessSurface"
+           ]
+
+    assert provider_effect["status"] == "receipt_recorded"
+    assert provider_effect["operation"] == "codex.session.turn"
+    assert provider_effect["credential_present?"] == true
+    assert provider_effect["credential_redeemed?"] == true
+    assert provider_effect["provider_request_sent?"] == true
+    assert provider_effect["provider_response_received?"] == true
+    assert provider_effect["receipt_recorded?"] == true
+    assert provider_effect["product_readback_confirmed?"] == true
+    assert provider_effect["session_ref"] == "session://codex/live-product"
+    assert provider_effect["turn_ref"] == "turn://codex/live-product/1"
+    assert provider_effect["lower_request_ref"] == "lower-request://codex/session-turn"
+    assert provider_effect["lower_receipt_ref"] == "lower-receipt://codex/session-turn/succeeded"
+    assert data["lower_request_ref"] == provider_effect["lower_request_ref"]
+    assert data["lower_receipt_ref"] == provider_effect["lower_receipt_ref"]
+
+    assert_received {:start_agent_run, tenant_id, request, opts}
+    assert String.starts_with?(tenant_id, "extravaganza-live-")
+    assert request.initial_input_ref == "prompt://extravaganza/live-codex-turn"
+    assert request.params.capability_id == "codex.session.turn"
+    assert request.params.provider_family == "codex"
+    assert Keyword.fetch!(opts, :trace_id) == "trace:live-codex-product"
+
+    assert_received {:runtime_run_detail, "run://codex/live-product", readback_request, _opts}
+    assert readback_request.capability_id == "codex.session.turn"
+    refute output =~ "env-codex"
+    refute output =~ "live_provider_effect_deferred"
+  end
+
+  @tag :live_provider
   test "linear source stdin default fixture path installs the product fixture source backend" do
     Application.delete_env(:app_kit_core, :source_backend)
     secret = "linear-secret-value"
@@ -457,6 +529,111 @@ defmodule Extravaganza.HeadlessExamplesTest do
 
   defp common_args,
     do: ["--json", "--fixture", "headless_m1", "--trace-id", "trace:examples"]
+
+  defmodule CodexAgentBackend do
+    @behaviour AppKit.Core.Backends.AgentIntakeBackend
+    @behaviour AppKit.Core.Backends.HeadlessBackend
+
+    @run_ref "run://codex/live-product"
+    @workflow_ref "workflow://codex/live-product"
+    @session_ref "session://codex/live-product"
+    @turn_ref "turn://codex/live-product/1"
+    @lower_request_ref "lower-request://codex/session-turn"
+    @lower_receipt_ref "lower-receipt://codex/session-turn/succeeded"
+    @observed_at ~U[2026-05-12 00:00:00Z]
+
+    @impl true
+    def start_agent_run(context, request, opts) do
+      if pid = Process.get(:headless_examples_test_pid) do
+        send(pid, {:start_agent_run, context.tenant_ref.id, request, opts})
+      end
+
+      RunOutcomeFuture.new(%{
+        run_ref: @run_ref,
+        workflow_ref: @workflow_ref,
+        accepted?: true,
+        command_ref: "command://#{request.idempotency_key}",
+        correlation_id: request.correlation_id
+      })
+    end
+
+    @impl true
+    def submit_agent_turn(_context, _turn_submission, _opts), do: {:error, :not_used}
+
+    @impl true
+    def cancel_agent_run(_context, _run_ref, _opts), do: {:error, :not_used}
+
+    @impl true
+    def await_agent_outcome(_context, _run_ref, _request, _opts), do: {:error, :not_used}
+
+    @impl true
+    def state_snapshot(_context, _request, _opts), do: {:error, :not_used}
+
+    @impl true
+    def runtime_subject_detail(_context, _subject_ref, _request, _opts), do: {:error, :not_used}
+
+    @impl true
+    def runtime_run_detail(_context, run_ref, request, opts) do
+      if pid = Process.get(:headless_examples_test_pid) do
+        send(pid, {:runtime_run_detail, run_ref, request, opts})
+      end
+
+      with {:ok, runtime_row} <-
+             RuntimeRow.new(%{
+               subject_ref: "subject://extravaganza/live-codex-turn",
+               run_ref: run_ref,
+               workflow_ref: @workflow_ref,
+               state: "completed",
+               updated_at: @observed_at,
+               provider_refs: %{"codex" => "provider-ref://codex/live-product"},
+               extensions: %{
+                 "source_publication" => %{
+                   "status" => "not_applicable",
+                   "capability_id" => "codex.session.turn"
+                 }
+               }
+             }),
+           {:ok, event} <-
+             RuntimeEventRow.new(%{
+               event_ref: "event://codex/live-product/terminal",
+               event_seq: 1,
+               event_kind: "run.terminal",
+               observed_at: @observed_at,
+               subject_ref: "subject://extravaganza/live-codex-turn",
+               run_ref: run_ref,
+               workflow_ref: @workflow_ref,
+               turn_ref: @turn_ref,
+               payload_ref: "payload://codex/live-product/terminal"
+             }) do
+        RuntimeRunDetail.new(%{
+          run_ref: run_ref,
+          runtime_row: runtime_row,
+          events: [event],
+          turns: [
+            %{
+              "turn_ref" => @turn_ref,
+              "status" => "completed",
+              "session_ref" => @session_ref,
+              "operation" => "codex.session.turn",
+              "credential_redeemed?" => true,
+              "provider_request_sent?" => true,
+              "provider_response_received?" => true,
+              "lower_request_ref" => @lower_request_ref,
+              "lower_receipt_ref" => @lower_receipt_ref
+            }
+          ],
+          candidate_fact_refs: [],
+          memory_proof_refs: []
+        })
+      end
+    end
+
+    @impl true
+    def request_runtime_refresh(_context, _request, _opts), do: {:error, :not_used}
+
+    @impl true
+    def request_runtime_control(_context, _request, _opts), do: {:error, :not_used}
+  end
 
   defmodule SourceBackend do
     @behaviour AppKit.Core.Backends.SourceBackend

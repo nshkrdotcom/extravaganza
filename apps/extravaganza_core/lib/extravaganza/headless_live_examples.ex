@@ -1,7 +1,17 @@
 defmodule Extravaganza.HeadlessLiveExamples do
   @moduledoc false
 
-  alias Extravaganza.{HeadlessSurface, ProductHost}
+  alias AppKit.Core.AgentIntake.RunOutcomeFuture
+  alias AppKit.Core.RuntimeReadback.RuntimeRunDetail
+  alias AppKit.HeadlessSurface, as: AppKitHeadlessSurface
+
+  alias Extravaganza.{
+    AppKitContext,
+    Config,
+    HeadlessSurface,
+    ProductHost,
+    ProductPack
+  }
 
   @provider_examples %{
     linear_source: %{
@@ -104,7 +114,7 @@ defmodule Extravaganza.HeadlessLiveExamples do
         "credential_refs" => example.credential_refs,
         "command" => example.command,
         "product_path_exercised?" => true,
-        "product_path" => product_path(proof, example.product_entrypoint),
+        "product_path" => product_path(proof, example.product_entrypoint, provider_effect),
         "provider_effect" => provider_effect
       })
 
@@ -130,6 +140,9 @@ defmodule Extravaganza.HeadlessLiveExamples do
 
       kind == :linear_publication ->
         linear_publication_effect(example, proof, opts)
+
+      kind == :codex_turn ->
+        codex_turn_effect(example, proof, opts)
 
       true ->
         %{
@@ -201,6 +214,52 @@ defmodule Extravaganza.HeadlessLiveExamples do
             failed_effect(example, reason)
         end
 
+      {:error, reason} ->
+        failed_effect(example, reason)
+    end
+  end
+
+  defp codex_turn_effect(example, _proof, opts) do
+    config = Config.load(config_overrides(opts))
+    context = AppKitContext.bootstrap_context(config)
+    request = codex_agent_run_request(config, opts)
+    surface_opts = surface_opts(opts)
+
+    with {:ok, %RunOutcomeFuture{} = future} <-
+           AppKit.AgentIntake.start_agent_run(context, request, surface_opts),
+         {:ok, %RuntimeRunDetail{} = run_detail} <-
+           AppKitHeadlessSurface.run_detail(
+             context,
+             future.run_ref,
+             codex_readback_request(request),
+             surface_opts
+           ) do
+      turn = codex_turn_readback(run_detail)
+      lower_receipt_ref = value(turn, :lower_receipt_ref)
+      provider_response_received? = truthy?(value(turn, :provider_response_received?))
+
+      %{
+        "provider" => example.provider,
+        "effect" => example.provider_effect,
+        "capability_ids" => example.capability_ids,
+        "status" => "receipt_recorded",
+        "operation" => value(turn, :operation) || "codex.session.turn",
+        "credential_present?" => true,
+        "credential_redeemed?" => truthy?(value(turn, :credential_redeemed?)),
+        "provider_request_sent?" => truthy?(value(turn, :provider_request_sent?)),
+        "provider_response_received?" => provider_response_received?,
+        "receipt_recorded?" => present?(lower_receipt_ref),
+        "product_readback_confirmed?" => runtime_readback_confirmed?(run_detail),
+        "appkit_surfaces" => ["AppKit.AgentIntake", "AppKit.HeadlessSurface"],
+        "run_ref" => future.run_ref,
+        "workflow_ref" => future.workflow_ref,
+        "session_ref" => value(turn, :session_ref) || runtime_session_ref(run_detail),
+        "turn_ref" => value(turn, :turn_ref),
+        "lower_request_ref" => value(turn, :lower_request_ref),
+        "lower_receipt_ref" => lower_receipt_ref
+      }
+      |> compact_map()
+    else
       {:error, reason} ->
         failed_effect(example, reason)
     end
@@ -341,11 +400,75 @@ defmodule Extravaganza.HeadlessLiveExamples do
 
   defp product_readback_confirmed?(proof), do: Map.get(proof, "readback_count", 0) > 0
 
+  defp runtime_readback_confirmed?(%RuntimeRunDetail{} = run_detail) do
+    run_detail.runtime_row != nil and
+      (Enum.any?(run_detail.events || []) or Enum.any?(run_detail.turns || []))
+  end
+
   defp surface_opts(opts) do
     opts
     |> Map.take([:tenant_id, :pack_version, :trace_id, :linear_api_key])
     |> Enum.to_list()
   end
+
+  defp config_overrides(opts) do
+    opts
+    |> Map.take([:tenant_id, :pack_version])
+    |> Enum.to_list()
+  end
+
+  defp codex_agent_run_request(%Config{} = config, opts) do
+    trace_id = string_value(opts, :trace_id) || "trace://extravaganza/live-codex-turn"
+    dedupe_key = "extravaganza-live-codex-turn-#{ref_suffix(config.pack_version)}"
+
+    %{
+      tenant_ref: "tenant://#{config.tenant_id}",
+      installation_ref: "installation://extravaganza/live-codex-turn",
+      subject_ref: "subject://extravaganza/live-codex-turn",
+      actor_ref: "actor://extravaganza/operator",
+      profile_bundle: ProductPack.agent_loop_profile_slots(config),
+      tool_catalog_ref: "tool-catalog://extravaganza/codex-live-v1",
+      budget_ref: "budget://extravaganza/live-codex-turn",
+      recall_scope_ref: "recall://extravaganza/live-codex-turn",
+      idempotency_key: "live-codex-turn:#{ref_suffix(trace_id)}",
+      trace_id: trace_id,
+      correlation_id: "corr://extravaganza/live-codex-turn/#{ref_suffix(trace_id)}",
+      submission_dedupe_key: dedupe_key,
+      initial_input_ref: "prompt://extravaganza/live-codex-turn",
+      params: %{
+        capability_id: "codex.session.turn",
+        provider_family: "codex",
+        lower_runtime_kind: "codex_session",
+        provider_effect?: true,
+        max_turns: 1,
+        fixture_script: "success_first_try",
+        release_manifest_ref: "release-manifest://extravaganza/live-codex-turn/v1"
+      }
+    }
+  end
+
+  defp codex_readback_request(request) do
+    %{
+      subject_ref: request.subject_ref,
+      workflow_ref: nil,
+      capability_id: "codex.session.turn",
+      provider_family: "codex"
+    }
+  end
+
+  defp codex_turn_readback(%RuntimeRunDetail{} = run_detail) do
+    Enum.find(run_detail.turns || [], fn turn ->
+      value(turn, :operation) == "codex.session.turn" or present?(value(turn, :turn_ref))
+    end) || %{}
+  end
+
+  defp runtime_session_ref(%RuntimeRunDetail{runtime_row: runtime_row}) do
+    runtime_row
+    |> value(:session_ref)
+    |> value(:id)
+  end
+
+  defp runtime_session_ref(_run_detail), do: nil
 
   defp redact_secret_fields(%_{} = struct) do
     struct
@@ -372,12 +495,34 @@ defmodule Extravaganza.HeadlessLiveExamples do
 
   defp redact_secret_fields(value), do: value
 
-  defp secret_key?(key) when key in [:api_key, :linear_api_key, :secret, :token], do: true
+  defp secret_key?(key)
+       when key in [
+              :api_key,
+              :linear_api_key,
+              :codex_api_key,
+              :openai_api_key,
+              :access_token,
+              :authorization,
+              :secret,
+              :token
+            ],
+       do: true
 
   defp secret_key?(key) when is_binary(key) do
     key
     |> String.downcase()
-    |> then(&(&1 in ["api_key", "linear_api_key", "secret", "token"]))
+    |> then(
+      &(&1 in [
+          "api_key",
+          "linear_api_key",
+          "codex_api_key",
+          "openai_api_key",
+          "access_token",
+          "authorization",
+          "secret",
+          "token"
+        ])
+    )
   end
 
   defp secret_key?(_key), do: false
@@ -471,21 +616,23 @@ defmodule Extravaganza.HeadlessLiveExamples do
     end
   end
 
-  defp product_path(proof, entrypoint) do
+  defp product_path(proof, entrypoint, provider_effect \\ %{}) do
     %{
       "entrypoint" => entrypoint,
       "proof_source" => Map.fetch!(proof, "proof_source"),
-      "appkit_surfaces" => appkit_surfaces(proof),
+      "appkit_surfaces" => appkit_surfaces(proof, provider_effect),
       "lower_path" => lower_path(proof),
       "lower_path_status" => lower_path_status(proof),
       "readback_count" => Map.get(proof, "readback_count")
     }
   end
 
-  defp appkit_surfaces(%{"proof_source" => "fixture_headless_surface"}),
+  defp appkit_surfaces(_proof, %{"appkit_surfaces" => [_ | _] = surfaces}), do: surfaces
+
+  defp appkit_surfaces(%{"proof_source" => "fixture_headless_surface"}, _provider_effect),
     do: ["AppKit.HeadlessSurface"]
 
-  defp appkit_surfaces(_proof),
+  defp appkit_surfaces(_proof, _provider_effect),
     do: [
       "AppKit.WorkSurface",
       "AppKit.WorkControl",
@@ -540,7 +687,39 @@ defmodule Extravaganza.HeadlessLiveExamples do
   defp credential_supplied?(kind, opts) when kind in [:linear_source, :linear_publication],
     do: truthy?(Map.get(opts, :api_key_stdin?)) or truthy?(Map.get(opts, :credential_available?))
 
+  defp credential_supplied?(:codex_turn, opts),
+    do:
+      truthy?(Map.get(opts, :credential_available?)) or
+        truthy?(Map.get(opts, :live_product_path?))
+
   defp credential_supplied?(_kind, opts), do: truthy?(Map.get(opts, :credential_available?))
+
+  defp present?(value) when is_binary(value), do: String.trim(value) != ""
+  defp present?(value), do: not is_nil(value)
+
+  defp ref_suffix(ref) when is_binary(ref) do
+    ref
+    |> :binary.bin_to_list()
+    |> Enum.reduce({[], false}, &ascii_alnum_dash_byte/2)
+    |> elem(0)
+    |> Enum.reverse()
+    |> List.to_string()
+    |> String.trim("-")
+  end
+
+  defp ref_suffix(ref), do: ref |> to_string() |> ref_suffix()
+
+  defp ascii_alnum_dash_byte(byte, {chars, _previous_dash?}) when byte in ?A..?Z,
+    do: {[byte | chars], false}
+
+  defp ascii_alnum_dash_byte(byte, {chars, _previous_dash?}) when byte in ?a..?z,
+    do: {[byte | chars], false}
+
+  defp ascii_alnum_dash_byte(byte, {chars, _previous_dash?}) when byte in ?0..?9,
+    do: {[byte | chars], false}
+
+  defp ascii_alnum_dash_byte(_byte, {chars, true}), do: {chars, true}
+  defp ascii_alnum_dash_byte(_byte, {chars, false}), do: {[?- | chars], true}
 
   defp aggregate_status(examples) do
     if Enum.all?(examples, fn {_operation, example} -> example["status"] == "skipped" end) do
