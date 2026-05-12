@@ -11,11 +11,14 @@ defmodule Extravaganza.HeadlessExamplesTest do
     RuntimeRunDetail
   }
 
+  alias AppKit.Core.RuntimeSurface.GitHubPrEvidenceReceipt
+
   alias Extravaganza.{HeadlessCLI, HeadlessFixtureBackend}
 
   setup do
     previous_backend = Application.get_env(:app_kit_core, :headless_backend)
     previous_agent_intake_backend = Application.get_env(:app_kit_core, :agent_intake_backend)
+    previous_runtime_backend = Application.get_env(:app_kit_core, :runtime_backend)
     previous_source_backend = Application.get_env(:app_kit_core, :source_backend)
     previous_fixture_context = Application.get_env(:extravaganza_core, :headless_fixture_context?)
     Process.put(:headless_examples_test_pid, self())
@@ -43,6 +46,12 @@ defmodule Extravaganza.HeadlessExamplesTest do
         Application.put_env(:app_kit_core, :source_backend, previous_source_backend)
       else
         Application.delete_env(:app_kit_core, :source_backend)
+      end
+
+      if previous_runtime_backend do
+        Application.put_env(:app_kit_core, :runtime_backend, previous_runtime_backend)
+      else
+        Application.delete_env(:app_kit_core, :runtime_backend)
       end
 
       if is_nil(previous_fixture_context) do
@@ -169,7 +178,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
                "credential_not_supplied_to_product_command"
 
       assert decoded["refs"]["run_ref"] == "run:fixture"
-      assert decoded["refs"]["source_publication_ref"] == "source-publication:fixture"
+      refute Map.has_key?(decoded["refs"], "source_publication_ref")
       refute String.contains?(output, "env-linear")
       refute String.contains?(output, "env-github")
       refute String.contains?(output, "env-codex")
@@ -349,6 +358,74 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert_received {:runtime_run_detail, "run://codex/live-product", readback_request, _opts}
     assert readback_request.capability_id == "codex.session.turn"
     refute output =~ "env-codex"
+    refute output =~ "live_provider_effect_deferred"
+  end
+
+  @tag :live_provider
+  test "github evidence live product path fetches provider evidence through AppKit without writes" do
+    Application.put_env(:app_kit_core, :runtime_backend, __MODULE__.GitHubEvidenceBackend)
+
+    output =
+      capture_io(fn ->
+        assert :ok =
+                 HeadlessCLI.run(:live_github_evidence, [
+                   "--json",
+                   "--live-product-path",
+                   "--repo",
+                   "nshkrdotcom/extravaganza",
+                   "--pull-number",
+                   "17",
+                   "--ref",
+                   "head-sha",
+                   "--trace-id",
+                   "trace:live-github-product"
+                 ])
+      end)
+
+    decoded = Jason.decode!(output)
+    data = decoded["data"]
+    provider_effect = data["provider_effect"]
+
+    assert decoded["ok"] == true
+    assert decoded["operation"] == "live.github-evidence"
+    assert data["status"] == "completed"
+
+    assert data["product_path"]["appkit_surfaces"] == [
+             "AppKit.RuntimeSurface",
+             "AppKit.HeadlessSurface"
+           ]
+
+    assert provider_effect["status"] == "receipt_recorded"
+    assert provider_effect["operation"] == "github.pr.evidence"
+    assert provider_effect["credential_present?"] == true
+    assert provider_effect["credential_redeemed?"] == true
+    assert provider_effect["provider_request_sent?"] == true
+    assert provider_effect["provider_response_received?"] == true
+    assert provider_effect["receipt_recorded?"] == true
+    assert provider_effect["product_readback_confirmed?"] == true
+    assert provider_effect["repo"] == "nshkrdotcom/extravaganza"
+    assert provider_effect["pull_number"] == 17
+    assert provider_effect["head_sha"] == "head-sha"
+    assert provider_effect["provider_ids"]["pull_request"] == "17"
+    assert provider_effect["provider_ids"]["reviews"] == ["1", "2"]
+    assert provider_effect["provider_ids"]["review_comments"] == ["11"]
+    assert provider_effect["provider_ids"]["check_runs"] == ["100"]
+    assert provider_effect["provider_refs"]["pull_request"] =~ "/pull/17"
+    assert provider_effect["write_operations"] == []
+    assert provider_effect["fixture_setup_required?"] == false
+    assert data["lower_request_ref"] == "lower-request://github/pr-fetch"
+    assert data["lower_receipt_ref"] == "lower-receipt://github/pr-fetch/succeeded"
+    assert data["connector_manifest_ref"] == "manifest://jido/connectors/github@test"
+    assert data["capability_negotiation_ref"] == "cap-neg://github/pr-fetch"
+    refute Map.has_key?(data, "source_publication_ref")
+
+    assert_received {:fetch_github_pr_evidence, tenant_id, request, opts}
+    assert String.starts_with?(tenant_id, "extravaganza-live-")
+    assert request.repo == "nshkrdotcom/extravaganza"
+    assert request.pull_number == 17
+    assert request.ref == "head-sha"
+    assert Keyword.fetch!(opts, :trace_id) == "trace:live-github-product"
+    refute output =~ "env-github"
     refute output =~ "live_provider_effect_deferred"
   end
 
@@ -633,6 +710,102 @@ defmodule Extravaganza.HeadlessExamplesTest do
 
     @impl true
     def request_runtime_control(_context, _request, _opts), do: {:error, :not_used}
+  end
+
+  defmodule GitHubEvidenceBackend do
+    @behaviour AppKit.Core.Backends.RuntimeBackend
+
+    @capability_ids [
+      "github.pr.fetch",
+      "github.pr.reviews.list",
+      "github.pr.review_comments.list",
+      "github.commit.statuses.get_combined",
+      "github.check_runs.list_for_ref"
+    ]
+
+    @impl true
+    def apply_runtime_profile(_context, _runtime_profile, _opts), do: {:error, :not_used}
+
+    @impl true
+    def runtime_status(_context, _request, _opts), do: {:error, :not_used}
+
+    @impl true
+    def runtime_logs(_context, _request, _opts), do: {:error, :not_used}
+
+    @impl true
+    def record_live_effect(_context, _attrs, _opts), do: {:error, :not_used}
+
+    @impl true
+    def fetch_github_pr_evidence(context, request, opts) do
+      if pid = Process.get(:headless_examples_test_pid) do
+        send(pid, {:fetch_github_pr_evidence, context.tenant_ref.id, request, opts})
+      end
+
+      GitHubPrEvidenceReceipt.new(%{
+        effect_ref: "live-effect://github/pr-evidence/test",
+        tenant_ref: context.tenant_ref.id,
+        provider: "github",
+        effect: "github_pr_evidence",
+        status: :receipt_recorded,
+        capability_ids: @capability_ids,
+        repo: request.repo,
+        pull_number: request.pull_number,
+        head_sha: request.ref,
+        evidence_ref: "evidence://github-pr/nshkrdotcom/extravaganza/17/test",
+        credential_present?: true,
+        credential_redeemed?: true,
+        provider_request_sent?: true,
+        provider_response_received?: true,
+        receipt_recorded?: true,
+        product_readback_confirmed?: true,
+        fixture_setup_required?: false,
+        write_operations: [],
+        provider_ids: %{
+          pull_request: "17",
+          reviews: ["1", "2"],
+          review_comments: ["11"],
+          check_runs: ["100"],
+          combined_status_ref: "head-sha"
+        },
+        provider_refs: %{
+          pull_request: "https://github.com/nshkrdotcom/extravaganza/pull/17",
+          content_ref: "github-pr://nshkrdotcom/extravaganza/17"
+        },
+        counts: %{
+          review_count: 2,
+          review_comment_count: 1,
+          status_count: 1,
+          check_run_count: 1
+        },
+        receipt_refs: %{
+          lower_request_refs: [
+            "lower-request://github/pr-fetch",
+            "lower-request://github/reviews",
+            "lower-request://github/review-comments",
+            "lower-request://github/status",
+            "lower-request://github/checks"
+          ],
+          lower_receipt_refs: [
+            "lower-receipt://github/pr-fetch/succeeded",
+            "lower-receipt://github/reviews/succeeded",
+            "lower-receipt://github/review-comments/succeeded",
+            "lower-receipt://github/status/succeeded",
+            "lower-receipt://github/checks/succeeded"
+          ],
+          evidence_ref: "evidence://github-pr/nshkrdotcom/extravaganza/17/test"
+        },
+        operation_receipts: [
+          %{
+            capability_id: "github.pr.fetch",
+            capability_negotiation_ref: "cap-neg://github/pr-fetch",
+            connector_manifest_ref: "manifest://jido/connectors/github@test",
+            lower_request_ref: "lower-request://github/pr-fetch",
+            lower_receipt_ref: "lower-receipt://github/pr-fetch/succeeded"
+          }
+        ],
+        metadata: %{"source" => "test"}
+      })
+    end
   end
 
   defmodule SourceBackend do

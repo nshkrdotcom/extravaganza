@@ -16,6 +16,16 @@ config :mezzanine_ops_domain,
 config :app_kit_mezzanine_bridge,
   ecto_repos: runtime_repos
 
+github_access_token = System.get_env("GH_TOKEN") || System.get_env("GITHUB_TOKEN")
+
+if is_binary(github_access_token) and String.trim(github_access_token) != "" do
+  config :mezzanine_integration_bridge, Mezzanine.IntegrationBridge.GitHubPrEvidenceRuntime,
+    access_token: String.trim(github_access_token)
+end
+
+config :jido_integration_v2_github, Jido.Integration.V2.Connectors.GitHub.ClientFactory,
+  transport: Pristine.Adapters.Transport.Finch
+
 case config_env() do
   :dev ->
     config :mezzanine_ops_domain, runtime_stack.ops_domain_repo(),

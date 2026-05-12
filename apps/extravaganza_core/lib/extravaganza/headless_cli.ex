@@ -411,6 +411,13 @@ defmodule Extravaganza.HeadlessCLI do
   defp parse(["--issue-id", issue_id | rest], opts),
     do: parse(rest, Map.put(opts, :issue_id, issue_id))
 
+  defp parse(["--repo", repo | rest], opts), do: parse(rest, Map.put(opts, :repo, repo))
+
+  defp parse(["--pull-number", pull_number | rest], opts),
+    do: parse(rest, Map.put(opts, :pull_number, pull_number))
+
+  defp parse(["--ref", ref | rest], opts), do: parse(rest, Map.put(opts, :ref, ref))
+
   defp parse(["--title", title | rest], opts), do: parse(rest, Map.put(opts, :title, title))
 
   defp parse(["--description", description | rest], opts),
@@ -499,6 +506,9 @@ defmodule Extravaganza.HeadlessCLI do
           :credential_available?,
           :fixture,
           :live_product_path?,
+          :repo,
+          :pull_number,
+          :ref,
           :tenant_id,
           :pack_version,
           :trace_id

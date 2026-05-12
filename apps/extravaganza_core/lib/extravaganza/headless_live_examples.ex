@@ -3,6 +3,7 @@ defmodule Extravaganza.HeadlessLiveExamples do
 
   alias AppKit.Core.AgentIntake.RunOutcomeFuture
   alias AppKit.Core.RuntimeReadback.RuntimeRunDetail
+  alias AppKit.Core.RuntimeSurface.GitHubPrEvidenceReceipt
   alias AppKit.HeadlessSurface, as: AppKitHeadlessSurface
 
   alias Extravaganza.{
@@ -48,10 +49,11 @@ defmodule Extravaganza.HeadlessLiveExamples do
       product_entrypoint: "Extravaganza.ProductHost.live_github_evidence_example",
       credential_refs: ["GH_TOKEN", "GITHUB_TOKEN"],
       capability_ids: [
-        "github.pr.create",
         "github.pr.fetch",
         "github.pr.reviews.list",
-        "github.pr.review_comments.list"
+        "github.pr.review_comments.list",
+        "github.commit.statuses.get_combined",
+        "github.check_runs.list_for_ref"
       ],
       provider_effect: "github_pr_evidence"
     }
@@ -104,6 +106,7 @@ defmodule Extravaganza.HeadlessLiveExamples do
     payload =
       proof
       |> common_refs()
+      |> provider_effect_refs(provider_effect)
       |> Map.merge(%{
         "status" => example_status(provider_effect),
         "operation" => example.operation,
@@ -143,6 +146,9 @@ defmodule Extravaganza.HeadlessLiveExamples do
 
       kind == :codex_turn ->
         codex_turn_effect(example, proof, opts)
+
+      kind == :github_evidence ->
+        github_evidence_effect(example, proof, opts)
 
       true ->
         %{
@@ -260,6 +266,47 @@ defmodule Extravaganza.HeadlessLiveExamples do
       }
       |> compact_map()
     else
+      {:error, reason} ->
+        failed_effect(example, reason)
+    end
+  end
+
+  defp github_evidence_effect(example, _proof, opts) do
+    case HeadlessSurface.fetch_github_pr_evidence(
+           github_evidence_request(opts),
+           surface_opts(opts)
+         ) do
+      {:ok, %GitHubPrEvidenceReceipt{} = receipt} ->
+        %{
+          "provider" => example.provider,
+          "effect" => example.provider_effect,
+          "capability_ids" => receipt.capability_ids,
+          "status" => "receipt_recorded",
+          "operation" => "github.pr.evidence",
+          "repo" => receipt.repo,
+          "pull_number" => receipt.pull_number,
+          "head_sha" => receipt.head_sha,
+          "evidence_ref" => receipt.evidence_ref,
+          "credential_present?" => receipt.credential_present?,
+          "credential_redeemed?" => receipt.credential_redeemed?,
+          "provider_request_sent?" => receipt.provider_request_sent?,
+          "provider_response_received?" => receipt.provider_response_received?,
+          "receipt_recorded?" => receipt.receipt_recorded?,
+          "product_readback_confirmed?" => receipt.product_readback_confirmed?,
+          "fixture_setup_required?" => receipt.fixture_setup_required?,
+          "write_operations" => receipt.write_operations,
+          "provider_ids" => receipt.provider_ids,
+          "provider_refs" => receipt.provider_refs,
+          "counts" => receipt.counts,
+          "receipt_refs" => receipt.receipt_refs,
+          "operation_receipts" => receipt.operation_receipts,
+          "appkit_surfaces" => ["AppKit.RuntimeSurface", "AppKit.HeadlessSurface"],
+          "lower_request_ref" => first_ref(receipt.receipt_refs, "lower_request_refs"),
+          "lower_receipt_ref" => first_ref(receipt.receipt_refs, "lower_receipt_refs")
+        }
+        |> compact_map()
+        |> Map.put("write_operations", receipt.write_operations || [])
+
       {:error, reason} ->
         failed_effect(example, reason)
     end
@@ -456,6 +503,23 @@ defmodule Extravaganza.HeadlessLiveExamples do
     }
   end
 
+  defp github_evidence_request(opts) do
+    trace_id = string_value(opts, :trace_id) || "trace://extravaganza/live-github-evidence"
+    suffix = ref_suffix(trace_id)
+
+    %{
+      tenant_id: string_value(opts, :tenant_id) || "extravaganza-live-#{suffix}",
+      installation_id: "installation://extravaganza/live-github-evidence",
+      subject_id: "subject://extravaganza/live-github-evidence",
+      execution_id: "execution://extravaganza/live-github-evidence/#{suffix}",
+      actor_id: "actor://extravaganza/operator",
+      trace_id: trace_id,
+      repo: string_value(opts, :repo) || "nshkrdotcom/extravaganza"
+    }
+    |> maybe_put(:pull_number, positive_integer_value(opts, :pull_number))
+    |> maybe_put(:ref, string_value(opts, :ref))
+  end
+
   defp codex_turn_readback(%RuntimeRunDetail{} = run_detail) do
     Enum.find(run_detail.turns || [], fn turn ->
       value(turn, :operation) == "codex.session.turn" or present?(value(turn, :turn_ref))
@@ -501,6 +565,8 @@ defmodule Extravaganza.HeadlessLiveExamples do
               :linear_api_key,
               :codex_api_key,
               :openai_api_key,
+              :github_token,
+              :gh_token,
               :access_token,
               :authorization,
               :secret,
@@ -517,6 +583,8 @@ defmodule Extravaganza.HeadlessLiveExamples do
           "linear_api_key",
           "codex_api_key",
           "openai_api_key",
+          "github_token",
+          "gh_token",
           "access_token",
           "authorization",
           "secret",
@@ -531,8 +599,23 @@ defmodule Extravaganza.HeadlessLiveExamples do
   defp maybe_put(map, _key, ""), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)
 
+  defp first_ref(receipt_refs, key) when is_map(receipt_refs) do
+    receipt_refs
+    |> value(key)
+    |> List.wrap()
+    |> Enum.find(&present?/1)
+  end
+
+  defp first_ref(_receipt_refs, _key), do: nil
+
   defp value(%_{} = struct, key), do: struct |> Map.from_struct() |> value(key)
-  defp value(%{} = map, key), do: Map.get(map, key) || Map.get(map, Atom.to_string(key))
+
+  defp value(%{} = map, key) when is_atom(key),
+    do: Map.get(map, key) || Map.get(map, Atom.to_string(key))
+
+  defp value(%{} = map, key) when is_binary(key),
+    do: Map.get(map, key) || Map.get(map, String.to_atom(key))
+
   defp value(_value, _key), do: nil
 
   defp string_value(map, key) do
@@ -540,6 +623,22 @@ defmodule Extravaganza.HeadlessLiveExamples do
       value when is_binary(value) and value != "" -> value
       value when is_atom(value) and not is_nil(value) -> Atom.to_string(value)
       _other -> nil
+    end
+  end
+
+  defp positive_integer_value(map, key) do
+    case value(map, key) do
+      value when is_integer(value) and value > 0 ->
+        value
+
+      value when is_binary(value) ->
+        case Integer.parse(value) do
+          {integer, ""} when integer > 0 -> integer
+          _other -> nil
+        end
+
+      _other ->
+        nil
     end
   end
 
@@ -667,6 +766,38 @@ defmodule Extravaganza.HeadlessLiveExamples do
     ])
   end
 
+  defp provider_effect_refs(refs, provider_effect) do
+    refs
+    |> maybe_put_ref(
+      "connector_manifest_ref",
+      first_operation_ref(provider_effect, "connector_manifest_ref")
+    )
+    |> maybe_put_ref(
+      "capability_negotiation_ref",
+      first_operation_ref(provider_effect, "capability_negotiation_ref")
+    )
+    |> maybe_put_ref("lower_request_ref", Map.get(provider_effect, "lower_request_ref"))
+    |> maybe_put_ref("lower_receipt_ref", Map.get(provider_effect, "lower_receipt_ref"))
+    |> provider_source_publication_ref(provider_effect)
+  end
+
+  defp provider_source_publication_ref(refs, %{"source_publication_ref" => value})
+       when is_binary(value) and value != "",
+       do: Map.put(refs, "source_publication_ref", value)
+
+  defp provider_source_publication_ref(refs, _provider_effect),
+    do: Map.delete(refs, "source_publication_ref")
+
+  defp first_operation_ref(%{"operation_receipts" => receipts}, key) when is_list(receipts) do
+    Enum.find_value(receipts, &value(&1, key))
+  end
+
+  defp first_operation_ref(_provider_effect, _key), do: nil
+
+  defp maybe_put_ref(refs, _key, nil), do: refs
+  defp maybe_put_ref(refs, _key, ""), do: refs
+  defp maybe_put_ref(refs, key, value), do: Map.put(refs, key, value)
+
   defp skip_reason(kind, example, opts) do
     if credential_supplied?(kind, opts) do
       %{
@@ -688,6 +819,11 @@ defmodule Extravaganza.HeadlessLiveExamples do
     do: truthy?(Map.get(opts, :api_key_stdin?)) or truthy?(Map.get(opts, :credential_available?))
 
   defp credential_supplied?(:codex_turn, opts),
+    do:
+      truthy?(Map.get(opts, :credential_available?)) or
+        truthy?(Map.get(opts, :live_product_path?))
+
+  defp credential_supplied?(:github_evidence, opts),
     do:
       truthy?(Map.get(opts, :credential_available?)) or
         truthy?(Map.get(opts, :live_product_path?))

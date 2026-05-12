@@ -189,6 +189,13 @@ defmodule Extravaganza.HeadlessSurface do
     end
   end
 
+  @spec fetch_github_pr_evidence(map(), keyword()) :: {:ok, struct()} | {:error, term()}
+  def fetch_github_pr_evidence(attrs, opts \\ []) when is_map(attrs) and is_list(opts) do
+    with {:ok, %{context: context}} <- context_bundle(opts) do
+      AppKitRuntimeSurface.fetch_github_pr_evidence(context, attrs, opts)
+    end
+  end
+
   @spec apply_runtime_profile(map(), keyword()) :: {:ok, struct()} | {:error, term()}
   def apply_runtime_profile(runtime_profile, opts \\ [])
       when is_map(runtime_profile) and is_list(opts) do
