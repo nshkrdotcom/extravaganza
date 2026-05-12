@@ -39,7 +39,12 @@ defmodule Extravaganza.HeadlessLiveExamples do
       command: "mix extravaganza.headless.live.linear_publication --json",
       product_entrypoint: "Extravaganza.ProductHost.live_linear_publication_example",
       credential_refs: ["LINEAR_API_KEY"],
-      capability_ids: ["linear.comments.update", "linear.comments.create"],
+      capability_ids: [
+        "linear.comments.update",
+        "linear.comments.create",
+        "linear.issues.update",
+        "linear.workflow_states.list"
+      ],
       provider_effect: "source_publication"
     },
     github_evidence: %{
@@ -224,7 +229,16 @@ defmodule Extravaganza.HeadlessLiveExamples do
               "receipt_recorded?" => true,
               "product_readback_confirmed?" => product_readback_confirmed?(proof),
               "lower_request_ref" => value(receipt, :lower_request_ref),
-              "lower_receipt_ref" => value(receipt, :lower_receipt_ref)
+              "lower_receipt_ref" => value(receipt, :lower_receipt_ref),
+              "workpad_refs" => value(receipt, :workpad_refs),
+              "comment_ref" => value(receipt, :comment_ref),
+              "fallback_from" => value(receipt, :fallback_from),
+              "issue_id" => value(receipt, :issue_id),
+              "state_id" => value(receipt, :state_id),
+              "state_name" => value(receipt, :state_name),
+              "state_lookup_lower_request_ref" => value(receipt, :state_lookup_lower_request_ref),
+              "state_lookup_lower_receipt_ref" => value(receipt, :state_lookup_lower_receipt_ref),
+              "state_update?" => value(receipt, :capability_id) == "linear.issues.update"
             }
             |> compact_map()
 
@@ -390,8 +404,26 @@ defmodule Extravaganza.HeadlessLiveExamples do
       source_ref: source_ref || "linear://primary/issue/#{issue_id}",
       issue_id: issue_id,
       body: string_value(opts, :message) || "Extravaganza headless live publication proof",
-      allow_create_fallback?: true
+      allow_create_fallback?: allow_create_fallback?(opts)
     }
+    |> maybe_put(:comment_id, string_value(opts, :comment_id))
+    |> maybe_put(:state_id, string_value(opts, :state_id))
+    |> maybe_put(:state_name, string_value(opts, :state_name))
+    |> maybe_put(:team_id, string_value(opts, :team_id))
+    |> maybe_put(:publication_kind, linear_publication_kind(opts))
+  end
+
+  defp allow_create_fallback?(opts) do
+    case Map.fetch(opts, :allow_create_fallback?) do
+      {:ok, value} -> truthy?(value)
+      :error -> true
+    end
+  end
+
+  defp linear_publication_kind(opts) do
+    if string_value(opts, :state_id) || string_value(opts, :state_name),
+      do: :issue_state_update,
+      else: nil
   end
 
   defp resolve_live_publication_issue(opts) do

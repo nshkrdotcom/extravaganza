@@ -122,24 +122,54 @@ defmodule Extravaganza.HeadlessFixtureBackend do
   @impl true
   def publish_linear_source(_context, attrs, _opts) do
     source_binding_id = Map.get(attrs, :source_binding_id, "linear-primary")
+    receipt = fixture_publication_receipt(source_binding_id, attrs)
 
     {:ok,
      %{
        credential_redeemed?: true,
        provider_request_sent?: true,
        provider_response_received?: true,
-       source_publication_receipt: %{
-         source_publication_receipt_ref: "source-publication://#{source_binding_id}/fixture",
-         source_publish_ref: Map.get(attrs, :source_publish_ref, "source-publish://fixture"),
-         source_binding_id: source_binding_id,
-         source_ref: Map.get(attrs, :source_ref, "linear://fixture/issue/ENG-321"),
-         status: "published",
-         capability_id: "linear.comments.create",
-         lower_request_ref: "lower-request://fixture/linear/publication",
-         lower_receipt_ref: "lower-receipt://fixture/linear/publication",
-         workpad_refs: ["linear-comment://fixture/comment-1"]
-       }
+       source_publication_receipt: receipt
      }}
+  end
+
+  defp fixture_publication_receipt(source_binding_id, attrs) do
+    base = %{
+      source_publication_receipt_ref: "source-publication://#{source_binding_id}/fixture",
+      source_publish_ref: Map.get(attrs, :source_publish_ref, "source-publish://fixture"),
+      source_binding_id: source_binding_id,
+      source_ref: Map.get(attrs, :source_ref, "linear://fixture/issue/ENG-321"),
+      status: "published"
+    }
+
+    cond do
+      Map.get(attrs, :state_id) || Map.get(attrs, :state_name) ->
+        Map.merge(base, %{
+          capability_id: "linear.issues.update",
+          issue_id: Map.get(attrs, :issue_id),
+          state_id: Map.get(attrs, :state_id, "state-fixture-done"),
+          state_name: Map.get(attrs, :state_name),
+          lower_request_ref: "lower-request://fixture/linear/state-update",
+          lower_receipt_ref: "lower-receipt://fixture/linear/state-update",
+          workpad_refs: []
+        })
+
+      Map.get(attrs, :comment_id) ->
+        Map.merge(base, %{
+          capability_id: "linear.comments.update",
+          lower_request_ref: "lower-request://fixture/linear/publication-update",
+          lower_receipt_ref: "lower-receipt://fixture/linear/publication-update",
+          workpad_refs: ["linear-comment://#{Map.fetch!(attrs, :comment_id)}"]
+        })
+
+      true ->
+        Map.merge(base, %{
+          capability_id: "linear.comments.create",
+          lower_request_ref: "lower-request://fixture/linear/publication",
+          lower_receipt_ref: "lower-receipt://fixture/linear/publication",
+          workpad_refs: ["linear-comment://fixture/comment-1"]
+        })
+    end
   end
 
   defp fixture(name) do

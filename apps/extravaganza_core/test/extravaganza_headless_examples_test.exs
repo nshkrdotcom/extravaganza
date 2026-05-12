@@ -585,6 +585,115 @@ defmodule Extravaganza.HeadlessExamplesTest do
   end
 
   @tag :live_provider
+  test "linear publication can update an existing comment through the product path" do
+    secret = "linear-secret-value"
+
+    output =
+      capture_io(secret <> "\n", fn ->
+        assert :ok =
+                 HeadlessCLI.run(:live_linear_publication, [
+                   "--json",
+                   "--api-key-stdin",
+                   "--issue-id",
+                   "lin-issue-321",
+                   "--comment-id",
+                   "comment-1",
+                   "--message",
+                   "Updated by product path",
+                   "--trace-id",
+                   "trace:live-publication-update"
+                 ])
+      end)
+
+    decoded = Jason.decode!(output)
+
+    assert decoded["ok"] == true
+    assert decoded["data"]["provider_effect"]["operation"] == "linear.comments.update"
+    assert decoded["data"]["provider_effect"]["workpad_refs"] == ["linear-comment://comment-1"]
+    refute output =~ secret
+
+    assert_received {:publish_linear_source, "extravaganza", attrs, opts}
+    assert attrs.comment_id == "comment-1"
+    assert attrs.body == "Updated by product path"
+    assert Keyword.fetch!(opts, :linear_api_key) == secret
+  end
+
+  @tag :live_provider
+  test "linear publication reports update-to-create fallback through the product path" do
+    secret = "linear-secret-value"
+
+    output =
+      capture_io(secret <> "\n", fn ->
+        assert :ok =
+                 HeadlessCLI.run(:live_linear_publication, [
+                   "--json",
+                   "--api-key-stdin",
+                   "--issue-id",
+                   "lin-issue-321",
+                   "--comment-id",
+                   "stale-comment",
+                   "--allow-create-fallback",
+                   "--trace-id",
+                   "trace:live-publication-fallback"
+                 ])
+      end)
+
+    decoded = Jason.decode!(output)
+
+    assert decoded["ok"] == true
+    assert decoded["data"]["provider_effect"]["operation"] == "linear.comments.create"
+    assert decoded["data"]["provider_effect"]["fallback_from"] == "linear.comments.update"
+
+    assert decoded["data"]["provider_effect"]["workpad_refs"] == [
+             "linear-comment://comment-created"
+           ]
+
+    refute output =~ secret
+
+    assert_received {:publish_linear_source, "extravaganza", attrs, _opts}
+    assert attrs.comment_id == "stale-comment"
+    assert attrs.allow_create_fallback? == true
+  end
+
+  @tag :live_provider
+  test "linear publication can update issue state through the product path" do
+    secret = "linear-secret-value"
+
+    output =
+      capture_io(secret <> "\n", fn ->
+        assert :ok =
+                 HeadlessCLI.run(:live_linear_publication, [
+                   "--json",
+                   "--api-key-stdin",
+                   "--issue-id",
+                   "lin-issue-321",
+                   "--state-name",
+                   "Done",
+                   "--team-id",
+                   "team-linear",
+                   "--trace-id",
+                   "trace:live-publication-state"
+                 ])
+      end)
+
+    decoded = Jason.decode!(output)
+
+    assert decoded["ok"] == true
+    assert decoded["data"]["provider_effect"]["operation"] == "linear.issues.update"
+    assert decoded["data"]["provider_effect"]["state_name"] == "Done"
+    assert decoded["data"]["provider_effect"]["state_id"] == "state-done"
+    assert "linear.issues.update" in decoded["data"]["provider_effect"]["capability_ids"]
+    assert "linear.workflow_states.list" in decoded["data"]["provider_effect"]["capability_ids"]
+    refute output =~ secret
+
+    assert_received {:publish_linear_source, "extravaganza", attrs, opts}
+    assert attrs.issue_id == "lin-issue-321"
+    assert attrs.state_name == "Done"
+    assert attrs.team_id == "team-linear"
+    assert Keyword.fetch!(opts, :linear_api_key) == secret
+  end
+
+  @tag :live_provider
   test "aggregate live smoke emits a receipt for all live-gated provider examples" do
     output =
       capture_io(fn ->
@@ -950,19 +1059,68 @@ defmodule Extravaganza.HeadlessExamplesTest do
         send(pid, {:publish_linear_source, context.tenant_ref.id, attrs, opts})
       end
 
+      receipt =
+        cond do
+          Map.get(attrs, :state_id) || Map.get(attrs, :state_name) ->
+            %{
+              source_publication_receipt_ref: "source-publication://linear-primary/state-update",
+              source_publish_ref: attrs.source_publish_ref,
+              source_binding_id: attrs.source_binding_id,
+              source_ref: attrs.source_ref,
+              status: "published",
+              capability_id: "linear.issues.update",
+              issue_id: attrs.issue_id,
+              state_name: Map.get(attrs, :state_name),
+              state_id: Map.get(attrs, :state_id) || "state-done",
+              lower_request_ref: "lower-request://linear/state-update",
+              lower_receipt_ref: "lower-receipt://linear/state-update",
+              workpad_refs: []
+            }
+
+          Map.get(attrs, :comment_id) == "stale-comment" ->
+            %{
+              source_publication_receipt_ref: "source-publication://linear-primary/fallback",
+              source_publish_ref: attrs.source_publish_ref,
+              source_binding_id: attrs.source_binding_id,
+              source_ref: attrs.source_ref,
+              status: "published",
+              capability_id: "linear.comments.create",
+              fallback_from: "linear.comments.update",
+              lower_request_ref: "lower-request://linear/publication-fallback",
+              lower_receipt_ref: "lower-receipt://linear/publication-fallback",
+              workpad_refs: ["linear-comment://comment-created"]
+            }
+
+          Map.get(attrs, :comment_id) ->
+            %{
+              source_publication_receipt_ref: "source-publication://linear-primary/update",
+              source_publish_ref: attrs.source_publish_ref,
+              source_binding_id: attrs.source_binding_id,
+              source_ref: attrs.source_ref,
+              status: "published",
+              capability_id: "linear.comments.update",
+              lower_request_ref: "lower-request://linear/publication-update",
+              lower_receipt_ref: "lower-receipt://linear/publication-update",
+              workpad_refs: ["linear-comment://#{attrs.comment_id}"]
+            }
+
+          true ->
+            %{
+              source_publication_receipt_ref: "source-publication://linear-primary/test",
+              source_publish_ref: attrs.source_publish_ref,
+              source_binding_id: attrs.source_binding_id,
+              source_ref: attrs.source_ref,
+              status: "published",
+              capability_id: "linear.comments.create",
+              lower_request_ref: "lower-request://linear/publication",
+              lower_receipt_ref: "lower-receipt://linear/publication",
+              workpad_refs: ["linear-comment://comment-1"]
+            }
+        end
+
       {:ok,
        %{
-         source_publication_receipt: %{
-           source_publication_receipt_ref: "source-publication://linear-primary/test",
-           source_publish_ref: attrs.source_publish_ref,
-           source_binding_id: attrs.source_binding_id,
-           source_ref: attrs.source_ref,
-           status: "published",
-           capability_id: "linear.comments.create",
-           lower_request_ref: "lower-request://linear/publication",
-           lower_receipt_ref: "lower-receipt://linear/publication",
-           workpad_refs: ["linear-comment://comment-1"]
-         },
+         source_publication_receipt: receipt,
          provider_request_sent?: true,
          provider_response_received?: true
        }}

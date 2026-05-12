@@ -411,6 +411,24 @@ defmodule Extravaganza.HeadlessCLI do
   defp parse(["--issue-id", issue_id | rest], opts),
     do: parse(rest, Map.put(opts, :issue_id, issue_id))
 
+  defp parse(["--comment-id", comment_id | rest], opts),
+    do: parse(rest, Map.put(opts, :comment_id, comment_id))
+
+  defp parse(["--state-id", state_id | rest], opts),
+    do: parse(rest, Map.put(opts, :state_id, state_id))
+
+  defp parse(["--state-name", state_name | rest], opts),
+    do: parse(rest, Map.put(opts, :state_name, state_name))
+
+  defp parse(["--team-id", team_id | rest], opts),
+    do: parse(rest, Map.put(opts, :team_id, team_id))
+
+  defp parse(["--allow-create-fallback" | rest], opts),
+    do: parse(rest, Map.put(opts, :allow_create_fallback?, true))
+
+  defp parse(["--no-create-fallback" | rest], opts),
+    do: parse(rest, Map.put(opts, :allow_create_fallback?, false))
+
   defp parse(["--repo", repo | rest], opts), do: parse(rest, Map.put(opts, :repo, repo))
 
   defp parse(["--pull-number", pull_number | rest], opts),
@@ -509,6 +527,13 @@ defmodule Extravaganza.HeadlessCLI do
           :repo,
           :pull_number,
           :ref,
+          :issue_id,
+          :comment_id,
+          :state_id,
+          :state_name,
+          :team_id,
+          :message,
+          :allow_create_fallback?,
           :tenant_id,
           :pack_version,
           :trace_id
