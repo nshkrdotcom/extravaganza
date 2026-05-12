@@ -54,6 +54,54 @@ defmodule Extravaganza.HeadlessExamplesTest do
            ]
   end
 
+  test "documented logical Mix task aliases are loadable" do
+    for task_module <- [
+          Mix.Tasks.Extravaganza.Headless.SourceSync,
+          Mix.Tasks.Extravaganza.Headless.LiveLinearSource,
+          Mix.Tasks.Extravaganza.Headless.LiveCodexTurn,
+          Mix.Tasks.Extravaganza.Headless.LiveLinearPublication,
+          Mix.Tasks.Extravaganza.Headless.LiveGithubEvidence,
+          Mix.Tasks.Extravaganza.Headless.LiveSmoke
+        ] do
+      assert Code.ensure_loaded?(task_module)
+    end
+  end
+
+  test "documented logical Mix task aliases dispatch to the same public operations" do
+    for {task, operation, argv} <- [
+          {"extravaganza.headless.source.sync", "source_sync", common_args()},
+          {"extravaganza.headless.source_sync", "source_sync", common_args()},
+          {"extravaganza.headless.live.linear_source", "live.linear-source",
+           ["--json", "--trace-id", "trace:examples"]},
+          {"extravaganza.headless.live_linear_source", "live.linear-source",
+           ["--json", "--trace-id", "trace:examples"]},
+          {"extravaganza.headless.live.codex_turn", "live.codex-turn",
+           ["--json", "--trace-id", "trace:examples"]},
+          {"extravaganza.headless.live_codex_turn", "live.codex-turn",
+           ["--json", "--trace-id", "trace:examples"]},
+          {"extravaganza.headless.live.linear_publication", "live.linear-publication",
+           ["--json", "--trace-id", "trace:examples"]},
+          {"extravaganza.headless.live_linear_publication", "live.linear-publication",
+           ["--json", "--trace-id", "trace:examples"]},
+          {"extravaganza.headless.live.github_evidence", "live.github-evidence",
+           ["--json", "--trace-id", "trace:examples"]},
+          {"extravaganza.headless.live_github_evidence", "live.github-evidence",
+           ["--json", "--trace-id", "trace:examples"]},
+          {"extravaganza.headless.live.smoke", "live.smoke",
+           ["--json", "--trace-id", "trace:examples"]},
+          {"extravaganza.headless.live_smoke", "live.smoke",
+           ["--json", "--trace-id", "trace:examples"]}
+        ] do
+      Mix.Task.reenable(task)
+
+      output = capture_io(fn -> assert :ok = Mix.Task.run(task, argv) end)
+      decoded = Jason.decode!(output)
+
+      assert decoded["ok"] == true
+      assert decoded["operation"] == operation
+    end
+  end
+
   @tag :live_provider
   test "live provider examples skip explicitly without supplied credentials but exercise product path" do
     for {operation, expected_operation, provider, credential_refs} <- [

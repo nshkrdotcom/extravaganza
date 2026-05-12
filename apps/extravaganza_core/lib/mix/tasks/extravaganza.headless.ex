@@ -146,7 +146,27 @@ defmodule Mix.Tasks.Extravaganza.Headless.Source.Sync do
   def run(argv), do: TaskSupport.run(:source_sync, argv)
 end
 
+defmodule Mix.Tasks.Extravaganza.Headless.SourceSync do
+  use Mix.Task
+
+  alias Mix.Tasks.Extravaganza.Headless.TaskSupport
+
+  @moduledoc false
+  @shortdoc "Sync a deterministic Linear-shaped source page"
+  def run(argv), do: TaskSupport.run(:source_sync, argv)
+end
+
 defmodule Mix.Tasks.Extravaganza.Headless.Live.LinearSource do
+  use Mix.Task
+
+  alias Mix.Tasks.Extravaganza.Headless.TaskSupport
+
+  @moduledoc false
+  @shortdoc "Run the live-gated Linear source example"
+  def run(argv), do: TaskSupport.run(:live_linear_source, argv)
+end
+
+defmodule Mix.Tasks.Extravaganza.Headless.LiveLinearSource do
   use Mix.Task
 
   alias Mix.Tasks.Extravaganza.Headless.TaskSupport
@@ -166,7 +186,27 @@ defmodule Mix.Tasks.Extravaganza.Headless.Live.CodexTurn do
   def run(argv), do: TaskSupport.run(:live_codex_turn, argv)
 end
 
+defmodule Mix.Tasks.Extravaganza.Headless.LiveCodexTurn do
+  use Mix.Task
+
+  alias Mix.Tasks.Extravaganza.Headless.TaskSupport
+
+  @moduledoc false
+  @shortdoc "Run the live-gated Codex turn example"
+  def run(argv), do: TaskSupport.run(:live_codex_turn, argv)
+end
+
 defmodule Mix.Tasks.Extravaganza.Headless.Live.LinearPublication do
+  use Mix.Task
+
+  alias Mix.Tasks.Extravaganza.Headless.TaskSupport
+
+  @moduledoc false
+  @shortdoc "Run the live-gated Linear publication example"
+  def run(argv), do: TaskSupport.run(:live_linear_publication, argv)
+end
+
+defmodule Mix.Tasks.Extravaganza.Headless.LiveLinearPublication do
   use Mix.Task
 
   alias Mix.Tasks.Extravaganza.Headless.TaskSupport
@@ -186,7 +226,27 @@ defmodule Mix.Tasks.Extravaganza.Headless.Live.GithubEvidence do
   def run(argv), do: TaskSupport.run(:live_github_evidence, argv)
 end
 
+defmodule Mix.Tasks.Extravaganza.Headless.LiveGithubEvidence do
+  use Mix.Task
+
+  alias Mix.Tasks.Extravaganza.Headless.TaskSupport
+
+  @moduledoc false
+  @shortdoc "Run the live-gated GitHub evidence example"
+  def run(argv), do: TaskSupport.run(:live_github_evidence, argv)
+end
+
 defmodule Mix.Tasks.Extravaganza.Headless.Live.Smoke do
+  use Mix.Task
+
+  alias Mix.Tasks.Extravaganza.Headless.TaskSupport
+
+  @moduledoc false
+  @shortdoc "Run the aggregate live-gated headless smoke"
+  def run(argv), do: TaskSupport.run(:live_smoke, argv)
+end
+
+defmodule Mix.Tasks.Extravaganza.Headless.LiveSmoke do
   use Mix.Task
 
   alias Mix.Tasks.Extravaganza.Headless.TaskSupport

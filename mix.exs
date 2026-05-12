@@ -108,6 +108,7 @@ defmodule Extravaganza.MixProject do
       extras: [
         "README.md",
         "guides/headless_live_demo.md",
+        "guides/headless_provider_credentials.md",
         "guides/headless_symphony_headless_gap_analysis.md",
         "docs/overview.md",
         "docs/stack_position.md",
@@ -120,6 +121,7 @@ defmodule Extravaganza.MixProject do
         Overview: ["README.md", "docs/overview.md"],
         Guides: [
           "guides/headless_live_demo.md",
+          "guides/headless_provider_credentials.md",
           "guides/headless_symphony_headless_gap_analysis.md"
         ],
         Architecture: ["docs/stack_position.md", "docs/product_direction.md"],
