@@ -9,6 +9,7 @@ defmodule Extravaganza.HeadlessCLI do
     EvidencePresenter,
     ReviewPresenter,
     RunPresenter,
+    RuntimePresenter,
     SourcePresenter,
     StatePresenter,
     SubjectPresenter
@@ -34,9 +35,12 @@ defmodule Extravaganza.HeadlessCLI do
     :review,
     :source_preview,
     :source_sync,
+    :source_publish,
     :profile,
     :profile_reload,
     :profile_validate,
+    :status,
+    :logs,
     :live_linear_source,
     :live_codex_turn,
     :live_linear_publication,
@@ -200,6 +204,24 @@ defmodule Extravaganza.HeadlessCLI do
     )
   end
 
+  defp dispatch(:source_publish, opts) do
+    subject_ref = positional(opts, 0) || Map.get(opts, :subject_id) || "subject:fixture"
+
+    attrs = %{
+      subject_ref: subject_ref,
+      effect: Map.get(opts, :effect) || "comment",
+      idempotency_key: Map.get(opts, :idempotency_key) || "idem:headless-source-publish",
+      message: Map.get(opts, :message) || "Headless source publication"
+    }
+
+    HeadlessJSON.wrap(
+      :source_publish,
+      HeadlessSurface.publish_linear_source(attrs, surface_opts(opts)),
+      &SourcePresenter.present_publication_preview/1,
+      opts
+    )
+  end
+
   defp dispatch(:profile, opts) do
     HeadlessJSON.wrap(
       :profile,
@@ -229,10 +251,33 @@ defmodule Extravaganza.HeadlessCLI do
   end
 
   defp dispatch(:profile_reload, opts) do
+    result =
+      with {:ok, reload} <- SymphonyWorkflowImport.reload(import_opts(opts)) do
+        apply_runtime_profile_to_reload(reload, surface_opts(opts))
+      end
+
     HeadlessJSON.wrap(
       :profile_reload,
-      SymphonyWorkflowImport.reload(import_opts(opts)),
+      result,
       fn value -> value end,
+      opts
+    )
+  end
+
+  defp dispatch(:status, opts) do
+    HeadlessJSON.wrap(
+      :status,
+      HeadlessSurface.runtime_status(runtime_request(opts), surface_opts(opts)),
+      &RuntimePresenter.present_status/1,
+      opts
+    )
+  end
+
+  defp dispatch(:logs, opts) do
+    HeadlessJSON.wrap(
+      :logs,
+      HeadlessSurface.runtime_logs(runtime_request(opts), surface_opts(opts)),
+      &RuntimePresenter.present_logs/1,
       opts
     )
   end
@@ -386,6 +431,18 @@ defmodule Extravaganza.HeadlessCLI do
   defp parse(["--description", description | rest], opts),
     do: parse(rest, Map.put(opts, :description, description))
 
+  defp parse(["--message", message | rest], opts),
+    do: parse(rest, Map.put(opts, :message, message))
+
+  defp parse(["--effect", effect | rest], opts), do: parse(rest, Map.put(opts, :effect, effect))
+
+  defp parse(["--idempotency-key", idempotency_key | rest], opts),
+    do: parse(rest, Map.put(opts, :idempotency_key, idempotency_key))
+
+  defp parse(["--cursor", cursor | rest], opts), do: parse(rest, Map.put(opts, :cursor, cursor))
+
+  defp parse(["--limit", limit | rest], opts), do: parse(rest, Map.put(opts, :limit, limit))
+
   defp parse(["--action", action | rest], opts), do: parse(rest, Map.put(opts, :action, action))
 
   defp parse(["--decision", decision | rest], opts),
@@ -437,6 +494,12 @@ defmodule Extravaganza.HeadlessCLI do
     |> Enum.to_list()
   end
 
+  defp surface_opts(opts) do
+    opts
+    |> Map.take([:tenant_id, :pack_version])
+    |> Enum.to_list()
+  end
+
   defp live_opts(opts) do
     opts
     |> Map.take([
@@ -455,6 +518,29 @@ defmodule Extravaganza.HeadlessCLI do
     opts
     |> Map.take([:workflow_path, :cwd, :env, :profile_cache_path])
     |> Enum.to_list()
+  end
+
+  defp apply_runtime_profile_to_reload(
+         %{"status" => "reloaded", "profile" => %{"app_kit_runtime_profile" => runtime_profile}} =
+           reload,
+         opts
+       ) do
+    with {:ok, apply_result} <- HeadlessSurface.apply_runtime_profile(runtime_profile, opts) do
+      apply_readback = RuntimePresenter.present_profile_apply(apply_result)
+
+      {:ok,
+       reload
+       |> Map.put("runtime_profile_apply", apply_readback)
+       |> Map.put("runtime_profile_ref", apply_readback["profile_ref"])}
+    end
+  end
+
+  defp apply_runtime_profile_to_reload(reload, _opts), do: {:ok, reload}
+
+  defp runtime_request(opts) do
+    opts
+    |> Map.take([:cursor, :limit, :trace_id])
+    |> Map.new(fn {key, value} -> {Atom.to_string(key), value} end)
   end
 
   defp parse_env_assignment(assignment) when is_binary(assignment) do

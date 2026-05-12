@@ -10,7 +10,6 @@ defmodule Mix.Tasks.Extravaganza.Headless.TaskSupport do
   ]
   @no_start_operations [
     :profile,
-    :profile_reload,
     :profile_validate
   ]
 
@@ -162,6 +161,16 @@ defmodule Mix.Tasks.Extravaganza.Headless.SourceSync do
   def run(argv), do: TaskSupport.run(:source_sync, argv)
 end
 
+defmodule Mix.Tasks.Extravaganza.Headless.SourcePublish do
+  use Mix.Task
+
+  alias Mix.Tasks.Extravaganza.Headless.TaskSupport
+
+  @moduledoc false
+  @shortdoc "Publish a governed Linear source update"
+  def run(argv), do: TaskSupport.run(:source_publish, argv)
+end
+
 defmodule Mix.Tasks.Extravaganza.Headless.Profile do
   use Mix.Task
 
@@ -190,6 +199,26 @@ defmodule Mix.Tasks.Extravaganza.Headless.ProfileValidate do
   @moduledoc false
   @shortdoc "Validate an imported Symphony workflow profile"
   def run(argv), do: TaskSupport.run(:profile_validate, argv)
+end
+
+defmodule Mix.Tasks.Extravaganza.Headless.Status do
+  use Mix.Task
+
+  alias Mix.Tasks.Extravaganza.Headless.TaskSupport
+
+  @moduledoc false
+  @shortdoc "Print headless runtime status JSON"
+  def run(argv), do: TaskSupport.run(:status, argv)
+end
+
+defmodule Mix.Tasks.Extravaganza.Headless.Logs do
+  use Mix.Task
+
+  alias Mix.Tasks.Extravaganza.Headless.TaskSupport
+
+  @moduledoc false
+  @shortdoc "Print headless runtime logs JSON"
+  def run(argv), do: TaskSupport.run(:logs, argv)
 end
 
 defmodule Mix.Tasks.Extravaganza.Headless.Live.LinearSource do

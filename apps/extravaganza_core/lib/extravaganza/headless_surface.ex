@@ -9,6 +9,8 @@ defmodule Extravaganza.HeadlessSurface do
 
   alias AppKit.Core.RuntimeReadback.{CommandResult, ControlRequest, RuntimeStateSnapshot}
   alias AppKit.HeadlessSurface, as: AppKitHeadlessSurface
+  alias AppKit.RuntimeSurface, as: AppKitRuntimeSurface
+  alias AppKit.SourceSurface, as: AppKitSourceSurface
 
   alias Extravaganza.{
     AppKitContext,
@@ -170,6 +172,42 @@ defmodule Extravaganza.HeadlessSurface do
   def sync_linear_source(source_page, opts \\ [])
       when is_map(source_page) and is_list(opts) do
     Sources.sync_linear_issues(source_page, opts)
+  end
+
+  @spec publish_linear_source(map(), keyword()) :: {:ok, map()} | {:error, term()}
+  def publish_linear_source(attrs, opts \\ []) when is_map(attrs) and is_list(opts) do
+    with {:ok, %{context: context}} <- context_bundle(opts) do
+      AppKitSourceSurface.publish_linear_source(context, attrs, opts)
+    end
+  end
+
+  @spec apply_runtime_profile(map(), keyword()) :: {:ok, struct()} | {:error, term()}
+  def apply_runtime_profile(runtime_profile, opts \\ [])
+      when is_map(runtime_profile) and is_list(opts) do
+    with {:ok, %{context: context}} <- context_bundle(opts) do
+      AppKitRuntimeSurface.apply_runtime_profile(context, runtime_profile, opts)
+    end
+  end
+
+  @spec runtime_status(map(), keyword()) :: {:ok, struct()} | {:error, term()}
+  def runtime_status(params \\ %{}, opts \\ []) when is_map(params) and is_list(opts) do
+    with {:ok, %{context: context}} <- context_bundle(opts) do
+      AppKitRuntimeSurface.runtime_status(context, Map.new(params), opts)
+    end
+  end
+
+  @spec runtime_logs(map(), keyword()) :: {:ok, struct()} | {:error, term()}
+  def runtime_logs(params \\ %{}, opts \\ []) when is_map(params) and is_list(opts) do
+    with {:ok, %{context: context}} <- context_bundle(opts) do
+      AppKitRuntimeSurface.runtime_logs(context, Map.new(params), opts)
+    end
+  end
+
+  @spec record_live_effect(map(), keyword()) :: {:ok, struct()} | {:error, term()}
+  def record_live_effect(attrs, opts \\ []) when is_map(attrs) and is_list(opts) do
+    with {:ok, %{context: context}} <- context_bundle(opts) do
+      AppKitRuntimeSurface.record_live_effect(context, attrs, opts)
+    end
   end
 
   defp normalize_control_action(action)

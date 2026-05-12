@@ -13,5 +13,7 @@ defmodule Extravaganza.HeadlessDocsTest do
     assert guide =~ "runtime-profile service"
     assert guide =~ "Runtime/product code does not read ambient OS environment variables"
     assert guide =~ "profile_reload"
+    assert guide =~ "AppKit.RuntimeSurface"
+    assert guide =~ "AppKit.SourceSurface"
   end
 end

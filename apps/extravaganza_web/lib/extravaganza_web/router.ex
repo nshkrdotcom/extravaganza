@@ -35,10 +35,29 @@ defmodule ExtravaganzaWeb.Router do
     get("/state", HeadlessController, :state)
     match(:*, "/state", HeadlessController, :method_not_allowed)
 
+    get("/status", HeadlessController, :status)
+    match(:*, "/status", HeadlessController, :method_not_allowed)
+
+    get("/logs", HeadlessController, :logs)
+    match(:*, "/logs", HeadlessController, :method_not_allowed)
+
+    get("/profile", HeadlessController, :profile)
+    match(:*, "/profile", HeadlessController, :method_not_allowed)
+
+    post("/profile/validate", HeadlessController, :profile_validate)
+    match(:*, "/profile/validate", HeadlessController, :method_not_allowed)
+
+    post("/profile/reload", HeadlessController, :profile_reload)
+    match(:*, "/profile/reload", HeadlessController, :method_not_allowed)
+
+    post("/source-publication", HeadlessController, :source_publish)
+    match(:*, "/source-publication", HeadlessController, :method_not_allowed)
+
     get("/subjects/:subject_id", HeadlessController, :subject)
     match(:*, "/subjects/:subject_id", HeadlessController, :method_not_allowed)
 
     get("/subjects/:subject_id/source-publication", HeadlessController, :source_publication)
+    post("/subjects/:subject_id/source-publication", HeadlessController, :source_publish)
     match(:*, "/subjects/:subject_id/source-publication", HeadlessController, :method_not_allowed)
 
     get("/runs/:run_id", HeadlessController, :run)

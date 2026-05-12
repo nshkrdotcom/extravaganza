@@ -26,12 +26,19 @@ The product profile readback contains these layers:
   owns durable runtime profile semantics below the product shell.
 
 `profile_reload` re-parses and validates the selected workflow. On a successful
-reload it writes a redacted last-known-good profile cache. On a parse or
-validation failure it reports `reload_failed` and returns the cached
+reload it writes a redacted last-known-good profile cache and applies the
+profile through `AppKit.RuntimeSurface`; the response includes
+`runtime_profile_apply` and `runtime_profile_ref` readback fields. On a parse
+or validation failure it reports `reload_failed` and returns the cached
 last-known-good profile, matching Symphony's operator behavior of keeping the
 previous valid workflow active.
 
+Runtime status and log readbacks are exposed through `AppKit.RuntimeSurface`.
+Governed source publication uses `AppKit.SourceSurface` through
+`source_publish` and the `/api/v1/source-publication` route; Extravaganza does
+not call lower Mezzanine runtime services or provider SDKs directly.
+
 Reusable scheduling, workspace, provider, credential, and runtime mechanics do
 not move into Extravaganza. Extravaganza imports the product-facing workflow
-profile and exposes it through CLI/API; applying it to live work must go through
+profile and exposes it through CLI/API; applying it to live work goes through
 AppKit surfaces and the lower owning repos.

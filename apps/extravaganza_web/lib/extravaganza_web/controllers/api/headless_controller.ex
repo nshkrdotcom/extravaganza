@@ -1,7 +1,7 @@
 defmodule ExtravaganzaWeb.Api.HeadlessController do
   use ExtravaganzaWeb, :controller
 
-  alias Extravaganza.{HeadlessJSON, HeadlessSurface}
+  alias Extravaganza.{HeadlessJSON, HeadlessSurface, SymphonyWorkflowImport}
 
   alias Extravaganza.Presenters.{
     CommandResultPresenter,
@@ -10,6 +10,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
     LeasePresenter,
     ReviewPresenter,
     RunPresenter,
+    RuntimePresenter,
     SourcePresenter,
     StatePresenter,
     SubjectPresenter
@@ -36,6 +37,62 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
 
       {:error, reason} ->
         render_error(conn, reason)
+    end
+  end
+
+  def status(conn, params) do
+    case HeadlessSurface.runtime_status(params) do
+      {:ok, status} ->
+        render_success(
+          conn,
+          :status,
+          RuntimePresenter.present_status(status, presenter_opts(conn))
+        )
+
+      {:error, reason} ->
+        render_error(conn, reason)
+    end
+  end
+
+  def logs(conn, params) do
+    case HeadlessSurface.runtime_logs(params) do
+      {:ok, logs} ->
+        render_success(conn, :logs, RuntimePresenter.present_logs(logs, presenter_opts(conn)))
+
+      {:error, reason} ->
+        render_error(conn, reason)
+    end
+  end
+
+  def profile(conn, params) do
+    case SymphonyWorkflowImport.profile(params) do
+      {:ok, profile} -> render_success(conn, :profile, profile)
+      {:error, reason} -> render_error(conn, reason)
+    end
+  end
+
+  def profile_validate(conn, params) do
+    case SymphonyWorkflowImport.profile(params) do
+      {:ok, %{"validation" => %{"status" => "valid"}} = profile} ->
+        render_success(conn, :profile_validate, %{"status" => "valid", "profile" => profile})
+
+      {:ok, %{"validation" => %{"reason" => reason}}} ->
+        render_error(conn, reason)
+
+      {:error, reason} ->
+        render_error(conn, reason)
+    end
+  end
+
+  def profile_reload(conn, params) do
+    result =
+      with {:ok, reload} <- SymphonyWorkflowImport.reload(params) do
+        apply_runtime_profile_to_reload(reload)
+      end
+
+    case result do
+      {:ok, reload} -> render_success(conn, :profile_reload, reload)
+      {:error, reason} -> render_error(conn, reason)
     end
   end
 
@@ -128,6 +185,20 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
           conn,
           :source_publication,
           SourcePresenter.present_publication_preview(preview, presenter_opts(conn))
+        )
+
+      {:error, reason} ->
+        render_error(conn, reason)
+    end
+  end
+
+  def source_publish(conn, params) do
+    case HeadlessSurface.publish_linear_source(source_publish_attrs(params)) do
+      {:ok, result} ->
+        render_success(
+          conn,
+          :source_publish,
+          SourcePresenter.present_publication_preview(result, presenter_opts(conn))
         )
 
       {:error, reason} ->
@@ -240,6 +311,38 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
       "pending_signal" -> true
       _other -> false
     end
+  end
+
+  defp apply_runtime_profile_to_reload(
+         %{"status" => "reloaded", "profile" => %{"app_kit_runtime_profile" => runtime_profile}} =
+           reload
+       ) do
+    with {:ok, apply_result} <- HeadlessSurface.apply_runtime_profile(runtime_profile) do
+      apply_readback = RuntimePresenter.present_profile_apply(apply_result)
+
+      {:ok,
+       reload
+       |> Map.put("runtime_profile_apply", apply_readback)
+       |> Map.put("runtime_profile_ref", apply_readback["profile_ref"])}
+    end
+  end
+
+  defp apply_runtime_profile_to_reload(reload), do: {:ok, reload}
+
+  defp source_publish_attrs(%{"subject_id" => subject_id} = params),
+    do:
+      params
+      |> Map.delete("subject_id")
+      |> Map.put("subject_ref", subject_id)
+      |> source_publish_attrs()
+
+  defp source_publish_attrs(params) do
+    %{
+      "subject_ref" => Map.get(params, "subject_ref", "subject:fixture"),
+      "effect" => Map.get(params, "effect", "comment"),
+      "message" => Map.get(params, "message", "Headless source publication"),
+      "idempotency_key" => Map.get(params, "idempotency_key", "idem:headless-source-publish")
+    }
   end
 
   defp presenter_opts(conn) do

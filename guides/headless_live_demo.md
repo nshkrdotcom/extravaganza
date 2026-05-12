@@ -55,6 +55,11 @@ mix extravaganza.headless.queue --json
 mix extravaganza.headless.subject --json
 mix extravaganza.headless.run run:fixture --json
 mix extravaganza.headless.evidence run:fixture --json
+mix extravaganza.headless.status --json
+mix extravaganza.headless.logs --json
+mix extravaganza.headless.source_publish subject:fixture --json
+mix extravaganza.headless.profile_validate --workflow WORKFLOW.md --json
+mix extravaganza.headless.profile_reload --workflow WORKFLOW.md --json
 ```
 
 ## Deterministic headless proof (recommended first acceptance)
@@ -123,6 +128,9 @@ mix phx.server
 Read live JSON envelopes at:
 
 - `GET /api/v1/state`
+- `GET /api/v1/status`
+- `GET /api/v1/logs`
+- `GET /api/v1/profile?workflow_path=WORKFLOW.md`
 - `GET /api/v1/subjects/:subject_id`
 - `GET /api/v1/subjects/:subject_id/source-publication`
 - `GET /api/v1/runs/:run_id`
@@ -134,6 +142,10 @@ Read live JSON envelopes at:
 Mutation endpoints:
 
 - `POST /api/v1/refresh`
+- `POST /api/v1/profile/validate`
+- `POST /api/v1/profile/reload`
+- `POST /api/v1/source-publication`
+- `POST /api/v1/subjects/:subject_id/source-publication`
 - `POST /api/v1/subjects/:subject_id/actions/:action`
 - `POST /api/v1/reviews/:decision_id/decisions/:decision`
 - `POST /api/v1/subjects/:subject_id/read-lease`
@@ -162,6 +174,11 @@ Use these scripts for onboarding and smoke runs:
 - `scripts/headless/evidence_chain.exs`
 - `scripts/headless/review_decision.exs`
 - `scripts/headless/source_sync.exs`
+- `scripts/headless/source_publish.exs`
+- `scripts/headless/status.exs`
+- `scripts/headless/logs.exs`
+- `scripts/headless/profile_validate.exs`
+- `scripts/headless/profile_reload.exs`
 - `scripts/headless/live_linear_source.exs`
 - `scripts/headless/live_codex_turn.exs`
 - `scripts/headless/live_linear_publication.exs`

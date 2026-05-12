@@ -1,15 +1,27 @@
 defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
   use ExtravaganzaWeb.ConnCase, async: false
 
+  alias AppKit.Core.RuntimeSurface.{
+    RuntimeLogPage,
+    RuntimeProfileApplyResult,
+    RuntimeStatusSnapshot
+  }
+
   alias Extravaganza.{ProductBootstrap, ProductHost, ProductPack}
   alias Extravaganza.TestSupport.{ExecutionTraceFixture, FakeHeadlessBackend}
   alias Mezzanine.ConfigRegistry.PackRegistration
   alias Mezzanine.Pack.Compiler
 
+  @secret "linear-api-secret"
+
   setup do
     previous_backend = Application.get_env(:app_kit_core, :headless_backend)
+    previous_runtime_backend = Application.get_env(:app_kit_core, :runtime_backend)
+    previous_source_backend = Application.get_env(:app_kit_core, :source_backend)
     previous_fixture_context = Application.get_env(:extravaganza_core, :headless_fixture_context?)
     Application.put_env(:app_kit_core, :headless_backend, FakeHeadlessBackend)
+    Application.put_env(:app_kit_core, :runtime_backend, __MODULE__.RuntimeBackend)
+    Application.put_env(:app_kit_core, :source_backend, __MODULE__.SourceBackend)
     Application.put_env(:extravaganza_core, :headless_fixture_context?, true)
 
     on_exit(fn ->
@@ -17,6 +29,18 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
         Application.put_env(:app_kit_core, :headless_backend, previous_backend)
       else
         Application.delete_env(:app_kit_core, :headless_backend)
+      end
+
+      if previous_runtime_backend do
+        Application.put_env(:app_kit_core, :runtime_backend, previous_runtime_backend)
+      else
+        Application.delete_env(:app_kit_core, :runtime_backend)
+      end
+
+      if previous_source_backend do
+        Application.put_env(:app_kit_core, :source_backend, previous_source_backend)
+      else
+        Application.delete_env(:app_kit_core, :source_backend)
       end
 
       if is_nil(previous_fixture_context) do
@@ -171,6 +195,76 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
     assert body["data"]["data"]["source_publication_receipt_ref"] ==
              "source-publication:fixture"
 
+    assert body["refs"]["source_publication_ref"] == "source-publication:fixture"
+  end
+
+  test "GET status and logs expose AppKit runtime surface readbacks", %{conn: conn} do
+    status = get(conn, ~p"/api/v1/status") |> json_response(200)
+
+    assert status["operation"] == "status"
+    assert status["data"]["schema_ref"] == "headless_runtime_status.v1"
+    assert status["data"]["data"]["health"]["runtime"] == "ok"
+
+    logs =
+      conn
+      |> recycle()
+      |> get(~p"/api/v1/logs")
+      |> json_response(200)
+
+    assert logs["operation"] == "logs"
+    assert logs["data"]["schema_ref"] == "headless_runtime_logs.v1"
+
+    assert get_in(logs, ["data", "data", "entries", Access.at(0), "event_kind"]) ==
+             "runtime_profile_applied"
+  end
+
+  @tag :tmp_dir
+  test "profile validate and reload API routes use product import and AppKit apply", %{
+    conn: conn,
+    tmp_dir: tmp_dir
+  } do
+    workflow_path = write_workflow!(tmp_dir)
+    cache_path = Path.join(tmp_dir, "last-good-profile.json")
+
+    validate =
+      post(conn, ~p"/api/v1/profile/validate", %{
+        "workflow_path" => workflow_path,
+        "env" => %{"LINEAR_API_KEY" => @secret}
+      })
+      |> json_response(200)
+
+    assert validate["operation"] == "profile_validate"
+    assert validate["data"]["status"] == "valid"
+    refute Jason.encode!(validate) =~ @secret
+
+    reload =
+      conn
+      |> recycle()
+      |> post(~p"/api/v1/profile/reload", %{
+        "workflow_path" => workflow_path,
+        "profile_cache_path" => cache_path,
+        "env" => %{"LINEAR_API_KEY" => @secret}
+      })
+      |> json_response(200)
+
+    assert reload["operation"] == "profile_reload"
+    assert reload["data"]["status"] == "reloaded"
+    assert reload["data"]["runtime_profile_apply"]["status"] == "updated"
+    assert reload["runtime_profile_ref"] == "runtime-profile://symphony-workflow"
+    refute Jason.encode!(reload) =~ @secret
+  end
+
+  test "POST source-publication delegates to AppKit source publication surface", %{conn: conn} do
+    body =
+      post(conn, ~p"/api/v1/source-publication", %{
+        "subject_ref" => "subject:fixture",
+        "effect" => "comment"
+      })
+      |> json_response(200)
+
+    assert body["operation"] == "source_publish"
+    assert body["data"]["schema_ref"] == "headless_source_publication.v1"
+    assert body["data"]["data"]["status"] == "receipt_recorded"
     assert body["refs"]["source_publication_ref"] == "source-publication:fixture"
   end
 
@@ -362,6 +456,93 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
   defp bootstrapped_installation_id!(opts) do
     assert {:ok, profile} = ProductBootstrap.ensure_bootstrapped(opts)
     profile.installation_ref.id
+  end
+
+  defp write_workflow!(tmp_dir) do
+    path = Path.join(tmp_dir, "WORKFLOW.md")
+
+    File.write!(path, """
+    ---
+    tracker:
+      kind: linear
+      api_key: $LINEAR_API_KEY
+      project_slug: ENG
+    codex:
+      command: codex app-server
+    ---
+    Ship {{ issue.identifier }}
+    """)
+
+    path
+  end
+
+  defmodule RuntimeBackend do
+    @behaviour AppKit.Core.Backends.RuntimeBackend
+
+    @impl true
+    def apply_runtime_profile(context, runtime_profile, _opts) do
+      RuntimeProfileApplyResult.new(%{
+        status: :updated,
+        tenant_ref: context.tenant_ref.id,
+        profile_ref: "runtime-profile://symphony-workflow",
+        program_ref: "program://#{get_in(runtime_profile, ["program", "slug"])}",
+        policy_bundle_ref: "policy-bundle://symphony-workflow",
+        work_class_ref: "work-class://symphony-workflow",
+        placement_profile_ref: "placement-profile://symphony-workflow-local"
+      })
+    end
+
+    @impl true
+    def runtime_status(_context, _request, _opts) do
+      RuntimeStatusSnapshot.new(%{
+        tenant_ref: "extravaganza",
+        program_ref: "program://symphony-workflow",
+        health: %{"runtime" => "ok"},
+        preflight: %{"linear" => "credential_present"}
+      })
+    end
+
+    @impl true
+    def runtime_logs(_context, _request, _opts) do
+      RuntimeLogPage.new(%{
+        entries: [
+          %{
+            ref: "runtime-log:fixture:1",
+            event_kind: "runtime_profile_applied",
+            occurred_at: "2026-05-11T00:00:00Z",
+            summary: "Runtime profile applied",
+            payload: %{"tenant_ref" => "extravaganza"}
+          }
+        ]
+      })
+    end
+
+    @impl true
+    def record_live_effect(_context, attrs, _opts), do: {:ok, attrs}
+  end
+
+  defmodule SourceBackend do
+    @behaviour AppKit.Core.Backends.SourceBackend
+
+    @impl true
+    def sync_linear_issues(_context, _source_page, _opts), do: {:ok, %{}}
+
+    @impl true
+    def current_linear_issue_states(_context, _issue_ids, _source_binding, _opts),
+      do: {:ok, %{}}
+
+    @impl true
+    def publish_linear_source(context, attrs, _opts) do
+      {:ok,
+       %{
+         "source_publication_receipt_ref" => "source-publication:fixture",
+         "tenant_ref" => context.tenant_ref.id,
+         "subject_ref" => Map.get(attrs, "subject_ref") || Map.get(attrs, :subject_ref),
+         "status" => "receipt_recorded",
+         "provider" => "linear",
+         "effect" => Map.get(attrs, "effect") || Map.get(attrs, :effect)
+       }}
+    end
   end
 
   defmodule UnavailableBackend do

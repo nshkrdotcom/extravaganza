@@ -20,6 +20,11 @@ matrix below:
 - `mix extravaganza.headless.review --json`
 - `mix extravaganza.headless.source_preview --json`
 - `mix extravaganza.headless.source_sync --json`
+- `mix extravaganza.headless.source_publish --json`
+- `mix extravaganza.headless.status --json`
+- `mix extravaganza.headless.logs --json`
+- `mix extravaganza.headless.profile_validate --workflow WORKFLOW.md --json`
+- `mix extravaganza.headless.profile_reload --workflow WORKFLOW.md --json`
 - `mix extravaganza.headless.smoke --json`
 
 `source_sync` runs through a deterministic fixture issue payload only when a
