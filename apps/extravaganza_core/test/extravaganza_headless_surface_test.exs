@@ -78,6 +78,11 @@ defmodule Extravaganza.HeadlessSurfaceTest do
     assert orchestrator_state["retry_attempts"] == [
              %{
                "attempt_ref" => "attempt:retrying:2",
+               "continuation?" => true,
+               "delay_ms" => 1000,
+               "delay_type" => "continuation",
+               "due_at" => "2026-04-27T00:10:00Z",
+               "next_due_at" => "2026-04-27T00:10:00Z",
                "status" => "scheduled",
                "reason" => "transient failure",
                "scheduled_at" => "2026-04-27T00:10:00Z"
@@ -129,6 +134,21 @@ defmodule Extravaganza.HeadlessSurfaceTest do
     assert Enum.map(rendered_run["data"]["events"], & &1["event_seq"]) == [1, 2]
     assert rendered_run["data"]["memory_proof_refs"] == []
     assert rendered_run["data"]["persistence_posture"]["durable?"] == false
+
+    assert rendered_run["data"]["retries"] == [
+             %{
+               "attempt_ref" => "attempt:fixture:1",
+               "continuation?" => true,
+               "delay_ms" => 1000,
+               "delay_type" => "continuation",
+               "due_at" => "2026-04-27T00:10:00Z",
+               "reason" => "source_still_active",
+               "scheduled_at" => "2026-04-27T00:10:00Z",
+               "status" => "scheduled",
+               "worker_ref" => "worker:fixture",
+               "workspace_ref" => "workspace:fixture"
+             }
+           ]
 
     assert rendered_run["data"]["persistence_posture"]["retention_policy_ref"] ==
              "retention://lost-on-process-exit"

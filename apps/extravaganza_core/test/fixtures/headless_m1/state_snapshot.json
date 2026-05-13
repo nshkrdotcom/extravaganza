@@ -29,7 +29,7 @@
     {"subject_ref": "subject:cancelled", "run_ref": "run:cancelled", "execution_ref": "execution:cancelled", "state": "cancelled", "updated_at": "2026-04-27T00:02:00Z", "workspace_ref": {"id": "workspace:cancelled", "path_redacted?": true}},
     {"subject_ref": "subject:authority-denied", "run_ref": "run:authority-denied", "execution_ref": "execution:authority-denied", "state": "authority_denied", "updated_at": "2026-04-27T00:01:00Z", "workspace_ref": {"id": "workspace:denied", "path_redacted?": true}}
   ],
-  "retry_rows": [{"attempt_ref": "attempt:retrying:2", "status": "scheduled", "reason": "transient failure", "scheduled_at": "2026-04-27T00:10:00Z"}],
+  "retry_rows": [{"attempt_ref": "attempt:retrying:2", "status": "scheduled", "reason": "transient failure", "scheduled_at": "2026-04-27T00:10:00Z", "due_at": "2026-04-27T00:10:00Z", "delay_ms": 1000, "delay_type": "continuation", "continuation?": true}],
   "rate_limits": [{"limit_id": "rate:codex:minute", "name": "fixture runtime", "remaining": 99, "reset_at": "2026-04-27T00:01:00Z", "window": "minute", "source_event_ref": "event:rate"}],
   "diagnostics": [],
   "page": {"page_size": 25, "cursor": null, "total_entries": 9}

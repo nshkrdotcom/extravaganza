@@ -23,6 +23,9 @@ defmodule Extravaganza.Presenters.StatePresenter do
     "blocker_refs" => :blocker_refs,
     "display_label" => :display_label,
     "dispatch_eligibility" => :dispatch_eligibility,
+    "delay_ms" => :delay_ms,
+    "delay_type" => :delay_type,
+    "due_at" => :due_at,
     "execution" => :execution,
     "execution_ref" => :execution_ref,
     "extensions" => :extensions,
@@ -214,6 +217,11 @@ defmodule Extravaganza.Presenters.StatePresenter do
       "status" => normalize_state(map_value(row, "status")),
       "reason" => map_value(row, "reason"),
       "scheduled_at" => map_value(row, "scheduled_at"),
+      "due_at" => map_value(row, "due_at"),
+      "next_due_at" => map_value(row, "due_at") || map_value(row, "scheduled_at"),
+      "delay_ms" => map_value(row, "delay_ms"),
+      "delay_type" => map_value(row, "delay_type"),
+      "continuation?" => map_value(row, "continuation?"),
       "last_error_ref" => map_value(row, "last_error_ref")
     }
     |> compact_map()
