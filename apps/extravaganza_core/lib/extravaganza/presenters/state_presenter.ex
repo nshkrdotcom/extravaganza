@@ -20,7 +20,9 @@ defmodule Extravaganza.Presenters.StatePresenter do
     "checking?" => :checking?,
     "claim_state" => :claim_state,
     "completion_state" => :completion_state,
+    "blocker_refs" => :blocker_refs,
     "display_label" => :display_label,
+    "dispatch_eligibility" => :dispatch_eligibility,
     "execution" => :execution,
     "execution_ref" => :execution_ref,
     "extensions" => :extensions,
@@ -53,6 +55,7 @@ defmodule Extravaganza.Presenters.StatePresenter do
     "source" => :source,
     "source_event_ref" => :source_event_ref,
     "state" => :state,
+    "state_mapping" => :state_mapping,
     "status" => :status,
     "staleness_ms" => :staleness_ms,
     "subject_ref" => :subject_ref,
@@ -88,7 +91,7 @@ defmodule Extravaganza.Presenters.StatePresenter do
 
   @spec present_queue(map(), keyword()) :: map()
   def present_queue(%{page: page} = queue, _opts \\ []) do
-    entries = Map.get(page, :entries, [])
+    entries = page |> Map.get(:entries, []) |> Enum.map(&with_queue_entry_eligibility/1)
 
     %{
       entries: entries,
@@ -106,6 +109,36 @@ defmodule Extravaganza.Presenters.StatePresenter do
   end
 
   def future_m2_slots, do: @future_m2_slots
+
+  defp with_queue_entry_eligibility(%{payload: payload} = entry) when is_map(payload) do
+    %{entry | payload: Map.put_new(payload, :dispatch_eligibility, dispatch_eligibility(payload))}
+  end
+
+  defp with_queue_entry_eligibility(entry), do: entry
+
+  defp dispatch_eligibility(payload) do
+    state_mapping = map_value(payload, "state_mapping") || %{}
+    reason = map_value(state_mapping, "reason")
+    blocker_refs = list_value(payload, "blocker_refs")
+
+    cond do
+      reason == "blocked_by_non_terminal" ->
+        %{
+          eligible?: false,
+          reason: "non_terminal_dependency",
+          blocker_refs: blocker_refs
+        }
+
+      reason in ["not_routed_to_worker", "source_state_not_dispatchable", "unknown_source_state"] ->
+        %{eligible?: false, reason: reason}
+
+      reason in ["dispatchable", "active", "candidate"] ->
+        %{eligible?: true, reason: "dispatchable"}
+
+      true ->
+        %{eligible?: true, reason: "not_blocked_in_product_queue"}
+    end
+  end
 
   defp with_future_slots(data) when is_map(data) do
     data = Map.merge(@future_m2_slots, data)

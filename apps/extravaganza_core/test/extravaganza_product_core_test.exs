@@ -26,6 +26,7 @@ defmodule ExtravaganzaProductCoreTest do
     DefaultAuthoringBundle,
     HeadlessSameRunSmoke,
     PolicyPresets,
+    Presenters.StatePresenter,
     ProductBootstrap,
     ProductHost,
     ProductInstallTemplate,
@@ -882,6 +883,20 @@ defmodule ExtravaganzaProductCoreTest do
     assert queue_entry.payload.source_state == "Todo"
     assert queue_entry.payload.provider_revision == "2026-03-12T10:00:00Z"
     assert queue_entry.payload.source_binding_id == ProductPack.source_binding_key(Config.load())
+
+    presented_queue = StatePresenter.present_queue(queue)
+
+    presented_entry =
+      Enum.find(
+        presented_queue.entries,
+        &(&1.subject_ref.id == second_subject.subject_ref.id)
+      )
+
+    assert presented_entry.payload.dispatch_eligibility.eligible? == false
+    assert presented_entry.payload.dispatch_eligibility.reason == "non_terminal_dependency"
+
+    assert [%{"identifier" => "ENG-099"}] =
+             presented_entry.payload.dispatch_eligibility.blocker_refs
 
     assert {:ok, detail} =
              ProductHost.subject_detail(second_subject.subject_ref.id,
