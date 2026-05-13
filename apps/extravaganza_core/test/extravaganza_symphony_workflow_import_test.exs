@@ -100,6 +100,32 @@ defmodule Extravaganza.SymphonyWorkflowImportTest do
   end
 
   @tag :tmp_dir
+  test "resolves cwd-selected workflow workspace root relative to WORKFLOW.md", %{
+    tmp_dir: tmp_dir
+  } do
+    workflow_path = Path.join(tmp_dir, "WORKFLOW.md")
+    File.write!(workflow_path, valid_workflow())
+    expected_root = Path.expand("relative_workspaces", tmp_dir)
+
+    assert {:ok, profile} =
+             SymphonyWorkflowImport.profile(
+               cwd: tmp_dir,
+               env: %{"LINEAR_API_KEY" => @secret}
+             )
+
+    assert profile["workflow"]["path"] == workflow_path
+    assert profile["config"]["workspace"]["root"] == expected_root
+    assert profile["runtime_profile"]["workspace_root"] == expected_root
+
+    assert profile["config"]["codex"]["turn_sandbox_policy"]["writableRoots"] == [
+             expected_root
+           ]
+
+    assert profile["app_kit_runtime_profile"]["placement_profile"]["workspace_policy"]["root"] ==
+             expected_root
+  end
+
+  @tag :tmp_dir
   test "uses Symphony error names for workflow load and parse failures", %{tmp_dir: tmp_dir} do
     missing_path = Path.join(tmp_dir, "missing.md")
 
