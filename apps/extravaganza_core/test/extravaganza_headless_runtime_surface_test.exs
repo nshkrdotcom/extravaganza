@@ -252,5 +252,16 @@ defmodule Extravaganza.HeadlessRuntimeSurfaceTest do
          "effect" => Map.get(attrs, :effect) || Map.get(attrs, "effect") || "comment"
        }}
     end
+
+    @impl true
+    def execute_linear_graphql_tool(_context, _attrs, _opts) do
+      {:ok,
+       %{
+         operation: "linear.graphql.execute",
+         tool_name: "linear_graphql",
+         success?: true,
+         dynamic_tool_response: %{"success" => true, "output" => ~s({"data":{}})}
+       }}
+    end
   end
 end

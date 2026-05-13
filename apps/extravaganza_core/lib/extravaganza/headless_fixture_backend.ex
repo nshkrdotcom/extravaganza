@@ -135,6 +135,33 @@ defmodule Extravaganza.HeadlessFixtureBackend do
      }}
   end
 
+  @impl true
+  def execute_linear_graphql_tool(_context, _attrs, _opts) do
+    output = ~s({"data":{"viewer":{"id":"usr-linear-viewer"}}})
+
+    {:ok,
+     %{
+       operation: "linear.graphql.execute",
+       tool_name: "linear_graphql",
+       success?: true,
+       dynamic_tool_response: %{
+         "success" => true,
+         "output" => output,
+         "contentItems" => [
+           %{
+             "type" => "inputText",
+             "text" => output
+           }
+         ]
+       },
+       lower_request_ref: "lower-request://fixture/linear/graphql",
+       lower_receipt_ref: "lower-receipt://fixture/linear/graphql/succeeded",
+       provider_request_sent?: true,
+       provider_response_received?: true,
+       credential_redeemed?: true
+     }}
+  end
+
   defp fixture_publication_receipt(source_binding_id, attrs, opts) do
     base = %{
       source_publication_receipt_ref: "source-publication://#{source_binding_id}/fixture",

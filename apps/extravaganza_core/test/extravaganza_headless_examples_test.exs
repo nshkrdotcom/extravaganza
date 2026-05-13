@@ -88,6 +88,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
              :live_linear_source,
              :live_codex_turn,
              :live_linear_publication,
+             :live_linear_graphql_tool,
              :live_github_evidence,
              :live_smoke,
              :evidence,
@@ -105,6 +106,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
           Mix.Tasks.Extravaganza.Headless.LiveLinearSource,
           Mix.Tasks.Extravaganza.Headless.LiveCodexTurn,
           Mix.Tasks.Extravaganza.Headless.LiveLinearPublication,
+          Mix.Tasks.Extravaganza.Headless.LiveLinearGraphqlTool,
           Mix.Tasks.Extravaganza.Headless.LiveGithubEvidence,
           Mix.Tasks.Extravaganza.Headless.LiveSmoke
         ] do
@@ -127,6 +129,10 @@ defmodule Extravaganza.HeadlessExamplesTest do
           {"extravaganza.headless.live.linear_publication", "live.linear-publication",
            ["--json", "--trace-id", "trace:examples"]},
           {"extravaganza.headless.live_linear_publication", "live.linear-publication",
+           ["--json", "--trace-id", "trace:examples"]},
+          {"extravaganza.headless.live.linear_graphql_tool", "live.linear-graphql-tool",
+           ["--json", "--trace-id", "trace:examples"]},
+          {"extravaganza.headless.live_linear_graphql_tool", "live.linear-graphql-tool",
            ["--json", "--trace-id", "trace:examples"]},
           {"extravaganza.headless.live.github_evidence", "live.github-evidence",
            ["--json", "--trace-id", "trace:examples"]},
@@ -153,6 +159,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
           {:live_linear_source, "live.linear-source", "linear", ["LINEAR_API_KEY"]},
           {:live_codex_turn, "live.codex-turn", "codex", ["OPENAI_API_KEY", "CODEX_API_KEY"]},
           {:live_linear_publication, "live.linear-publication", "linear", ["LINEAR_API_KEY"]},
+          {:live_linear_graphql_tool, "live.linear-graphql-tool", "linear", ["LINEAR_API_KEY"]},
           {:live_github_evidence, "live.github-evidence", "github", ["GH_TOKEN", "GITHUB_TOKEN"]}
         ] do
       output =
@@ -470,6 +477,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert data["completed_operations"] |> Enum.sort() == [
              "live.codex-turn",
              "live.github-evidence",
+             "live.linear-graphql-tool",
              "live.linear-publication",
              "live.linear-source"
            ]
@@ -512,6 +520,11 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert attrs.issue_id == "lin-issue-321"
     assert Keyword.fetch!(publication_opts, :trace_id) == "trace:live-smoke-product"
     assert Keyword.fetch!(publication_opts, :linear_api_key) == secret
+
+    assert_received {:execute_linear_graphql_tool, _tenant_id, graphql_attrs, graphql_opts}
+    assert graphql_attrs.query == "query Viewer { viewer { id } }"
+    assert Keyword.fetch!(graphql_opts, :trace_id) == "trace:live-smoke-product"
+    assert Keyword.fetch!(graphql_opts, :linear_api_key) == secret
 
     assert_received {:fetch_github_pr_evidence, _tenant_id, github_request, github_opts}
     assert github_request.repo == "nshkrdotcom/extravaganza"
@@ -734,6 +747,56 @@ defmodule Extravaganza.HeadlessExamplesTest do
   end
 
   @tag :live_provider
+  test "linear GraphQL dynamic tool executes through the product AppKit path" do
+    secret = "linear-secret-value"
+
+    output =
+      capture_io(secret <> "\n", fn ->
+        assert :ok =
+                 HeadlessCLI.run(:live_linear_graphql_tool, [
+                   "--json",
+                   "--api-key-stdin",
+                   "--live-product-path",
+                   "--query",
+                   "query Viewer { viewer { id } }",
+                   "--variables-json",
+                   ~s({"includeTeams":false}),
+                   "--trace-id",
+                   "trace:live-linear-graphql-tool"
+                 ])
+      end)
+
+    decoded = Jason.decode!(output)
+    provider_effect = decoded["data"]["provider_effect"]
+    dynamic_response = provider_effect["dynamic_tool_response"]
+
+    assert decoded["ok"] == true
+    assert decoded["operation"] == "live.linear-graphql-tool"
+    assert decoded["data"]["status"] == "completed"
+    assert provider_effect["status"] == "receipt_recorded"
+    assert provider_effect["operation"] == "linear.graphql.execute"
+    assert provider_effect["tool_name"] == "linear_graphql"
+    assert provider_effect["credential_present?"] == true
+    assert provider_effect["credential_redeemed?"] == true
+    assert provider_effect["provider_request_sent?"] == true
+    assert provider_effect["provider_response_received?"] == true
+    assert provider_effect["receipt_recorded?"] == true
+    assert dynamic_response["success"] == true
+
+    assert Jason.decode!(dynamic_response["output"]) == %{
+             "data" => %{"viewer" => %{"id" => "usr-linear-viewer"}}
+           }
+
+    assert_received {:execute_linear_graphql_tool, tenant_id, attrs, opts}
+    assert String.starts_with?(tenant_id, "extravaganza-live-")
+    assert attrs.query == "query Viewer { viewer { id } }"
+    assert attrs.variables == %{"includeTeams" => false}
+    assert Keyword.fetch!(opts, :linear_api_key) == secret
+    assert Keyword.fetch!(opts, :trace_id) == "trace:live-linear-graphql-tool"
+    refute output =~ secret
+  end
+
+  @tag :live_provider
   test "aggregate live smoke emits a receipt for all live-gated provider examples" do
     output =
       capture_io(fn ->
@@ -752,6 +815,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert decoded["data"]["examples"] |> Map.keys() |> Enum.sort() == [
              "live.codex-turn",
              "live.github-evidence",
+             "live.linear-graphql-tool",
              "live.linear-publication",
              "live.linear-source"
            ]
@@ -837,6 +901,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
           "scripts/headless/live_linear_source.exs",
           "scripts/headless/live_codex_turn.exs",
           "scripts/headless/live_linear_publication.exs",
+          "scripts/headless/live_linear_graphql_tool.exs",
           "scripts/headless/live_github_evidence.exs",
           "scripts/headless/live_smoke.exs"
         ] do
@@ -1184,6 +1249,37 @@ defmodule Extravaganza.HeadlessExamplesTest do
          provider_request_sent?: Keyword.get(opts, :dry_run?) != true,
          provider_response_received?: Keyword.get(opts, :dry_run?) != true,
          lower_denial_ref: Map.get(receipt, :lower_denial_ref)
+       }}
+    end
+
+    @impl true
+    def execute_linear_graphql_tool(context, attrs, opts) do
+      if pid = Process.get(:headless_examples_test_pid) do
+        send(pid, {:execute_linear_graphql_tool, context.tenant_ref.id, attrs, opts})
+      end
+
+      output = ~s({"data":{"viewer":{"id":"usr-linear-viewer"}}})
+
+      {:ok,
+       %{
+         operation: "linear.graphql.execute",
+         tool_name: "linear_graphql",
+         success?: true,
+         dynamic_tool_response: %{
+           "success" => true,
+           "output" => output,
+           "contentItems" => [
+             %{
+               "type" => "inputText",
+               "text" => output
+             }
+           ]
+         },
+         lower_request_ref: "lower-request://linear/graphql",
+         lower_receipt_ref: "lower-receipt://linear/graphql/succeeded",
+         provider_request_sent?: true,
+         provider_response_received?: true,
+         credential_redeemed?: true
        }}
     end
   end

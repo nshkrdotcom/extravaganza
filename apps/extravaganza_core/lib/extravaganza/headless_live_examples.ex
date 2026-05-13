@@ -47,6 +47,15 @@ defmodule Extravaganza.HeadlessLiveExamples do
       ],
       provider_effect: "source_publication"
     },
+    linear_graphql_tool: %{
+      operation: "live.linear-graphql-tool",
+      provider: "linear",
+      command: "mix extravaganza.headless.live.linear_graphql_tool --json",
+      product_entrypoint: "Extravaganza.ProductHost.live_linear_graphql_tool_example",
+      credential_refs: ["LINEAR_API_KEY"],
+      capability_ids: ["linear.graphql.execute"],
+      provider_effect: "dynamic_tool"
+    },
     github_evidence: %{
       operation: "live.github-evidence",
       provider: "github",
@@ -64,7 +73,13 @@ defmodule Extravaganza.HeadlessLiveExamples do
     }
   }
 
-  @example_order [:linear_source, :codex_turn, :linear_publication, :github_evidence]
+  @example_order [
+    :linear_source,
+    :codex_turn,
+    :linear_publication,
+    :linear_graphql_tool,
+    :github_evidence
+  ]
 
   @spec run(atom(), map() | keyword()) :: {:ok, map()} | {:error, term()}
   def run(kind, opts \\ [])
@@ -161,6 +176,9 @@ defmodule Extravaganza.HeadlessLiveExamples do
       kind == :linear_publication ->
         linear_publication_effect(example, proof, opts)
 
+      kind == :linear_graphql_tool ->
+        linear_graphql_tool_effect(example, proof, opts)
+
       kind == :codex_turn ->
         codex_turn_effect(example, proof, opts)
 
@@ -244,6 +262,44 @@ defmodule Extravaganza.HeadlessLiveExamples do
               "state_lookup_lower_request_ref" => value(receipt, :state_lookup_lower_request_ref),
               "state_lookup_lower_receipt_ref" => value(receipt, :state_lookup_lower_receipt_ref),
               "state_update?" => value(receipt, :capability_id) == "linear.issues.update"
+            }
+            |> compact_map()
+
+          {:error, reason} ->
+            failed_effect(example, reason)
+        end
+
+      {:error, reason} ->
+        failed_effect(example, reason)
+    end
+  end
+
+  defp linear_graphql_tool_effect(example, proof, opts) do
+    case linear_graphql_tool_request(opts) do
+      {:ok, attrs} ->
+        case HeadlessSurface.execute_linear_graphql_tool(attrs, surface_opts(opts)) do
+          {:ok, result} ->
+            success? = truthy?(value(result, :success?))
+            lower_receipt_ref = value(result, :lower_receipt_ref)
+
+            %{
+              "provider" => example.provider,
+              "effect" => example.provider_effect,
+              "capability_ids" => example.capability_ids,
+              "status" => if(success?, do: "receipt_recorded", else: "failed"),
+              "operation" => value(result, :operation) || "linear.graphql.execute",
+              "tool_name" => value(result, :tool_name) || "linear_graphql",
+              "dynamic_tool_response" => value(result, :dynamic_tool_response),
+              "credential_present?" => true,
+              "credential_redeemed?" => truthy?(value(result, :credential_redeemed?)),
+              "provider_request_sent?" => truthy?(value(result, :provider_request_sent?)),
+              "provider_response_received?" =>
+                truthy?(value(result, :provider_response_received?)),
+              "receipt_recorded?" => success? and present?(lower_receipt_ref),
+              "product_readback_confirmed?" => product_readback_confirmed?(proof),
+              "appkit_surfaces" => ["AppKit.SourceSurface", "AppKit.HeadlessSurface"],
+              "lower_request_ref" => value(result, :lower_request_ref),
+              "lower_receipt_ref" => lower_receipt_ref
             }
             |> compact_map()
 
@@ -587,6 +643,35 @@ defmodule Extravaganza.HeadlessLiveExamples do
     |> maybe_put(:ref, string_value(opts, :ref))
   end
 
+  defp linear_graphql_tool_request(opts) do
+    with {:ok, variables} <- linear_graphql_variables(opts) do
+      {:ok,
+       %{
+         query: string_value(opts, :query) || "query Viewer { viewer { id } }",
+         variables: variables
+       }}
+    end
+  end
+
+  defp linear_graphql_variables(opts) do
+    case string_value(opts, :variables_json) do
+      nil ->
+        {:ok, %{}}
+
+      variables_json ->
+        case Jason.decode(variables_json) do
+          {:ok, %{} = variables} ->
+            {:ok, variables}
+
+          {:ok, _other} ->
+            {:error, :linear_graphql_variables_json_must_decode_to_object}
+
+          {:error, reason} ->
+            {:error, {:invalid_linear_graphql_variables_json, Exception.message(reason)}}
+        end
+    end
+  end
+
   defp codex_turn_readback(%RuntimeRunDetail{} = run_detail) do
     Enum.find(run_detail.turns || [], fn turn ->
       value(turn, :operation) == "codex.session.turn" or present?(value(turn, :turn_ref))
@@ -882,8 +967,10 @@ defmodule Extravaganza.HeadlessLiveExamples do
     end
   end
 
-  defp credential_supplied?(kind, opts) when kind in [:linear_source, :linear_publication],
-    do: truthy?(Map.get(opts, :api_key_stdin?)) or truthy?(Map.get(opts, :credential_available?))
+  defp credential_supplied?(kind, opts)
+       when kind in [:linear_source, :linear_publication, :linear_graphql_tool],
+       do:
+         truthy?(Map.get(opts, :api_key_stdin?)) or truthy?(Map.get(opts, :credential_available?))
 
   defp credential_supplied?(:codex_turn, opts),
     do:

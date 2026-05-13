@@ -189,6 +189,13 @@ defmodule Extravaganza.HeadlessSurface do
     end
   end
 
+  @spec execute_linear_graphql_tool(map(), keyword()) :: {:ok, map()} | {:error, term()}
+  def execute_linear_graphql_tool(attrs, opts \\ []) when is_map(attrs) and is_list(opts) do
+    with {:ok, %{context: context}} <- context_bundle(opts) do
+      AppKitSourceSurface.execute_linear_graphql_tool(context, attrs, opts)
+    end
+  end
+
   @spec fetch_github_pr_evidence(map(), keyword()) :: {:ok, struct()} | {:error, term()}
   def fetch_github_pr_evidence(attrs, opts \\ []) when is_map(attrs) and is_list(opts) do
     with {:ok, %{context: context}} <- context_bundle(opts) do

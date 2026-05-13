@@ -44,6 +44,7 @@ defmodule Extravaganza.HeadlessCLI do
     :live_linear_source,
     :live_codex_turn,
     :live_linear_publication,
+    :live_linear_graphql_tool,
     :live_github_evidence,
     :live_smoke,
     :evidence,
@@ -55,6 +56,7 @@ defmodule Extravaganza.HeadlessCLI do
     :live_linear_source,
     :live_codex_turn,
     :live_linear_publication,
+    :live_linear_graphql_tool,
     :live_github_evidence,
     :live_smoke
   ]
@@ -294,6 +296,14 @@ defmodule Extravaganza.HeadlessCLI do
     dispatch_live("live.linear-publication", &ProductHost.live_linear_publication_example/1, opts)
   end
 
+  defp dispatch(:live_linear_graphql_tool, opts) do
+    dispatch_live(
+      "live.linear-graphql-tool",
+      &ProductHost.live_linear_graphql_tool_example/1,
+      opts
+    )
+  end
+
   defp dispatch(:live_github_evidence, opts) do
     dispatch_live("live.github-evidence", &ProductHost.live_github_evidence_example/1, opts)
   end
@@ -431,6 +441,11 @@ defmodule Extravaganza.HeadlessCLI do
 
   defp parse(["--dry-run" | rest], opts), do: parse(rest, Map.put(opts, :dry_run?, true))
 
+  defp parse(["--query", query | rest], opts), do: parse(rest, Map.put(opts, :query, query))
+
+  defp parse(["--variables-json", variables_json | rest], opts),
+    do: parse(rest, Map.put(opts, :variables_json, variables_json))
+
   defp parse(["--repo", repo | rest], opts), do: parse(rest, Map.put(opts, :repo, repo))
 
   defp parse(["--pull-number", pull_number | rest], opts),
@@ -535,6 +550,8 @@ defmodule Extravaganza.HeadlessCLI do
           :state_name,
           :team_id,
           :message,
+          :query,
+          :variables_json,
           :allow_create_fallback?,
           :dry_run?,
           :tenant_id,

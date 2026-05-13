@@ -112,6 +112,10 @@ defmodule Extravaganza.ProductHost do
   def live_linear_publication_example(opts \\ []),
     do: HeadlessLiveExamples.run(:linear_publication, opts)
 
+  @spec live_linear_graphql_tool_example(keyword() | map()) :: {:ok, map()} | {:error, term()}
+  def live_linear_graphql_tool_example(opts \\ []),
+    do: HeadlessLiveExamples.run(:linear_graphql_tool, opts)
+
   @spec live_github_evidence_example(keyword() | map()) :: {:ok, map()} | {:error, term()}
   def live_github_evidence_example(opts \\ []),
     do: HeadlessLiveExamples.run(:github_evidence, opts)
