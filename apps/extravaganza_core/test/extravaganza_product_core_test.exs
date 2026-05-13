@@ -838,8 +838,14 @@ defmodule ExtravaganzaProductCoreTest do
 
     assert first_subject.payload.external_ref == "linear://#{tenant_id}/issue/ENG-101"
     assert first_subject.title == "Investigate operator queue"
-    assert [%{blocker_kind: "source_blocked"}] = first_subject.blocking_conditions
+
+    assert [%{blocker_kind: "source_blocked", metadata: blocker_metadata}] =
+             first_subject.blocking_conditions
+
+    assert blocker_metadata.dispatch_eligible == false
+    assert blocker_metadata.dispatch_preflight_reason == "non_terminal_dependency"
     assert first_subject.next_step_preview.status == "blocked"
+    assert first_subject.next_step_preview.metadata.dispatch_eligible == false
 
     updated_issue =
       issue
@@ -887,6 +893,14 @@ defmodule ExtravaganzaProductCoreTest do
     assert detail.subject.payload.description == "Trace queue latency"
     assert detail.subject.payload.provider_external_ref == "ENG-101"
     assert detail.subject.payload.source_routing["provenance"]["provider"] == "linear"
+
+    assert [%{blocker_kind: "source_blocked", metadata: detail_blocker_metadata}] =
+             detail.subject.blocking_conditions
+
+    assert detail_blocker_metadata.dispatch_eligible == false
+
+    assert detail.subject.next_step_preview.metadata.dispatch_preflight_reason ==
+             "non_terminal_dependency"
   end
 
   test "product-local facades start a run and expose operator status through app kit", %{
