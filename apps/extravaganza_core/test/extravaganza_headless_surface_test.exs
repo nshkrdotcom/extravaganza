@@ -196,7 +196,21 @@ defmodule Extravaganza.HeadlessSurfaceTest do
     assert {:ok, %RuntimeRunDetail{} = run} = HeadlessSurface.run_detail("run:fixture")
     rendered_run = RunPresenter.present(run)
 
-    assert Enum.map(rendered_run["data"]["events"], & &1["event_seq"]) == [1, 2, 3, 4, 5]
+    assert Enum.map(rendered_run["data"]["events"], & &1["event_seq"]) == [0, 1, 2, 3, 4, 5]
+
+    hook_event =
+      Enum.find(
+        rendered_run["data"]["events"],
+        &(&1["event_kind"] == "workspace.hook.after_create")
+      )
+
+    assert hook_event["message_summary"] == "after_create hook completed"
+    assert hook_event["extensions"]["hook_receipt"]["hook_ref"] == "created"
+    assert hook_event["extensions"]["hook_receipt"]["stage"] == "after_create"
+    assert hook_event["extensions"]["hook_receipt"]["status"] == "succeeded"
+    assert hook_event["extensions"]["hook_receipt"]["path_redacted?"] == true
+    refute Jason.encode!(hook_event) =~ "workspace_path"
+    refute Jason.encode!(hook_event) =~ "/tmp/"
 
     stale_retry_event =
       Enum.find(

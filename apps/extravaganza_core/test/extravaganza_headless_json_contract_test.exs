@@ -141,12 +141,24 @@ defmodule Extravaganza.HeadlessJSONContractTest do
     assert events["schema_ref"] == "headless_events.v1"
 
     assert Enum.map(events["data"]["entries"], & &1["event_ref"]) == [
+             "event:run:0",
              "event:run:1",
              "event:run:2",
              "event:run:3",
              "event:run:4",
              "event:run:5"
            ]
+
+    hook_event =
+      Enum.find(
+        events["data"]["entries"],
+        &(&1["event_kind"] == "workspace.hook.after_create")
+      )
+
+    assert hook_event["extensions"]["hook_receipt"]["stage"] == "after_create"
+    assert hook_event["extensions"]["hook_receipt"]["path_redacted?"] == "true"
+    refute Jason.encode!(hook_event) =~ "workspace_path"
+    refute Jason.encode!(hook_event) =~ "/tmp/"
 
     stale_retry_event =
       Enum.find(

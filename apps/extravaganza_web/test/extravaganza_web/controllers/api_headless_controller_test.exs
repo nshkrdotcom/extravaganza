@@ -128,12 +128,24 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
     assert body["data"]["data"]["runtime_row"]["extensions"]["stall"]["elapsed_ms"] == 330_000
 
     assert Enum.map(body["data"]["data"]["events"], & &1["event_ref"]) == [
+             "event:run:0",
              "event:run:1",
              "event:run:2",
              "event:run:3",
              "event:run:4",
              "event:run:5"
            ]
+
+    hook_event =
+      Enum.find(
+        body["data"]["data"]["events"],
+        &(&1["event_kind"] == "workspace.hook.after_create")
+      )
+
+    assert hook_event["extensions"]["hook_receipt"]["stage"] == "after_create"
+    assert hook_event["extensions"]["hook_receipt"]["path_redacted?"] == true
+    refute Jason.encode!(hook_event) =~ "workspace_path"
+    refute Jason.encode!(hook_event) =~ "/tmp/"
 
     assert Enum.any?(
              body["data"]["data"]["events"],
@@ -226,12 +238,18 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
     assert events["data"]["schema_ref"] == "headless_events.v1"
 
     assert Enum.map(events["data"]["data"]["entries"], & &1["event_ref"]) == [
+             "event:run:0",
              "event:run:1",
              "event:run:2",
              "event:run:3",
              "event:run:4",
              "event:run:5"
            ]
+
+    assert Enum.any?(
+             events["data"]["data"]["entries"],
+             &(&1["event_kind"] == "workspace.hook.after_create")
+           )
   end
 
   test "GET source publication preview uses the shared source presenter", %{conn: conn} do
