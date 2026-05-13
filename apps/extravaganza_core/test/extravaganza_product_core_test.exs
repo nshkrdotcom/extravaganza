@@ -814,6 +814,11 @@ defmodule ExtravaganzaProductCoreTest do
       url: "https://linear.app/example/issue/ENG-101",
       created_at: "2026-03-12T09:15:00Z",
       updated_at: "2026-03-12T10:00:00Z",
+      pre_dispatch_revalidation: %{
+        "status" => "deferred",
+        "reason" => "source_refresh_failed",
+        "safe_action" => "defer_dispatch"
+      },
       blockers: [
         %{
           id: "rel-blocks-101",
@@ -893,7 +898,13 @@ defmodule ExtravaganzaProductCoreTest do
       )
 
     assert presented_entry.payload.dispatch_eligibility.eligible? == false
-    assert presented_entry.payload.dispatch_eligibility.reason == "non_terminal_dependency"
+    assert presented_entry.payload.dispatch_eligibility.reason == "source_refresh_failed"
+
+    assert presented_entry.payload.dispatch_eligibility.pre_dispatch_revalidation == %{
+             "status" => "deferred",
+             "reason" => "source_refresh_failed",
+             "safe_action" => "defer_dispatch"
+           }
 
     assert [%{"identifier" => "ENG-099"}] =
              presented_entry.payload.dispatch_eligibility.blocker_refs

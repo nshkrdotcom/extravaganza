@@ -39,6 +39,7 @@ defmodule Extravaganza.Presenters.StatePresenter do
     "path_redacted?" => :path_redacted?,
     "poll_interval_ms" => :poll_interval_ms,
     "polling_state" => :polling_state,
+    "pre_dispatch_revalidation" => :pre_dispatch_revalidation,
     "provider_refs" => :provider_refs,
     "rate_limits" => :rate_limits,
     "reason" => :reason,
@@ -117,11 +118,15 @@ defmodule Extravaganza.Presenters.StatePresenter do
   defp with_queue_entry_eligibility(entry), do: entry
 
   defp dispatch_eligibility(payload) do
+    pre_dispatch_revalidation = map_value(payload, "pre_dispatch_revalidation")
     state_mapping = map_value(payload, "state_mapping") || %{}
     reason = map_value(state_mapping, "reason")
     blocker_refs = list_value(payload, "blocker_refs")
 
     cond do
+      is_map(pre_dispatch_revalidation) ->
+        pre_dispatch_eligibility(pre_dispatch_revalidation, blocker_refs)
+
       reason == "blocked_by_non_terminal" ->
         %{
           eligible?: false,
@@ -138,6 +143,18 @@ defmodule Extravaganza.Presenters.StatePresenter do
       true ->
         %{eligible?: true, reason: "not_blocked_in_product_queue"}
     end
+  end
+
+  defp pre_dispatch_eligibility(revalidation, blocker_refs) do
+    status = map_value(revalidation, "status")
+    reason = map_value(revalidation, "reason") || "pre_dispatch_revalidation"
+
+    %{
+      eligible?: status == "accepted",
+      reason: reason,
+      blocker_refs: blocker_refs,
+      pre_dispatch_revalidation: revalidation
+    }
   end
 
   defp with_future_slots(data) when is_map(data) do
