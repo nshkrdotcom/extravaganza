@@ -86,6 +86,16 @@ defmodule Extravaganza.HeadlessSurfaceTest do
                "status" => "scheduled",
                "reason" => "transient failure",
                "scheduled_at" => "2026-04-27T00:10:00Z"
+             },
+             %{
+               "attempt_ref" => "attempt:retrying:3",
+               "delay_ms" => 20_000,
+               "delay_type" => "failure_backoff",
+               "due_at" => "2026-04-27T00:20:00Z",
+               "next_due_at" => "2026-04-27T00:20:00Z",
+               "status" => "scheduled",
+               "reason" => "agent exited",
+               "scheduled_at" => "2026-04-27T00:20:00Z"
              }
            ]
 
@@ -144,6 +154,17 @@ defmodule Extravaganza.HeadlessSurfaceTest do
                "due_at" => "2026-04-27T00:10:00Z",
                "reason" => "source_still_active",
                "scheduled_at" => "2026-04-27T00:10:00Z",
+               "status" => "scheduled",
+               "worker_ref" => "worker:fixture",
+               "workspace_ref" => "workspace:fixture"
+             },
+             %{
+               "attempt_ref" => "attempt:fixture:2",
+               "delay_ms" => 20_000,
+               "delay_type" => "failure_backoff",
+               "due_at" => "2026-04-27T00:20:00Z",
+               "reason" => "agent exited",
+               "scheduled_at" => "2026-04-27T00:20:00Z",
                "status" => "scheduled",
                "worker_ref" => "worker:fixture",
                "workspace_ref" => "workspace:fixture"

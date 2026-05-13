@@ -51,7 +51,7 @@
     {"event_ref": "event:run:2", "event_seq": 2, "event_kind": "lower_receipt_observed", "observed_at": "2026-04-27T00:02:00Z", "run_ref": "run:fixture", "message_summary": "Lower receipt observed"},
     {"event_ref": "event:run:1", "event_seq": 1, "event_kind": "run_started", "observed_at": "2026-04-27T00:01:00Z", "run_ref": "run:fixture", "message_summary": "Run started"}
   ],
-  "retries": [{"attempt_ref": "attempt:fixture:1", "status": "scheduled", "reason": "source_still_active", "scheduled_at": "2026-04-27T00:10:00Z", "due_at": "2026-04-27T00:10:00Z", "delay_ms": 1000, "delay_type": "continuation", "continuation?": true, "worker_ref": "worker:fixture", "workspace_ref": "workspace:fixture"}],
+  "retries": [{"attempt_ref": "attempt:fixture:1", "status": "scheduled", "reason": "source_still_active", "scheduled_at": "2026-04-27T00:10:00Z", "due_at": "2026-04-27T00:10:00Z", "delay_ms": 1000, "delay_type": "continuation", "continuation?": true, "worker_ref": "worker:fixture", "workspace_ref": "workspace:fixture"}, {"attempt_ref": "attempt:fixture:2", "status": "scheduled", "reason": "agent exited", "scheduled_at": "2026-04-27T00:20:00Z", "due_at": "2026-04-27T00:20:00Z", "delay_ms": 20000, "delay_type": "failure_backoff", "worker_ref": "worker:fixture", "workspace_ref": "workspace:fixture"}],
   "turns": [],
   "budget_state": {"status": "not_available"},
   "candidate_fact_refs": [],
