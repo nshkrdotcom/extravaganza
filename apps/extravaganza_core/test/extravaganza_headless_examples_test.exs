@@ -1051,6 +1051,33 @@ defmodule Extravaganza.HeadlessExamplesTest do
              "live.linear-source"
            ]
 
+    memory_matrix = decoded["data"]["deterministic_memory_tracker_matrix"]
+
+    assert memory_matrix["proof_source"] == "fixture_memory_tracker"
+    assert memory_matrix["live_provider_effect?"] == false
+    assert memory_matrix["all_operations_covered?"] == true
+
+    assert Enum.map(memory_matrix["operations"], & &1["symphony_callback"]) == [
+             "fetch_candidate_issues",
+             "fetch_issues_by_states",
+             "fetch_issue_states_by_ids",
+             "create_comment",
+             "update_issue_state"
+           ]
+
+    assert Enum.all?(
+             memory_matrix["operations"],
+             &(&1["appkit_surface"] == "AppKit.SourceSurface")
+           )
+
+    assert Enum.all?(memory_matrix["operations"], &(&1["status"] == "fixture_receipt_recorded"))
+
+    assert Enum.all?(
+             memory_matrix["operations"],
+             &(String.starts_with?(&1["lower_request_ref"], "lower-request://fixture/linear/") and
+                 String.starts_with?(&1["lower_receipt_ref"], "lower-receipt://fixture/linear/"))
+           )
+
     refute String.contains?(output, "env-linear")
     refute String.contains?(output, "env-github")
     refute String.contains?(output, "env-codex")

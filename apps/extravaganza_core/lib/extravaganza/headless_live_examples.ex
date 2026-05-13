@@ -92,6 +92,14 @@ defmodule Extravaganza.HeadlessLiveExamples do
     :github_evidence
   ]
 
+  @memory_tracker_callbacks [
+    "fetch_candidate_issues",
+    "fetch_issues_by_states",
+    "fetch_issue_states_by_ids",
+    "create_comment",
+    "update_issue_state"
+  ]
+
   @spec run(atom(), map() | keyword()) :: {:ok, map()} | {:error, term()}
   def run(kind, opts \\ [])
 
@@ -124,7 +132,8 @@ defmodule Extravaganza.HeadlessLiveExamples do
           "product_path_exercised?" => true,
           "product_readback_confirmed?" => product_readback_confirmed?(proof),
           "product_path" => product_path(proof, "Extravaganza.ProductHost.live_smoke"),
-          "examples" => examples
+          "examples" => examples,
+          "deterministic_memory_tracker_matrix" => deterministic_memory_tracker_matrix(opts)
         })
         |> maybe_put("source_publication_ref", aggregate_source_publication_ref(examples))
         |> Map.merge(summary)
@@ -387,6 +396,138 @@ defmodule Extravaganza.HeadlessLiveExamples do
       {:error, reason} ->
         failed_effect(example, reason)
     end
+  end
+
+  defp deterministic_memory_tracker_matrix(opts) do
+    source_binding = memory_tracker_source_binding()
+    states_binding = memory_tracker_source_binding(["Todo"])
+    matrix_opts = memory_tracker_fixture_opts(opts)
+
+    with {:ok, candidates} <- HeadlessSurface.fetch_linear_candidates(source_binding, matrix_opts),
+         {:ok, state_candidates} <-
+           HeadlessSurface.fetch_linear_candidates(states_binding, matrix_opts),
+         {:ok, current_states} <-
+           HeadlessSurface.current_linear_issue_states(
+             ["lin-issue-321"],
+             source_binding,
+             matrix_opts
+           ),
+         {:ok, comment_create} <-
+           HeadlessSurface.publish_linear_source(
+             memory_tracker_publication_attrs(:comment_create),
+             matrix_opts
+           ),
+         {:ok, state_update} <-
+           HeadlessSurface.publish_linear_source(
+             memory_tracker_publication_attrs(:state_update),
+             matrix_opts
+           ) do
+      operations = [
+        memory_tracker_operation("fetch_candidate_issues", candidates, %{
+          "operation" => "linear.issues.list",
+          "subject_count" => source_subject_count(candidates)
+        }),
+        memory_tracker_operation("fetch_issues_by_states", state_candidates, %{
+          "operation" => "linear.issues.list",
+          "state_names" => ["Todo"],
+          "subject_count" => source_subject_count(state_candidates)
+        }),
+        memory_tracker_operation("fetch_issue_states_by_ids", current_states, %{
+          "operation" => "linear.issues.list",
+          "issue_ids" => value(current_states, :requested_issue_ids) || ["lin-issue-321"],
+          "current_state_count" => current_state_count(current_states)
+        }),
+        memory_tracker_operation("create_comment", source_receipt(comment_create), %{
+          "operation" => "linear.comments.create",
+          "capability_id" => "linear.comments.create"
+        }),
+        memory_tracker_operation("update_issue_state", source_receipt(state_update), %{
+          "operation" => "linear.issues.update",
+          "capability_id" => "linear.issues.update",
+          "state_name" => "Done"
+        })
+      ]
+
+      %{
+        "proof_source" => "fixture_memory_tracker",
+        "fixture_backend" => inspect(HeadlessFixtureBackend),
+        "appkit_surfaces" => ["AppKit.SourceSurface"],
+        "live_provider_effect?" => false,
+        "all_operations_covered?" =>
+          Enum.map(operations, &Map.fetch!(&1, "symphony_callback")) == @memory_tracker_callbacks,
+        "operations" => operations
+      }
+    else
+      {:error, reason} ->
+        %{
+          "proof_source" => "fixture_memory_tracker",
+          "fixture_backend" => inspect(HeadlessFixtureBackend),
+          "appkit_surfaces" => ["AppKit.SourceSurface"],
+          "live_provider_effect?" => false,
+          "all_operations_covered?" => false,
+          "error" => reason |> redact_secret_fields() |> inspect(),
+          "operations" => []
+        }
+    end
+  end
+
+  defp memory_tracker_operation(callback, result, extra) do
+    %{
+      "symphony_module" => "SymphonyElixir.Tracker.Memory",
+      "symphony_callback" => callback,
+      "appkit_surface" => "AppKit.SourceSurface",
+      "status" => "fixture_receipt_recorded",
+      "source_binding_id" => value(result, :source_binding_id) || "linear-primary",
+      "lower_request_ref" => value(result, :lower_request_ref),
+      "lower_receipt_ref" => value(result, :lower_receipt_ref)
+    }
+    |> Map.merge(extra)
+    |> compact_map()
+  end
+
+  defp source_receipt(result), do: value(result, :source_publication_receipt) || result
+
+  defp memory_tracker_source_binding(state_names \\ nil) do
+    filters =
+      %{}
+      |> maybe_put(:state_names, state_names)
+
+    %{
+      source_binding_id: "linear-primary",
+      provider: "linear",
+      connection_ref: "linear-primary",
+      candidate_filters: filters,
+      state_mapping: %{}
+    }
+  end
+
+  defp memory_tracker_publication_attrs(:comment_create) do
+    %{
+      source_publish_ref: "linear_memory_tracker_comment_create",
+      source_binding_id: "linear-primary",
+      source_ref: "linear://fixture/issue/ENG-321",
+      issue_id: "lin-issue-321",
+      body: "Extravaganza deterministic memory tracker comment proof"
+    }
+  end
+
+  defp memory_tracker_publication_attrs(:state_update) do
+    %{
+      source_publish_ref: "linear_memory_tracker_state_update",
+      source_binding_id: "linear-primary",
+      source_ref: "linear://fixture/issue/ENG-321",
+      issue_id: "lin-issue-321",
+      state_name: "Done",
+      publication_kind: :issue_state_update
+    }
+  end
+
+  defp memory_tracker_fixture_opts(opts) do
+    opts
+    |> Map.take([:tenant_id, :pack_version, :trace_id])
+    |> Enum.to_list()
+    |> Keyword.put(:source_backend, HeadlessFixtureBackend)
+    |> Keyword.put(:skip_bootstrap?, true)
   end
 
   defp codex_turn_effect(example, _proof, opts) do
