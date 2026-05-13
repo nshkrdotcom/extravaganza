@@ -549,6 +549,28 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert provider_effect["session_start_lower_receipt_ref"] ==
              "lower-receipt://codex/session-start/asm-live-product/started"
 
+    assert provider_effect["app_server_protocol_confirmed?"] == true
+    assert provider_effect["app_server_transport"] == "app_server"
+
+    assert provider_effect["app_server_jsonrpc_methods"] == [
+             "initialize",
+             "initialized",
+             "thread/start",
+             "turn/start"
+           ]
+
+    assert provider_effect["app_server_initialization_confirmed?"] == true
+    assert provider_effect["app_server_thread_start_confirmed?"] == true
+    assert provider_effect["app_server_turn_start_confirmed?"] == true
+    assert provider_effect["app_server_cwd_validation_confirmed?"] == true
+    assert provider_effect["app_server_lower_request_ref"] == "lower-request://codex/session-turn"
+
+    assert provider_effect["app_server_lower_receipt_ref"] ==
+             "lower-receipt://codex/session-turn/succeeded"
+
+    assert provider_effect["provider_session_id"] == "codex-provider-thread-live-product"
+    assert provider_effect["provider_turn_id"] == "codex-provider-turn-live-product"
+
     assert provider_effect["turn_ref"] == "turn://codex/live-product/1"
     assert provider_effect["lower_request_ref"] == "lower-request://codex/session-turn"
     assert provider_effect["lower_receipt_ref"] == "lower-receipt://codex/session-turn/succeeded"
@@ -1191,6 +1213,9 @@ defmodule Extravaganza.HeadlessExamplesTest do
     @runtime_control_session_ref "runtime-session://asm-live-product"
     @session_start_lower_request_ref "lower-request://codex/session-start"
     @session_start_lower_receipt_ref "lower-receipt://codex/session-start/asm-live-product/started"
+    @provider_session_id "codex-provider-thread-live-product"
+    @provider_turn_id "codex-provider-turn-live-product"
+    @app_server_jsonrpc_methods ["initialize", "initialized", "thread/start", "turn/start"]
     @observed_at ~U[2026-05-12 00:00:00Z]
 
     @impl true
@@ -1246,6 +1271,22 @@ defmodule Extravaganza.HeadlessExamplesTest do
                    "lower_request_ref" => @session_start_lower_request_ref,
                    "lower_receipt_ref" => @session_start_lower_receipt_ref
                  },
+                 "codex_app_server_protocol" => %{
+                   "confirmed?" => true,
+                   "transport" => "app_server",
+                   "jsonrpc_methods" => @app_server_jsonrpc_methods,
+                   "initialization_confirmed?" => true,
+                   "thread_start_confirmed?" => true,
+                   "turn_start_confirmed?" => true,
+                   "cwd_validation_confirmed?" => true,
+                   "command_launch_owner" => "lower_runtime",
+                   "timeout_policy_owner" => "lower_runtime",
+                   "provider_session_id" => @provider_session_id,
+                   "provider_turn_id" => @provider_turn_id,
+                   "runtime_control_session_ref" => @runtime_control_session_ref,
+                   "lower_request_ref" => @lower_request_ref,
+                   "lower_receipt_ref" => @lower_receipt_ref
+                 },
                  "source_publication" => %{
                    "status" => "not_applicable",
                    "capability_id" => "codex.session.turn"
@@ -1269,10 +1310,32 @@ defmodule Extravaganza.HeadlessExamplesTest do
                  "lower_receipt_ref" => @session_start_lower_receipt_ref
                }
              }),
+           {:ok, app_server_protocol_event} <-
+             RuntimeEventRow.new(%{
+               event_ref: "event://codex/live-product/app-server-protocol",
+               event_seq: 2,
+               event_kind: "codex.app_server.protocol.confirmed",
+               observed_at: @observed_at,
+               subject_ref: "subject://extravaganza/live-codex-turn",
+               run_ref: run_ref,
+               workflow_ref: @workflow_ref,
+               session_ref: @runtime_control_session_ref,
+               turn_ref: @turn_ref,
+               payload_ref: "payload://codex/live-product/app-server-protocol",
+               extensions: %{
+                 "jsonrpc_methods" => @app_server_jsonrpc_methods,
+                 "transport" => "app_server",
+                 "lower_request_ref" => @lower_request_ref,
+                 "lower_receipt_ref" => @lower_receipt_ref,
+                 "provider_session_id" => @provider_session_id,
+                 "provider_turn_id" => @provider_turn_id,
+                 "cwd_validation_confirmed?" => true
+               }
+             }),
            {:ok, event} <-
              RuntimeEventRow.new(%{
                event_ref: "event://codex/live-product/terminal",
-               event_seq: 2,
+               event_seq: 3,
                event_kind: "run.terminal",
                observed_at: @observed_at,
                subject_ref: "subject://extravaganza/live-codex-turn",
@@ -1284,7 +1347,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
         RuntimeRunDetail.new(%{
           run_ref: run_ref,
           runtime_row: runtime_row,
-          events: [session_start_event, event],
+          events: [session_start_event, app_server_protocol_event, event],
           turns: [
             %{
               "turn_ref" => @turn_ref,
@@ -1299,6 +1362,17 @@ defmodule Extravaganza.HeadlessExamplesTest do
               "session_start_event_kind" => "codex.session.started",
               "session_start_lower_request_ref" => @session_start_lower_request_ref,
               "session_start_lower_receipt_ref" => @session_start_lower_receipt_ref,
+              "app_server_protocol_confirmed?" => true,
+              "app_server_transport" => "app_server",
+              "app_server_jsonrpc_methods" => @app_server_jsonrpc_methods,
+              "app_server_initialization_confirmed?" => true,
+              "app_server_thread_start_confirmed?" => true,
+              "app_server_turn_start_confirmed?" => true,
+              "app_server_cwd_validation_confirmed?" => true,
+              "app_server_lower_request_ref" => @lower_request_ref,
+              "app_server_lower_receipt_ref" => @lower_receipt_ref,
+              "provider_session_id" => @provider_session_id,
+              "provider_turn_id" => @provider_turn_id,
               "lower_request_ref" => @lower_request_ref,
               "lower_receipt_ref" => @lower_receipt_ref
             }

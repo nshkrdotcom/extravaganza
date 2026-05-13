@@ -547,6 +547,7 @@ defmodule Extravaganza.HeadlessLiveExamples do
            ) do
       turn = codex_turn_readback(run_detail)
       session_start = codex_session_start_readback(run_detail, turn)
+      app_server_protocol = codex_app_server_protocol_readback(run_detail, turn)
       lower_receipt_ref = value(turn, :lower_receipt_ref)
       provider_response_received? = truthy?(value(turn, :provider_response_received?))
 
@@ -573,6 +574,24 @@ defmodule Extravaganza.HeadlessLiveExamples do
           value(session_start, :session_start_lower_request_ref),
         "session_start_lower_receipt_ref" =>
           value(session_start, :session_start_lower_receipt_ref),
+        "app_server_protocol_confirmed?" =>
+          codex_app_server_protocol_confirmed?(app_server_protocol),
+        "app_server_transport" => value(app_server_protocol, :app_server_transport),
+        "app_server_jsonrpc_methods" => value(app_server_protocol, :app_server_jsonrpc_methods),
+        "app_server_initialization_confirmed?" =>
+          truthy?(value(app_server_protocol, :app_server_initialization_confirmed?)),
+        "app_server_thread_start_confirmed?" =>
+          truthy?(value(app_server_protocol, :app_server_thread_start_confirmed?)),
+        "app_server_turn_start_confirmed?" =>
+          truthy?(value(app_server_protocol, :app_server_turn_start_confirmed?)),
+        "app_server_cwd_validation_confirmed?" =>
+          truthy?(value(app_server_protocol, :app_server_cwd_validation_confirmed?)),
+        "app_server_lower_request_ref" =>
+          value(app_server_protocol, :app_server_lower_request_ref),
+        "app_server_lower_receipt_ref" =>
+          value(app_server_protocol, :app_server_lower_receipt_ref),
+        "provider_session_id" => value(app_server_protocol, :provider_session_id),
+        "provider_turn_id" => value(app_server_protocol, :provider_turn_id),
         "turn_ref" => value(turn, :turn_ref),
         "lower_request_ref" => value(turn, :lower_request_ref),
         "lower_receipt_ref" => lower_receipt_ref
@@ -1066,6 +1085,89 @@ defmodule Extravaganza.HeadlessLiveExamples do
   defp session_start_event_kind_from_lifecycle("reused"), do: "codex.session.reused"
   defp session_start_event_kind_from_lifecycle(:reused), do: "codex.session.reused"
   defp session_start_event_kind_from_lifecycle(_lifecycle), do: nil
+
+  defp codex_app_server_protocol_readback(%RuntimeRunDetail{} = run_detail, turn) do
+    %{}
+    |> Map.merge(codex_app_server_protocol_from_extension(run_detail))
+    |> Map.merge(codex_app_server_protocol_from_event(run_detail))
+    |> Map.merge(codex_app_server_protocol_from_turn(turn))
+  end
+
+  defp codex_app_server_protocol_from_turn(turn) do
+    %{
+      "confirmed?" => if(truthy?(value(turn, :app_server_protocol_confirmed?)), do: true),
+      "app_server_transport" => value(turn, :app_server_transport),
+      "app_server_jsonrpc_methods" => value(turn, :app_server_jsonrpc_methods),
+      "app_server_initialization_confirmed?" =>
+        value(turn, :app_server_initialization_confirmed?),
+      "app_server_thread_start_confirmed?" => value(turn, :app_server_thread_start_confirmed?),
+      "app_server_turn_start_confirmed?" => value(turn, :app_server_turn_start_confirmed?),
+      "app_server_cwd_validation_confirmed?" =>
+        value(turn, :app_server_cwd_validation_confirmed?),
+      "app_server_lower_request_ref" => value(turn, :app_server_lower_request_ref),
+      "app_server_lower_receipt_ref" => value(turn, :app_server_lower_receipt_ref),
+      "provider_session_id" => value(turn, :provider_session_id),
+      "provider_turn_id" => value(turn, :provider_turn_id)
+    }
+    |> compact_map()
+  end
+
+  defp codex_app_server_protocol_from_extension(%RuntimeRunDetail{runtime_row: runtime_row}) do
+    runtime_row
+    |> value(:extensions)
+    |> value("codex_app_server_protocol")
+    |> case do
+      %{} = evidence ->
+        %{
+          "confirmed?" => if(truthy?(value(evidence, "confirmed?")), do: true),
+          "app_server_transport" => value(evidence, :transport),
+          "app_server_jsonrpc_methods" => value(evidence, :jsonrpc_methods),
+          "app_server_initialization_confirmed?" => value(evidence, :initialization_confirmed?),
+          "app_server_thread_start_confirmed?" => value(evidence, :thread_start_confirmed?),
+          "app_server_turn_start_confirmed?" => value(evidence, :turn_start_confirmed?),
+          "app_server_cwd_validation_confirmed?" => value(evidence, :cwd_validation_confirmed?),
+          "app_server_lower_request_ref" => value(evidence, :lower_request_ref),
+          "app_server_lower_receipt_ref" => value(evidence, :lower_receipt_ref),
+          "provider_session_id" => value(evidence, :provider_session_id),
+          "provider_turn_id" => value(evidence, :provider_turn_id)
+        }
+        |> compact_map()
+
+      _missing ->
+        %{}
+    end
+  end
+
+  defp codex_app_server_protocol_from_event(%RuntimeRunDetail{} = run_detail) do
+    run_detail.events
+    |> List.wrap()
+    |> Enum.find(&(value(&1, :event_kind) == "codex.app_server.protocol.confirmed"))
+    |> case do
+      nil ->
+        %{}
+
+      event ->
+        extensions = value(event, :extensions) || %{}
+
+        %{
+          "confirmed?" => true,
+          "app_server_transport" => value(extensions, :transport),
+          "app_server_jsonrpc_methods" => value(extensions, :jsonrpc_methods),
+          "app_server_cwd_validation_confirmed?" => value(extensions, :cwd_validation_confirmed?),
+          "app_server_lower_request_ref" => value(extensions, :lower_request_ref),
+          "app_server_lower_receipt_ref" => value(extensions, :lower_receipt_ref),
+          "provider_session_id" => value(extensions, :provider_session_id),
+          "provider_turn_id" => value(extensions, :provider_turn_id)
+        }
+        |> compact_map()
+    end
+  end
+
+  defp codex_app_server_protocol_confirmed?(evidence) do
+    truthy?(value(evidence, "confirmed?")) or
+      truthy?(value(evidence, :app_server_initialization_confirmed?)) or
+      present?(value(evidence, :app_server_transport))
+  end
 
   defp runtime_session_ref(%RuntimeRunDetail{runtime_row: runtime_row}) do
     runtime_row
