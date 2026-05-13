@@ -141,7 +141,7 @@ defmodule Extravaganza.HeadlessSurfaceTest do
     assert {:ok, %RuntimeRunDetail{} = run} = HeadlessSurface.run_detail("run:fixture")
     rendered_run = RunPresenter.present(run)
 
-    assert Enum.map(rendered_run["data"]["events"], & &1["event_seq"]) == [1, 2, 3]
+    assert Enum.map(rendered_run["data"]["events"], & &1["event_seq"]) == [1, 2, 3, 4]
 
     stale_retry_event =
       Enum.find(
@@ -153,6 +153,18 @@ defmodule Extravaganza.HeadlessSurfaceTest do
     assert stale_retry_event["extensions"]["safe_action"] == "ignore_retry"
     assert stale_retry_event["extensions"]["dispatch_allowed?"] == false
     assert stale_retry_event["extensions"]["current_retry_retained?"] == true
+
+    reconciliation_event =
+      Enum.find(
+        rendered_run["data"]["events"],
+        &(&1["event_kind"] == "cancel.terminal_source")
+      )
+
+    assert reconciliation_event["message_summary"] == "Terminal source cancelled lower run"
+    assert reconciliation_event["extensions"]["cancellation_reason"] == "terminal_source"
+    assert reconciliation_event["extensions"]["workflow_signal"] == "operator.cancel"
+    assert reconciliation_event["extensions"]["projection_mutation"] == "complete_subject"
+    assert reconciliation_event["extensions"]["cleanup_required?"] == true
 
     assert rendered_run["data"]["memory_proof_refs"] == []
     assert rendered_run["data"]["persistence_posture"]["durable?"] == false

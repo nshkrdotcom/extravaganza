@@ -139,7 +139,8 @@ defmodule Extravaganza.HeadlessJSONContractTest do
     assert Enum.map(events["data"]["entries"], & &1["event_ref"]) == [
              "event:run:1",
              "event:run:2",
-             "event:run:3"
+             "event:run:3",
+             "event:run:4"
            ]
 
     stale_retry_event =
@@ -150,6 +151,15 @@ defmodule Extravaganza.HeadlessJSONContractTest do
 
     assert stale_retry_event["extensions"]["safe_action"] == "ignore_retry"
     assert stale_retry_event["extensions"]["current_retry_retained?"] == "true"
+
+    reconciliation_event =
+      Enum.find(
+        events["data"]["entries"],
+        &(&1["event_kind"] == "cancel.terminal_source")
+      )
+
+    assert reconciliation_event["extensions"]["cancellation_reason"] == "terminal_source"
+    assert reconciliation_event["extensions"]["workflow_signal"] == "operator.cancel"
   end
 
   test "error envelopes classify readback failures and preserve retry guidance" do

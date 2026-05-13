@@ -106,12 +106,18 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
     assert Enum.map(body["data"]["data"]["events"], & &1["event_ref"]) == [
              "event:run:1",
              "event:run:2",
-             "event:run:3"
+             "event:run:3",
+             "event:run:4"
            ]
 
     assert Enum.any?(
              body["data"]["data"]["events"],
              &(&1["event_kind"] == "retry.stale_token_ignored")
+           )
+
+    assert Enum.any?(
+             body["data"]["data"]["events"],
+             &(&1["event_kind"] == "cancel.terminal_source")
            )
 
     assert body["data"]["data"]["candidate_fact_refs"] == []
@@ -187,7 +193,8 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
     assert Enum.map(events["data"]["data"]["entries"], & &1["event_ref"]) == [
              "event:run:1",
              "event:run:2",
-             "event:run:3"
+             "event:run:3",
+             "event:run:4"
            ]
   end
 
