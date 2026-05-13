@@ -29,6 +29,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
 
     on_exit(fn ->
       Process.delete(:headless_examples_test_pid)
+      Process.delete(:codex_agent_prompt_readback)
       Process.delete(:headless_examples_source_response)
 
       if previous_backend do
@@ -541,6 +542,16 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert provider_effect["provider_response_received?"] == true
     assert provider_effect["receipt_recorded?"] == true
     assert provider_effect["product_readback_confirmed?"] == true
+    assert provider_effect["first_prompt_confirmed?"] == true
+    assert provider_effect["prompt_ref"] == "prompt://extravaganza/live-codex-turn"
+    assert provider_effect["prompt_hash"] =~ "sha256:"
+
+    assert provider_effect["prompt_source_ref"] ==
+             "workflow://extravaganza/live-codex-turn/default"
+
+    assert provider_effect["prompt_rendered?"] == true
+    assert provider_effect["prompt_body_redacted?"] == true
+    assert provider_effect["prompt_body_included?"] == false
     assert provider_effect["session_start_confirmed?"] == true
     assert provider_effect["session_ref"] == "session://codex/live-product"
     assert provider_effect["runtime_control_session_ref"] == "runtime-session://asm-live-product"
@@ -582,10 +593,21 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert request.initial_input_ref == "prompt://extravaganza/live-codex-turn"
     assert request.params.capability_id == "codex.session.turn"
     assert request.params.provider_family == "codex"
+    assert request.params.initial_input.input_ref == "prompt://extravaganza/live-codex-turn"
+    assert request.params.initial_input.content_hash == provider_effect["prompt_hash"]
+    assert request.params.initial_input.source_ref == provider_effect["prompt_source_ref"]
+    assert request.params.initial_input.rendered? == true
+    assert request.params.initial_input.body_redacted? == true
+    assert request.params.initial_input.body =~ "Issue: LIVE-CODEX-001"
+    assert request.params.initial_input.body =~ "Confirm the live Codex product path"
+    refute Map.has_key?(request.params, :prompt)
     assert Keyword.fetch!(opts, :trace_id) == "trace:live-codex-product"
 
     assert_received {:runtime_run_detail, "run://codex/live-product", readback_request, _opts}
     assert readback_request.capability_id == "codex.session.turn"
+    refute Map.has_key?(provider_effect, "prompt")
+    refute output =~ "SECRET_PROMPT_BODY_DO_NOT_EXPOSE"
+    refute output =~ "Preserve unrelated user work"
     refute output =~ "env-codex"
     refute output =~ "live_provider_effect_deferred"
   end
@@ -1224,6 +1246,19 @@ defmodule Extravaganza.HeadlessExamplesTest do
         send(pid, {:start_agent_run, context.tenant_ref.id, request, opts})
       end
 
+      initial_input = Map.fetch!(request.params, :initial_input)
+
+      Process.put(:codex_agent_prompt_readback, %{
+        "confirmed?" => true,
+        "prompt_ref" => Map.fetch!(initial_input, :input_ref),
+        "prompt_hash" => Map.fetch!(initial_input, :content_hash),
+        "prompt_source_ref" => Map.fetch!(initial_input, :source_ref),
+        "prompt_rendered?" => Map.fetch!(initial_input, :rendered?),
+        "prompt_body_redacted?" => Map.fetch!(initial_input, :body_redacted?),
+        "prompt_body_included?" => false,
+        "source" => "product_profile"
+      })
+
       RunOutcomeFuture.new(%{
         run_ref: @run_ref,
         workflow_ref: @workflow_ref,
@@ -1254,6 +1289,8 @@ defmodule Extravaganza.HeadlessExamplesTest do
         send(pid, {:runtime_run_detail, run_ref, request, opts})
       end
 
+      first_prompt = Process.get(:codex_agent_prompt_readback)
+
       with {:ok, runtime_row} <-
              RuntimeRow.new(%{
                subject_ref: "subject://extravaganza/live-codex-turn",
@@ -1271,6 +1308,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
                    "lower_request_ref" => @session_start_lower_request_ref,
                    "lower_receipt_ref" => @session_start_lower_receipt_ref
                  },
+                 "codex_first_prompt" => first_prompt,
                  "codex_app_server_protocol" => %{
                    "confirmed?" => true,
                    "transport" => "app_server",
@@ -1310,10 +1348,24 @@ defmodule Extravaganza.HeadlessExamplesTest do
                  "lower_receipt_ref" => @session_start_lower_receipt_ref
                }
              }),
+           {:ok, first_prompt_event} <-
+             RuntimeEventRow.new(%{
+               event_ref: "event://codex/live-product/first-prompt",
+               event_seq: 2,
+               event_kind: "codex.first_prompt.confirmed",
+               observed_at: @observed_at,
+               subject_ref: "subject://extravaganza/live-codex-turn",
+               run_ref: run_ref,
+               workflow_ref: @workflow_ref,
+               session_ref: @runtime_control_session_ref,
+               turn_ref: @turn_ref,
+               payload_ref: "payload://codex/live-product/first-prompt",
+               extensions: first_prompt
+             }),
            {:ok, app_server_protocol_event} <-
              RuntimeEventRow.new(%{
                event_ref: "event://codex/live-product/app-server-protocol",
-               event_seq: 2,
+               event_seq: 3,
                event_kind: "codex.app_server.protocol.confirmed",
                observed_at: @observed_at,
                subject_ref: "subject://extravaganza/live-codex-turn",
@@ -1335,7 +1387,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
            {:ok, event} <-
              RuntimeEventRow.new(%{
                event_ref: "event://codex/live-product/terminal",
-               event_seq: 3,
+               event_seq: 4,
                event_kind: "run.terminal",
                observed_at: @observed_at,
                subject_ref: "subject://extravaganza/live-codex-turn",
@@ -1347,7 +1399,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
         RuntimeRunDetail.new(%{
           run_ref: run_ref,
           runtime_row: runtime_row,
-          events: [session_start_event, app_server_protocol_event, event],
+          events: [session_start_event, first_prompt_event, app_server_protocol_event, event],
           turns: [
             %{
               "turn_ref" => @turn_ref,
@@ -1357,6 +1409,13 @@ defmodule Extravaganza.HeadlessExamplesTest do
               "credential_redeemed?" => true,
               "provider_request_sent?" => true,
               "provider_response_received?" => true,
+              "first_prompt_confirmed?" => true,
+              "prompt_ref" => first_prompt["prompt_ref"],
+              "prompt_hash" => first_prompt["prompt_hash"],
+              "prompt_source_ref" => first_prompt["prompt_source_ref"],
+              "prompt_rendered?" => first_prompt["prompt_rendered?"],
+              "prompt_body_redacted?" => first_prompt["prompt_body_redacted?"],
+              "prompt_body_included?" => first_prompt["prompt_body_included?"],
               "session_start_confirmed?" => true,
               "runtime_control_session_ref" => @runtime_control_session_ref,
               "session_start_event_kind" => "codex.session.started",

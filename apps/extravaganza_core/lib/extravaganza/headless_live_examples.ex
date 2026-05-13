@@ -8,6 +8,7 @@ defmodule Extravaganza.HeadlessLiveExamples do
 
   alias Extravaganza.{
     AppKitContext,
+    CodingOpsTemplates,
     Config,
     HeadlessFixtureBackend,
     HeadlessSurface,
@@ -546,6 +547,7 @@ defmodule Extravaganza.HeadlessLiveExamples do
              surface_opts
            ) do
       turn = codex_turn_readback(run_detail)
+      first_prompt = codex_first_prompt_readback(run_detail, turn)
       session_start = codex_session_start_readback(run_detail, turn)
       app_server_protocol = codex_app_server_protocol_readback(run_detail, turn)
       lower_receipt_ref = value(turn, :lower_receipt_ref)
@@ -567,6 +569,14 @@ defmodule Extravaganza.HeadlessLiveExamples do
         "run_ref" => future.run_ref,
         "workflow_ref" => future.workflow_ref,
         "session_ref" => value(turn, :session_ref) || runtime_session_ref(run_detail),
+        "first_prompt_confirmed?" => codex_first_prompt_confirmed?(first_prompt),
+        "prompt_ref" => value(first_prompt, :prompt_ref),
+        "prompt_hash" => value(first_prompt, :prompt_hash),
+        "prompt_hash_verified?" => truthy?(value(first_prompt, :prompt_hash_verified?)),
+        "prompt_source_ref" => value(first_prompt, :prompt_source_ref),
+        "prompt_rendered?" => truthy?(value(first_prompt, :prompt_rendered?)),
+        "prompt_body_redacted?" => truthy?(value(first_prompt, :prompt_body_redacted?)),
+        "prompt_body_included?" => truthy?(value(first_prompt, :prompt_body_included?)),
         "session_start_confirmed?" => codex_session_start_confirmed?(session_start),
         "runtime_control_session_ref" => value(session_start, :runtime_control_session_ref),
         "session_start_event_kind" => value(session_start, :session_start_event_kind),
@@ -925,6 +935,7 @@ defmodule Extravaganza.HeadlessLiveExamples do
   defp codex_agent_run_request(%Config{} = config, opts) do
     trace_id = string_value(opts, :trace_id) || "trace://extravaganza/live-codex-turn"
     dedupe_key = "extravaganza-live-codex-turn-#{ref_suffix(config.pack_version)}"
+    initial_input = codex_initial_input(config, opts)
 
     %{
       tenant_ref: "tenant://#{config.tenant_id}",
@@ -946,10 +957,70 @@ defmodule Extravaganza.HeadlessLiveExamples do
         lower_runtime_kind: "codex_session",
         provider_effect?: true,
         max_turns: 1,
+        initial_input: initial_input,
         fixture_script: "success_first_try",
         release_manifest_ref: "release-manifest://extravaganza/live-codex-turn/v1"
       }
     }
+  end
+
+  defp codex_initial_input(%Config{} = config, _opts) do
+    body = codex_first_turn_prompt(config)
+
+    %{
+      body: body,
+      input_ref: "prompt://extravaganza/live-codex-turn",
+      content_hash: prompt_hash(body),
+      source_ref: "workflow://extravaganza/live-codex-turn/default",
+      rendered?: true,
+      body_redacted?: true,
+      redaction_policy_ref: "redaction://prompt/excerpt-only",
+      template_ref: "prompt-template://extravaganza/live-codex-turn/default"
+    }
+  end
+
+  defp codex_first_turn_prompt(%Config{} = config) do
+    profile_slots = ProductPack.agent_loop_profile_slots(config)
+
+    """
+    #{CodingOpsTemplates.system_prompt()}
+
+    ## Task
+
+    Issue: {{ issue.identifier }} {{ issue.title }}
+    State: {{ issue.state | default: "ready" }}
+    Labels: {{ issue.labels | join: ", " }}
+    Turn: {{ turn_number }} of {{ max_turns }}
+    Runtime profile: {{ runtime_profile_ref }}
+    Source binding: {{ source_binding_ref }}
+    Redaction profile: {{ redaction_profile_ref }}
+
+    {{ issue.description | default: "Confirm the live Codex product path is operational and return one concise sentence. Do not modify files." }}
+    """
+    |> CodingOpsTemplates.render_prompt_template(%{
+      "issue" => %{
+        "identifier" => "LIVE-CODEX-001",
+        "title" => "Confirm the live Codex product path",
+        "description" =>
+          "Confirm the live Codex product path is operational and return one concise sentence. Do not modify files.",
+        "state" => "ready",
+        "labels" => ["live", "codex", "headless"]
+      },
+      "turn_number" => 1,
+      "max_turns" => 1,
+      "runtime_profile_ref" => profile_slots.runtime_profile_ref,
+      "source_binding_ref" => ProductPack.source_binding_key(config),
+      "redaction_profile_ref" => "redaction://prompt/excerpt-only",
+      "authorized_tool_refs" => ["codex.session.turn"],
+      "attempt" => 1
+    })
+    |> case do
+      {:ok, prompt} ->
+        String.trim(prompt)
+
+      {:error, reason} ->
+        raise ArgumentError, "invalid live Codex prompt template: #{inspect(reason)}"
+    end
   end
 
   defp codex_readback_request(request) do
@@ -1011,6 +1082,81 @@ defmodule Extravaganza.HeadlessLiveExamples do
     Enum.find(run_detail.turns || [], fn turn ->
       value(turn, :operation) == "codex.session.turn" or present?(value(turn, :turn_ref))
     end) || %{}
+  end
+
+  defp codex_first_prompt_readback(%RuntimeRunDetail{} = run_detail, turn) do
+    %{}
+    |> Map.merge(codex_first_prompt_from_extension(run_detail))
+    |> Map.merge(codex_first_prompt_from_event(run_detail))
+    |> Map.merge(codex_first_prompt_from_turn(turn))
+  end
+
+  defp codex_first_prompt_from_turn(turn) do
+    %{
+      "confirmed?" => if(truthy?(value(turn, :first_prompt_confirmed?)), do: true),
+      "prompt_ref" => value(turn, :prompt_ref),
+      "prompt_hash" => value(turn, :prompt_hash),
+      "prompt_hash_verified?" => value(turn, :prompt_hash_verified?),
+      "prompt_source_ref" => value(turn, :prompt_source_ref),
+      "prompt_rendered?" => value(turn, :prompt_rendered?),
+      "prompt_body_redacted?" => value(turn, :prompt_body_redacted?),
+      "prompt_body_included?" => value(turn, :prompt_body_included?)
+    }
+    |> compact_map()
+  end
+
+  defp codex_first_prompt_from_extension(%RuntimeRunDetail{runtime_row: runtime_row}) do
+    runtime_row
+    |> value(:extensions)
+    |> value("codex_first_prompt")
+    |> case do
+      %{} = evidence ->
+        %{
+          "confirmed?" => if(truthy?(value(evidence, "confirmed?")), do: true),
+          "prompt_ref" => value(evidence, :prompt_ref),
+          "prompt_hash" => value(evidence, :prompt_hash),
+          "prompt_hash_verified?" => value(evidence, :prompt_hash_verified?),
+          "prompt_source_ref" => value(evidence, :prompt_source_ref),
+          "prompt_rendered?" => value(evidence, :prompt_rendered?),
+          "prompt_body_redacted?" => value(evidence, :prompt_body_redacted?),
+          "prompt_body_included?" => value(evidence, :prompt_body_included?)
+        }
+        |> compact_map()
+
+      _missing ->
+        %{}
+    end
+  end
+
+  defp codex_first_prompt_from_event(%RuntimeRunDetail{} = run_detail) do
+    run_detail.events
+    |> List.wrap()
+    |> Enum.find(&(value(&1, :event_kind) == "codex.first_prompt.confirmed"))
+    |> case do
+      nil ->
+        %{}
+
+      event ->
+        extensions = value(event, :extensions) || %{}
+
+        %{
+          "confirmed?" => true,
+          "prompt_ref" => value(extensions, :prompt_ref),
+          "prompt_hash" => value(extensions, :prompt_hash),
+          "prompt_hash_verified?" => value(extensions, :prompt_hash_verified?),
+          "prompt_source_ref" => value(extensions, :prompt_source_ref),
+          "prompt_rendered?" => value(extensions, :prompt_rendered?),
+          "prompt_body_redacted?" => value(extensions, :prompt_body_redacted?),
+          "prompt_body_included?" => value(extensions, :prompt_body_included?)
+        }
+        |> compact_map()
+    end
+  end
+
+  defp codex_first_prompt_confirmed?(evidence) do
+    truthy?(value(evidence, "confirmed?")) or
+      present?(value(evidence, :prompt_ref)) or
+      present?(value(evidence, :prompt_hash))
   end
 
   defp codex_session_start_readback(%RuntimeRunDetail{} = run_detail, turn) do
@@ -1491,6 +1637,11 @@ defmodule Extravaganza.HeadlessLiveExamples do
 
   defp present?(value) when is_binary(value), do: String.trim(value) != ""
   defp present?(value), do: not is_nil(value)
+
+  defp prompt_hash(value) when is_binary(value) do
+    digest = :crypto.hash(:sha256, value)
+    "sha256:" <> Base.encode16(digest, case: :lower)
+  end
 
   defp ref_suffix(ref) when is_binary(ref) do
     ref
