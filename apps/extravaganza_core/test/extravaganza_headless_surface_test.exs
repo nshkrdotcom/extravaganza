@@ -67,6 +67,50 @@ defmodule Extravaganza.HeadlessSurfaceTest do
     assert rendered["schema_ref"] == "headless_state_snapshot.v1"
     assert rendered["correlation_id"] == "corr:test"
     assert rendered["data"]["turns"] == []
+
+    orchestrator_state = rendered["data"]["symphony_orchestrator_state"]
+
+    assert orchestrator_state["mapped_from"] == "appkit_runtime_readback"
+    assert Enum.map(orchestrator_state["running"], & &1["subject_ref"]) == ["subject:running"]
+    assert orchestrator_state["claimed"] == ["subject:running"]
+    assert orchestrator_state["completed"] == ["subject:terminal-success"]
+
+    assert orchestrator_state["retry_attempts"] == [
+             %{
+               "attempt_ref" => "attempt:retrying:2",
+               "status" => "scheduled",
+               "reason" => "transient failure",
+               "scheduled_at" => "2026-04-27T00:10:00Z"
+             }
+           ]
+
+    assert orchestrator_state["codex_totals"] == %{
+             "input_tokens" => 1200,
+             "output_tokens" => 450,
+             "total_tokens" => 1650,
+             "seconds_running" => 0,
+             "source" => "runtime:event:tokens"
+           }
+
+    assert orchestrator_state["codex_rate_limits"] == [
+             %{
+               "limit_id" => "rate:codex:minute",
+               "name" => "fixture runtime",
+               "remaining" => 99,
+               "reset_at" => "2026-04-27T00:01:00Z",
+               "window" => "minute",
+               "source_event_ref" => "event:rate"
+             }
+           ]
+
+    assert orchestrator_state["polling"] == %{
+             "checking?" => false,
+             "last_refresh_command_ref" => "command:refresh:last",
+             "next_poll_at" => "2026-04-27T00:01:00Z",
+             "poll_interval_ms" => 60_000,
+             "staleness_ms" => 0
+           }
+
     refute String.contains?(Jason.encode!(rendered), "workspace_path")
     refute String.contains?(Jason.encode!(rendered), "/home/")
   end

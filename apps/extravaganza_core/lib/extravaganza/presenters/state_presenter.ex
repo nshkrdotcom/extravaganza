@@ -11,6 +11,59 @@ defmodule Extravaganza.Presenters.StatePresenter do
     "memory_proof_refs" => [],
     "agent_loop_diagnostics" => []
   }
+  @running_states ~w[running]
+  @claimed_states ~w[running queued in_flight accepted_active]
+  @completed_states ~w[completed terminal_success]
+  @atom_keys %{
+    "attempt_ref" => :attempt_ref,
+    "cached_input_tokens" => :cached_input_tokens,
+    "checking?" => :checking?,
+    "claim_state" => :claim_state,
+    "completion_state" => :completion_state,
+    "display_label" => :display_label,
+    "execution" => :execution,
+    "execution_ref" => :execution_ref,
+    "extensions" => :extensions,
+    "id" => :id,
+    "input_tokens" => :input_tokens,
+    "last_error_ref" => :last_error_ref,
+    "last_refresh_command_ref" => :last_refresh_command_ref,
+    "limit_id" => :limit_id,
+    "metadata" => :metadata,
+    "name" => :name,
+    "next_poll_at" => :next_poll_at,
+    "orchestrator_state" => :orchestrator_state,
+    "output_tokens" => :output_tokens,
+    "path_redacted?" => :path_redacted?,
+    "poll_interval_ms" => :poll_interval_ms,
+    "polling_state" => :polling_state,
+    "provider_refs" => :provider_refs,
+    "rate_limits" => :rate_limits,
+    "reason" => :reason,
+    "remaining" => :remaining,
+    "reset_at" => :reset_at,
+    "retry_ref" => :retry_ref,
+    "retry_rows" => :retry_rows,
+    "rows" => :rows,
+    "run_ref" => :run_ref,
+    "runtime" => :runtime,
+    "scheduled_at" => :scheduled_at,
+    "seconds_running" => :seconds_running,
+    "session_ref" => :session_ref,
+    "source" => :source,
+    "source_event_ref" => :source_event_ref,
+    "state" => :state,
+    "status" => :status,
+    "staleness_ms" => :staleness_ms,
+    "subject_ref" => :subject_ref,
+    "total_input_tokens" => :total_input_tokens,
+    "total_output_tokens" => :total_output_tokens,
+    "total_tokens" => :total_tokens,
+    "updated_at" => :updated_at,
+    "window" => :window,
+    "workflow_ref" => :workflow_ref,
+    "workspace_ref" => :workspace_ref
+  }
 
   @spec present(struct() | map(), keyword()) :: map()
   def present(value, opts \\ [])
@@ -54,8 +107,193 @@ defmodule Extravaganza.Presenters.StatePresenter do
 
   def future_m2_slots, do: @future_m2_slots
 
-  defp with_future_slots(data) when is_map(data), do: Map.merge(@future_m2_slots, data)
+  defp with_future_slots(data) when is_map(data) do
+    data = Map.merge(@future_m2_slots, data)
+    Map.put_new(data, "symphony_orchestrator_state", symphony_orchestrator_state(data))
+  end
+
   defp stringify(map), do: Map.new(map, fn {key, value} -> {to_string(key), value} end)
+
+  defp symphony_orchestrator_state(data) do
+    rows = list_value(data, "rows")
+
+    %{
+      "mapped_from" => "appkit_runtime_readback",
+      "running" => rows |> Enum.filter(&running?/1) |> Enum.map(&running_summary/1),
+      "claimed" => rows |> Enum.filter(&claimed?/1) |> Enum.map(&map_value(&1, "subject_ref")),
+      "retry_attempts" => data |> list_value("retry_rows") |> Enum.map(&retry_attempt/1),
+      "completed" =>
+        rows |> Enum.filter(&completed?/1) |> Enum.map(&map_value(&1, "subject_ref")),
+      "codex_totals" => codex_totals(map_value(data, "token_totals")),
+      "codex_rate_limits" => data |> list_value("rate_limits") |> Enum.map(&rate_limit/1),
+      "polling" => polling(map_value(data, "polling_state"))
+    }
+    |> compact_map()
+  end
+
+  defp running?(row), do: state(row) in @running_states
+
+  defp claimed?(row) do
+    scheduler_value(row, "claim_state") == "claimed" or state(row) in @claimed_states
+  end
+
+  defp completed?(row) do
+    scheduler_value(row, "completion_state") == "completed" or state(row) in @completed_states
+  end
+
+  defp running_summary(row) do
+    %{
+      "subject_ref" => map_value(row, "subject_ref"),
+      "run_ref" => map_value(row, "run_ref"),
+      "execution_ref" => map_value(row, "execution_ref"),
+      "workflow_ref" => map_value(row, "workflow_ref"),
+      "state" => state(row),
+      "updated_at" => map_value(row, "updated_at"),
+      "session_ref" => ref_summary(map_value(row, "session_ref")),
+      "workspace_ref" => workspace_summary(map_value(row, "workspace_ref")),
+      "provider_refs" => map_value(row, "provider_refs"),
+      "token_totals" => maybe_codex_totals(map_value(row, "token_totals"))
+    }
+    |> compact_map()
+  end
+
+  defp retry_attempt(row) do
+    %{
+      "retry_ref" => map_value(row, "retry_ref"),
+      "attempt_ref" => map_value(row, "attempt_ref"),
+      "status" => normalize_state(map_value(row, "status")),
+      "reason" => map_value(row, "reason"),
+      "scheduled_at" => map_value(row, "scheduled_at"),
+      "last_error_ref" => map_value(row, "last_error_ref")
+    }
+    |> compact_map()
+  end
+
+  defp codex_totals(nil), do: empty_codex_totals()
+
+  defp codex_totals(totals) when is_map(totals) do
+    %{
+      "input_tokens" => integer_value(totals, "input_tokens", "total_input_tokens"),
+      "output_tokens" => integer_value(totals, "output_tokens", "total_output_tokens"),
+      "total_tokens" => integer_value(totals, "total_tokens", "total_tokens"),
+      "seconds_running" => integer_value(totals, "seconds_running"),
+      "source" => map_value(totals, "source")
+    }
+    |> compact_map()
+    |> Map.merge(empty_codex_totals(), fn _key, value, _default -> value end)
+  end
+
+  defp codex_totals(_totals), do: empty_codex_totals()
+
+  defp maybe_codex_totals(nil), do: nil
+  defp maybe_codex_totals(totals), do: codex_totals(totals)
+
+  defp empty_codex_totals do
+    %{
+      "input_tokens" => 0,
+      "output_tokens" => 0,
+      "total_tokens" => 0,
+      "seconds_running" => 0
+    }
+  end
+
+  defp rate_limit(row) do
+    %{
+      "limit_id" => map_value(row, "limit_id"),
+      "name" => map_value(row, "name"),
+      "remaining" => map_value(row, "remaining"),
+      "reset_at" => map_value(row, "reset_at"),
+      "window" => map_value(row, "window"),
+      "source_event_ref" => map_value(row, "source_event_ref")
+    }
+    |> compact_map()
+  end
+
+  defp polling(nil), do: %{}
+
+  defp polling(state) when is_map(state) do
+    %{
+      "checking?" => map_value(state, "checking?"),
+      "last_refresh_command_ref" => map_value(state, "last_refresh_command_ref"),
+      "next_poll_at" => map_value(state, "next_poll_at"),
+      "poll_interval_ms" => map_value(state, "poll_interval_ms"),
+      "staleness_ms" => map_value(state, "staleness_ms")
+    }
+    |> compact_map()
+  end
+
+  defp polling(_state), do: %{}
+
+  defp ref_summary(nil), do: nil
+  defp ref_summary(ref) when is_binary(ref), do: %{"id" => ref}
+  defp ref_summary(ref) when is_map(ref), do: ref |> Map.take(["id", :id]) |> stringify()
+  defp ref_summary(_ref), do: nil
+
+  defp workspace_summary(nil), do: nil
+
+  defp workspace_summary(ref) when is_map(ref) do
+    %{
+      "id" => map_value(ref, "id"),
+      "display_label" => map_value(ref, "display_label"),
+      "path_redacted?" => map_value(ref, "path_redacted?")
+    }
+    |> compact_map()
+  end
+
+  defp workspace_summary(_ref), do: nil
+
+  defp state(row), do: row |> map_value("state") |> normalize_state()
+
+  defp scheduler_value(row, key) do
+    extensions = map_value(row, "extensions")
+
+    Enum.find_value(
+      [
+        ["orchestrator_state", key],
+        ["runtime", "metadata", key],
+        ["execution", "metadata", key],
+        ["metadata", key]
+      ],
+      &nested_value(extensions, &1)
+    )
+    |> normalize_state()
+  end
+
+  defp nested_value(value, []), do: value
+
+  defp nested_value(value, [key | rest]) when is_map(value) do
+    case map_value(value, key) do
+      nil -> nil
+      next -> nested_value(next, rest)
+    end
+  end
+
+  defp nested_value(_value, _keys), do: nil
+
+  defp normalize_state(nil), do: nil
+  defp normalize_state(value) when is_atom(value), do: Atom.to_string(value)
+  defp normalize_state(value), do: to_string(value)
+
+  defp list_value(map, key) do
+    case map_value(map, key) do
+      values when is_list(values) -> values
+      _other -> []
+    end
+  end
+
+  defp integer_value(map, key, fallback_key \\ nil) do
+    value = map_value(map, key) || (fallback_key && map_value(map, fallback_key))
+
+    if is_integer(value), do: value, else: 0
+  end
+
+  defp map_value(map, key) when is_map(map) do
+    Map.get(map, key) || Map.get(map, Map.get(@atom_keys, key))
+  end
+
+  defp map_value(_map, _key), do: nil
+
+  defp compact_map(map), do: Map.reject(map, fn {_key, value} -> value in [nil, []] end)
 end
 
 defmodule Extravaganza.Presenters.JSONSupport do
