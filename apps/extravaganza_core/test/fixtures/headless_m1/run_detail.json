@@ -7,8 +7,9 @@
     "run_ref": "run:fixture",
     "execution_ref": "execution:fixture",
     "workflow_ref": "workflow:fixture",
-    "state": "running",
-    "updated_at": "2026-04-27T00:09:00Z",
+    "state": "stalled",
+    "status_reason": "stall_timeout",
+    "updated_at": "2026-04-27T00:10:00Z",
     "workspace_ref": {"id": "workspace:fixture", "display_label": "Fixture workspace", "path_redacted?": true},
     "extensions": {
       "governance": {
@@ -44,16 +45,27 @@
         "source_publication_receipt_ref": "source-publication:fixture",
         "source_ref": "linear-comment:fixture",
         "mode": "deterministic_preview"
+      },
+      "stall": {
+        "elapsed_ms": 330000,
+        "stall_timeout_ms": 300000,
+        "last_activity_at": "2026-04-27T00:04:30Z",
+        "activity_source": "last_runtime_event_at",
+        "safe_action": "terminate_lower_and_schedule_retry",
+        "workflow_signal": "operator.cancel",
+        "cancel_lower_run?": true,
+        "cleanup_workspace?": false
       }
     }
   },
   "events": [
+    {"event_ref": "event:run:5", "event_seq": 5, "event_kind": "runtime.stalled", "observed_at": "2026-04-27T00:10:00Z", "run_ref": "run:fixture", "attempt_ref": "attempt:fixture:1", "session_ref": "session:fixture:1", "message_summary": "Runtime activity exceeded stall timeout", "extensions": {"elapsed_ms": 330000, "stall_timeout_ms": 300000, "last_activity_at": "2026-04-27T00:04:30Z", "activity_source": "last_runtime_event_at", "safe_action": "terminate_lower_and_schedule_retry", "workflow_signal": "operator.cancel", "cancel_lower_run?": true, "cleanup_workspace?": false}},
     {"event_ref": "event:run:4", "event_seq": 4, "event_kind": "cancel.terminal_source", "observed_at": "2026-04-27T00:04:00Z", "run_ref": "run:fixture", "attempt_ref": "attempt:fixture:1", "message_summary": "Terminal source cancelled lower run", "extensions": {"safe_action": "cancel_lower_cleanup_and_complete", "cancellation_reason": "terminal_source", "workflow_signal": "operator.cancel", "workflow_action": "cancel_lower_run", "projection_mutation": "complete_subject", "cleanup_required?": true}},
     {"event_ref": "event:run:3", "event_seq": 3, "event_kind": "retry.stale_token_ignored", "observed_at": "2026-04-27T00:03:00Z", "run_ref": "run:fixture", "attempt_ref": "attempt:fixture:stale", "message_summary": "Stale retry timer ignored", "extensions": {"safe_action": "ignore_retry", "reason": "stale_retry_token", "dispatch_allowed?": false, "current_retry_retained?": true}},
     {"event_ref": "event:run:2", "event_seq": 2, "event_kind": "lower_receipt_observed", "observed_at": "2026-04-27T00:02:00Z", "run_ref": "run:fixture", "message_summary": "Lower receipt observed"},
     {"event_ref": "event:run:1", "event_seq": 1, "event_kind": "run_started", "observed_at": "2026-04-27T00:01:00Z", "run_ref": "run:fixture", "message_summary": "Run started"}
   ],
-  "retries": [{"attempt_ref": "attempt:fixture:1", "status": "scheduled", "reason": "source_still_active", "scheduled_at": "2026-04-27T00:10:00Z", "due_at": "2026-04-27T00:10:00Z", "delay_ms": 1000, "delay_type": "continuation", "continuation?": true, "worker_ref": "worker:fixture", "workspace_ref": "workspace:fixture"}, {"attempt_ref": "attempt:fixture:2", "status": "scheduled", "reason": "agent exited", "scheduled_at": "2026-04-27T00:20:00Z", "due_at": "2026-04-27T00:20:00Z", "delay_ms": 20000, "delay_type": "failure_backoff", "worker_ref": "worker:fixture", "workspace_ref": "workspace:fixture"}],
+  "retries": [{"retry_ref": "retry:fixture:stall:2", "attempt_ref": "attempt:fixture:stall:2", "status": "scheduled", "reason": "stall_timeout", "scheduled_at": "2026-04-27T00:10:00Z", "due_at": "2026-04-27T00:10:10Z", "delay_ms": 10000, "delay_type": "failure_backoff", "worker_ref": "worker:fixture", "workspace_ref": "workspace:fixture", "metadata": {"safe_action": "terminate_lower_and_schedule_retry"}}, {"attempt_ref": "attempt:fixture:1", "status": "scheduled", "reason": "source_still_active", "scheduled_at": "2026-04-27T00:10:00Z", "due_at": "2026-04-27T00:10:00Z", "delay_ms": 1000, "delay_type": "continuation", "continuation?": true, "worker_ref": "worker:fixture", "workspace_ref": "workspace:fixture"}, {"attempt_ref": "attempt:fixture:2", "status": "scheduled", "reason": "agent exited", "scheduled_at": "2026-04-27T00:20:00Z", "due_at": "2026-04-27T00:20:00Z", "delay_ms": 20000, "delay_type": "failure_backoff", "worker_ref": "worker:fixture", "workspace_ref": "workspace:fixture"}],
   "turns": [],
   "budget_state": {"status": "not_available"},
   "candidate_fact_refs": [],

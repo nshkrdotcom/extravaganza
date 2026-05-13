@@ -102,12 +102,16 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
 
     assert body["operation"] == "run"
     assert body["data"]["schema_ref"] == "headless_run_detail.v1"
+    assert body["data"]["data"]["runtime_row"]["state"] == "stalled"
+    assert body["data"]["data"]["runtime_row"]["status_reason"] == "stall_timeout"
+    assert body["data"]["data"]["runtime_row"]["extensions"]["stall"]["elapsed_ms"] == 330_000
 
     assert Enum.map(body["data"]["data"]["events"], & &1["event_ref"]) == [
              "event:run:1",
              "event:run:2",
              "event:run:3",
-             "event:run:4"
+             "event:run:4",
+             "event:run:5"
            ]
 
     assert Enum.any?(
@@ -118,6 +122,16 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
     assert Enum.any?(
              body["data"]["data"]["events"],
              &(&1["event_kind"] == "cancel.terminal_source")
+           )
+
+    assert Enum.any?(
+             body["data"]["data"]["events"],
+             &(&1["event_kind"] == "runtime.stalled")
+           )
+
+    assert Enum.any?(
+             body["data"]["data"]["retries"],
+             &(&1["reason"] == "stall_timeout" and &1["status"] == "scheduled")
            )
 
     assert body["data"]["data"]["candidate_fact_refs"] == []
@@ -194,7 +208,8 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
              "event:run:1",
              "event:run:2",
              "event:run:3",
-             "event:run:4"
+             "event:run:4",
+             "event:run:5"
            ]
   end
 

@@ -141,7 +141,7 @@ defmodule Extravaganza.HeadlessSurfaceTest do
     assert {:ok, %RuntimeRunDetail{} = run} = HeadlessSurface.run_detail("run:fixture")
     rendered_run = RunPresenter.present(run)
 
-    assert Enum.map(rendered_run["data"]["events"], & &1["event_seq"]) == [1, 2, 3, 4]
+    assert Enum.map(rendered_run["data"]["events"], & &1["event_seq"]) == [1, 2, 3, 4, 5]
 
     stale_retry_event =
       Enum.find(
@@ -170,6 +170,19 @@ defmodule Extravaganza.HeadlessSurfaceTest do
     assert rendered_run["data"]["persistence_posture"]["durable?"] == false
 
     assert rendered_run["data"]["retries"] == [
+             %{
+               "attempt_ref" => "attempt:fixture:stall:2",
+               "delay_ms" => 10_000,
+               "delay_type" => "failure_backoff",
+               "due_at" => "2026-04-27T00:10:10Z",
+               "metadata" => %{"safe_action" => "terminate_lower_and_schedule_retry"},
+               "reason" => "stall_timeout",
+               "retry_ref" => "retry:fixture:stall:2",
+               "scheduled_at" => "2026-04-27T00:10:00Z",
+               "status" => "scheduled",
+               "worker_ref" => "worker:fixture",
+               "workspace_ref" => "workspace:fixture"
+             },
              %{
                "attempt_ref" => "attempt:fixture:1",
                "continuation?" => true,

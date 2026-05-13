@@ -53,6 +53,10 @@ defmodule Extravaganza.HeadlessJSONContractTest do
     assert envelope["refs"]["capability_negotiation_ref"] == "capability-negotiation:fixture"
     assert envelope["refs"]["lower_request_ref"] == "lower-request:fixture"
     assert envelope["refs"]["lower_receipt_ref"] == "lower-receipt:fixture"
+    assert run.runtime_row.state == "stalled"
+    assert run.runtime_row.status_reason == "stall_timeout"
+    assert Enum.any?(run.events, &(&1.event_kind == "runtime.stalled"))
+    assert Enum.any?(run.retries, &(&1.reason == "stall_timeout" and &1.status == "scheduled"))
 
     encoded = Jason.encode!(envelope)
     refute String.contains?(encoded, "api_key")
@@ -140,7 +144,8 @@ defmodule Extravaganza.HeadlessJSONContractTest do
              "event:run:1",
              "event:run:2",
              "event:run:3",
-             "event:run:4"
+             "event:run:4",
+             "event:run:5"
            ]
 
     stale_retry_event =
