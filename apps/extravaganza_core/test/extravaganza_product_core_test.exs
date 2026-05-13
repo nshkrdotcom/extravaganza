@@ -804,10 +804,15 @@ defmodule ExtravaganzaProductCoreTest do
       identifier: "ENG-101",
       title: "Investigate operator queue",
       description: "Trace queue latency",
+      priority: 2,
+      branch_name: "eng-101-investigate-operator-queue",
       state: "Todo",
       labels: ["ops"],
-      team: "Platform",
+      assignee: %{id: "usr-linear-viewer", name: "Taylor Automation"},
+      team: %{id: "team-platform", key: "PLAT", name: "Platform"},
       url: "https://linear.app/example/issue/ENG-101",
+      created_at: "2026-03-12T09:15:00Z",
+      updated_at: "2026-03-12T10:00:00Z",
       blockers: [
         %{
           id: "rel-blocks-101",
@@ -851,6 +856,37 @@ defmodule ExtravaganzaProductCoreTest do
     assert second_subject.subject_ref.id == first_subject.subject_ref.id
     assert second_subject.title == "Investigate operator queue hard failure"
     assert second_subject.payload.external_ref == "linear://#{tenant_id}/issue/ENG-101"
+    assert second_subject.payload.identifier == "ENG-101"
+    assert second_subject.payload.priority == 2
+    assert second_subject.payload.provider_external_ref == "ENG-101"
+    assert second_subject.payload.branch_ref == "eng-101-investigate-operator-queue"
+    assert second_subject.payload.source_url == "https://linear.app/example/issue/ENG-101"
+    assert second_subject.payload.labels == ["incident", "ops"]
+    assert [%{"identifier" => "ENG-099"}] = second_subject.payload.blocker_refs
+    assert second_subject.payload.source_routing["assignee"]["id"] == "usr-linear-viewer"
+    assert second_subject.payload.source_routing["team"]["key"] == "PLAT"
+
+    assert {:ok, queue} =
+             ProductHost.operator_queue(%{}, tenant_id: tenant_id, pack_version: pack_version)
+
+    queue_entry =
+      Enum.find(queue.page.entries, &(&1.subject_ref.id == second_subject.subject_ref.id))
+
+    assert queue_entry.payload.identifier == "ENG-101"
+    assert queue_entry.payload.source_state == "Todo"
+    assert queue_entry.payload.provider_revision == "2026-03-12T10:00:00Z"
+    assert queue_entry.payload.source_binding_id == ProductPack.source_binding_key(Config.load())
+
+    assert {:ok, detail} =
+             ProductHost.subject_detail(second_subject.subject_ref.id,
+               tenant_id: tenant_id,
+               pack_version: pack_version
+             )
+
+    assert detail.subject.payload.identifier == "ENG-101"
+    assert detail.subject.payload.description == "Trace queue latency"
+    assert detail.subject.payload.provider_external_ref == "ENG-101"
+    assert detail.subject.payload.source_routing["provenance"]["provider"] == "linear"
   end
 
   test "product-local facades start a run and expose operator status through app kit", %{
