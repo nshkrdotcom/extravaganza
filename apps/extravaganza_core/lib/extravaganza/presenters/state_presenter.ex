@@ -16,6 +16,7 @@ defmodule Extravaganza.Presenters.StatePresenter do
   @completed_states ~w[completed terminal_success]
   @atom_keys %{
     "attempt_ref" => :attempt_ref,
+    "available" => :available,
     "cached_input_tokens" => :cached_input_tokens,
     "checking?" => :checking?,
     "claim_state" => :claim_state,
@@ -26,14 +27,20 @@ defmodule Extravaganza.Presenters.StatePresenter do
     "delay_ms" => :delay_ms,
     "delay_type" => :delay_type,
     "due_at" => :due_at,
+    "error" => :error,
     "execution" => :execution,
     "execution_ref" => :execution_ref,
     "extensions" => :extensions,
     "id" => :id,
     "input_tokens" => :input_tokens,
     "last_error_ref" => :last_error_ref,
+    "last_event" => :last_event,
+    "last_event_at" => :last_event_at,
+    "last_message" => :last_message,
     "last_refresh_command_ref" => :last_refresh_command_ref,
+    "last_synced_at" => :last_synced_at,
     "limit_id" => :limit_id,
+    "max" => :max,
     "metadata" => :metadata,
     "name" => :name,
     "next_poll_at" => :next_poll_at,
@@ -43,6 +50,8 @@ defmodule Extravaganza.Presenters.StatePresenter do
     "poll_interval_ms" => :poll_interval_ms,
     "polling_state" => :polling_state,
     "pre_dispatch_revalidation" => :pre_dispatch_revalidation,
+    "profile_refs" => :profile_refs,
+    "projection_profile_ref" => :projection_profile_ref,
     "provider_refs" => :provider_refs,
     "rate_limits" => :rate_limits,
     "reason" => :reason,
@@ -53,16 +62,22 @@ defmodule Extravaganza.Presenters.StatePresenter do
     "rows" => :rows,
     "run_ref" => :run_ref,
     "runtime" => :runtime,
+    "runtime_profile_kind" => :runtime_profile_kind,
+    "runtime_profile_ref" => :runtime_profile_ref,
     "scheduled_at" => :scheduled_at,
     "seconds_running" => :seconds_running,
+    "session_id" => :session_id,
     "session_ref" => :session_ref,
     "source" => :source,
+    "source_ref" => :source_ref,
+    "source_sync" => :source_sync,
     "source_event_ref" => :source_event_ref,
     "state" => :state,
     "state_mapping" => :state_mapping,
     "status" => :status,
     "staleness_ms" => :staleness_ms,
     "subject_ref" => :subject_ref,
+    "tokens" => :tokens,
     "total_input_tokens" => :total_input_tokens,
     "total_output_tokens" => :total_output_tokens,
     "total_tokens" => :total_tokens,
@@ -172,16 +187,30 @@ defmodule Extravaganza.Presenters.StatePresenter do
 
     %{
       "mapped_from" => "appkit_runtime_readback",
+      "counts" => counts(rows, data),
       "running" => rows |> Enum.filter(&running?/1) |> Enum.map(&running_summary/1),
       "claimed" => rows |> Enum.filter(&claimed?/1) |> Enum.map(&map_value(&1, "subject_ref")),
       "retry_attempts" => data |> list_value("retry_rows") |> Enum.map(&retry_attempt/1),
+      "retrying" => data |> list_value("retry_rows") |> Enum.map(&retrying_summary/1),
       "completed" =>
         rows |> Enum.filter(&completed?/1) |> Enum.map(&map_value(&1, "subject_ref")),
       "codex_totals" => codex_totals(map_value(data, "token_totals")),
       "codex_rate_limits" => data |> list_value("rate_limits") |> Enum.map(&rate_limit/1),
-      "polling" => polling(map_value(data, "polling_state"))
+      "polling" => polling(map_value(data, "polling_state")),
+      "slots" => first_row_extension(rows, "slots"),
+      "profile_refs" => first_row_extension(rows, "profile_refs"),
+      "source_sync" => first_row_extension(rows, "source_sync"),
+      "reconciliation_warnings" => reconciliation_warnings(data, rows)
     }
     |> compact_map()
+  end
+
+  defp counts(rows, data) do
+    %{
+      "running" => Enum.count(rows, &running?/1),
+      "retrying" => length(list_value(data, "retry_rows")),
+      "completed" => Enum.count(rows, &completed?/1)
+    }
   end
 
   defp running?(row), do: state(row) in @running_states
@@ -203,9 +232,16 @@ defmodule Extravaganza.Presenters.StatePresenter do
       "state" => state(row),
       "updated_at" => map_value(row, "updated_at"),
       "session_ref" => ref_summary(map_value(row, "session_ref")),
+      "session_id" => session_id(row),
       "workspace_ref" => workspace_summary(map_value(row, "workspace_ref")),
       "provider_refs" => map_value(row, "provider_refs"),
-      "token_totals" => maybe_codex_totals(map_value(row, "token_totals"))
+      "token_totals" => maybe_codex_totals(map_value(row, "token_totals")),
+      "turn_count" => integer_or_nil(orchestrator_value(row, "turn_count")),
+      "started_at" => orchestrator_value(row, "started_at"),
+      "last_event" => orchestrator_value(row, "last_event"),
+      "last_message" => orchestrator_value(row, "last_message"),
+      "last_event_at" => orchestrator_value(row, "last_event_at"),
+      "tokens" => token_summary(row)
     }
     |> compact_map()
   end
@@ -223,6 +259,16 @@ defmodule Extravaganza.Presenters.StatePresenter do
       "delay_type" => map_value(row, "delay_type"),
       "continuation?" => map_value(row, "continuation?"),
       "last_error_ref" => map_value(row, "last_error_ref")
+    }
+    |> compact_map()
+  end
+
+  defp retrying_summary(row) do
+    %{
+      "attempt" => map_value(row, "attempt_ref") || map_value(row, "retry_ref"),
+      "due_at" => map_value(row, "due_at") || map_value(row, "scheduled_at"),
+      "error" => map_value(row, "reason") || map_value(row, "error"),
+      "status" => normalize_state(map_value(row, "status"))
     }
     |> compact_map()
   end
@@ -300,6 +346,28 @@ defmodule Extravaganza.Presenters.StatePresenter do
 
   defp workspace_summary(_ref), do: nil
 
+  defp session_id(row) do
+    case map_value(row, "session_ref") do
+      %{} = ref -> map_value(ref, "id")
+      value when is_binary(value) -> value
+      _value -> nil
+    end
+  end
+
+  defp token_summary(row) do
+    case map_value(row, "token_totals") || orchestrator_value(row, "tokens") do
+      %{} = totals ->
+        %{
+          "input_tokens" => integer_value(totals, "input_tokens", "total_input_tokens"),
+          "output_tokens" => integer_value(totals, "output_tokens", "total_output_tokens"),
+          "total_tokens" => integer_value(totals, "total_tokens")
+        }
+
+      _value ->
+        nil
+    end
+  end
+
   defp state(row), do: row |> map_value("state") |> normalize_state()
 
   defp scheduler_value(row, key) do
@@ -315,6 +383,64 @@ defmodule Extravaganza.Presenters.StatePresenter do
       &nested_value(extensions, &1)
     )
     |> normalize_state()
+  end
+
+  defp orchestrator_value(row, key) do
+    extensions = map_value(row, "extensions")
+
+    Enum.find_value(
+      [
+        ["orchestrator_state", key],
+        ["runtime", "metadata", key],
+        ["execution", "metadata", key],
+        ["metadata", key]
+      ],
+      &nested_value(extensions, &1)
+    )
+  end
+
+  defp first_row_extension(rows, key) do
+    Enum.find_value(rows, fn row ->
+      value =
+        row
+        |> map_value("extensions")
+        |> nested_value([key])
+
+      if value in [nil, %{}, []], do: nil, else: value
+    end)
+  end
+
+  defp reconciliation_warnings(data, rows) do
+    diagnostic_warnings =
+      data
+      |> list_value("diagnostics")
+      |> Enum.filter(&(map_value(&1, "severity") == "warning"))
+      |> Enum.map(&warning_summary/1)
+
+    row_warnings =
+      rows
+      |> Enum.flat_map(fn row ->
+        row
+        |> map_value("extensions")
+        |> nested_value(["reconciliation_warnings"])
+        |> case do
+          values when is_list(values) -> values
+          value when is_map(value) -> [value]
+          _value -> []
+        end
+      end)
+      |> Enum.map(&warning_summary/1)
+
+    diagnostic_warnings ++ row_warnings
+  end
+
+  defp warning_summary(row) do
+    %{
+      "code" => map_value(row, "code"),
+      "message" => map_value(row, "message"),
+      "source_ref" => map_value(row, "source_ref")
+    }
+    |> compact_map()
   end
 
   defp nested_value(value, []), do: value
@@ -344,6 +470,9 @@ defmodule Extravaganza.Presenters.StatePresenter do
 
     if is_integer(value), do: value, else: 0
   end
+
+  defp integer_or_nil(value) when is_integer(value), do: value
+  defp integer_or_nil(_value), do: nil
 
   defp map_value(map, key) when is_map(map) do
     Map.get(map, key) || Map.get(map, Map.get(@atom_keys, key))

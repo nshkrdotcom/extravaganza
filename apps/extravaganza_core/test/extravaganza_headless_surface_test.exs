@@ -71,9 +71,64 @@ defmodule Extravaganza.HeadlessSurfaceTest do
     orchestrator_state = rendered["data"]["symphony_orchestrator_state"]
 
     assert orchestrator_state["mapped_from"] == "appkit_runtime_readback"
+    assert orchestrator_state["counts"] == %{"running" => 1, "retrying" => 2, "completed" => 1}
     assert Enum.map(orchestrator_state["running"], & &1["subject_ref"]) == ["subject:running"]
     assert orchestrator_state["claimed"] == ["subject:running"]
     assert orchestrator_state["completed"] == ["subject:terminal-success"]
+
+    assert [running] = orchestrator_state["running"]
+    assert running["session_id"] == "session:running"
+    assert running["turn_count"] == 7
+    assert running["started_at"] == "2026-04-27T00:00:00Z"
+    assert running["last_event"] == "turn_completed"
+    assert running["last_message"] == "fixture turn completed"
+    assert running["last_event_at"] == "2026-04-27T00:09:00Z"
+
+    assert running["tokens"] == %{
+             "input_tokens" => 120,
+             "output_tokens" => 45,
+             "total_tokens" => 165
+           }
+
+    assert orchestrator_state["profile_refs"] == %{
+             "runtime_profile_ref" => "runtime-profile:codex-session-fixture",
+             "projection_profile_ref" => "projection-profile:coding-ops-fixture"
+           }
+
+    assert orchestrator_state["slots"] == %{
+             "available" => 2,
+             "max" => 3,
+             "running" => 1
+           }
+
+    assert orchestrator_state["source_sync"] == %{
+             "status" => "fresh",
+             "source_ref" => "source:linear:ENG-42",
+             "last_synced_at" => "2026-04-27T00:08:55Z"
+           }
+
+    assert orchestrator_state["reconciliation_warnings"] == [
+             %{
+               "code" => "source_state_stale",
+               "message" => "Source state is older than runtime projection",
+               "source_ref" => "source:linear:ENG-42"
+             }
+           ]
+
+    assert orchestrator_state["retrying"] == [
+             %{
+               "attempt" => "attempt:retrying:2",
+               "due_at" => "2026-04-27T00:10:00Z",
+               "error" => "transient failure",
+               "status" => "scheduled"
+             },
+             %{
+               "attempt" => "attempt:retrying:3",
+               "due_at" => "2026-04-27T00:20:00Z",
+               "error" => "agent exited",
+               "status" => "scheduled"
+             }
+           ]
 
     assert orchestrator_state["retry_attempts"] == [
              %{

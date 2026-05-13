@@ -73,6 +73,27 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
     assert Enum.any?(body["data"]["data"]["rows"], &(&1["state"] == "running"))
     assert body["data"]["data"]["turns"] == []
 
+    orchestrator_state = body["data"]["data"]["symphony_orchestrator_state"]
+    assert orchestrator_state["counts"] == %{"running" => 1, "retrying" => 2, "completed" => 1}
+
+    [running | _rest] = orchestrator_state["running"]
+    assert running["session_id"] == "session:running"
+    assert running["turn_count"] == 7
+
+    assert running["tokens"] == %{
+             "input_tokens" => 120,
+             "output_tokens" => 45,
+             "total_tokens" => 165
+           }
+
+    assert orchestrator_state["source_sync"]["status"] == "fresh"
+    assert hd(orchestrator_state["reconciliation_warnings"])["code"] == "source_state_stale"
+
+    assert Enum.map(orchestrator_state["retrying"], & &1["attempt"]) == [
+             "attempt:retrying:2",
+             "attempt:retrying:3"
+           ]
+
     encoded = Jason.encode!(body)
     refute String.contains?(encoded, "workspace_path")
     refute String.contains?(encoded, "/home/")

@@ -19,7 +19,7 @@
     "source": "runtime:event:tokens"
   },
   "rows": [
-    {"subject_ref": "subject:running", "run_ref": "run:running", "execution_ref": "execution:running", "workflow_ref": "workflow:running", "state": "running", "updated_at": "2026-04-27T00:09:00Z", "workspace_ref": {"id": "workspace:running", "display_label": "running", "path_redacted?": true}, "polling_state": {"checking?": true, "poll_interval_ms": 15000, "staleness_ms": 1000}},
+    {"subject_ref": "subject:running", "run_ref": "run:running", "execution_ref": "execution:running", "workflow_ref": "workflow:running", "state": "running", "updated_at": "2026-04-27T00:09:00Z", "session_ref": {"id": "session:running"}, "workspace_ref": {"id": "workspace:running", "display_label": "running", "path_redacted?": true}, "polling_state": {"checking?": true, "poll_interval_ms": 15000, "staleness_ms": 1000}, "token_totals": {"total_input_tokens": 120, "total_output_tokens": 45, "total_tokens": 165}, "extensions": {"orchestrator_state": {"turn_count": 7, "started_at": "2026-04-27T00:00:00Z", "last_event": "turn_completed", "last_message": "fixture turn completed", "last_event_at": "2026-04-27T00:09:00Z"}, "profile_refs": {"runtime_profile_ref": "runtime-profile:codex-session-fixture", "projection_profile_ref": "projection-profile:coding-ops-fixture"}, "slots": {"available": 2, "max": 3, "running": 1}, "source_sync": {"status": "fresh", "source_ref": "source:linear:ENG-42", "last_synced_at": "2026-04-27T00:08:55Z"}}},
     {"subject_ref": "subject:retrying", "run_ref": "run:retrying", "execution_ref": "execution:retrying", "state": "retrying", "updated_at": "2026-04-27T00:08:00Z", "workspace_ref": {"id": "workspace:retrying", "path_redacted?": true}},
     {"subject_ref": "subject:review-pending", "run_ref": "run:review-pending", "execution_ref": "execution:review-pending", "state": "review_pending", "updated_at": "2026-04-27T00:07:00Z", "workspace_ref": {"id": "workspace:review", "path_redacted?": true}},
     {"subject_ref": "subject:terminal-success", "run_ref": "run:terminal-success", "execution_ref": "execution:terminal-success", "state": "terminal_success", "updated_at": "2026-04-27T00:06:00Z", "workspace_ref": {"id": "workspace:success", "path_redacted?": true}},
@@ -31,6 +31,6 @@
   ],
   "retry_rows": [{"attempt_ref": "attempt:retrying:2", "status": "scheduled", "reason": "transient failure", "scheduled_at": "2026-04-27T00:10:00Z", "due_at": "2026-04-27T00:10:00Z", "delay_ms": 1000, "delay_type": "continuation", "continuation?": true}, {"attempt_ref": "attempt:retrying:3", "status": "scheduled", "reason": "agent exited", "scheduled_at": "2026-04-27T00:20:00Z", "due_at": "2026-04-27T00:20:00Z", "delay_ms": 20000, "delay_type": "failure_backoff"}],
   "rate_limits": [{"limit_id": "rate:codex:minute", "name": "fixture runtime", "remaining": 99, "reset_at": "2026-04-27T00:01:00Z", "window": "minute", "source_event_ref": "event:rate"}],
-  "diagnostics": [],
+  "diagnostics": [{"severity": "warning", "code": "source_state_stale", "message": "Source state is older than runtime projection", "source_ref": "source:linear:ENG-42"}],
   "page": {"page_size": 25, "cursor": null, "total_entries": 9}
 }
