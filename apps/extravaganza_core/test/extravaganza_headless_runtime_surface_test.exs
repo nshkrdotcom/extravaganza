@@ -84,6 +84,12 @@ defmodule Extravaganza.HeadlessRuntimeSurfaceTest do
       case operation do
         :status ->
           assert decoded["data"]["data"]["tenant_ref"] == "extravaganza"
+          cleanup = decoded["data"]["data"]["health"]["startup_terminal_cleanup"]
+          assert cleanup["last_cleanup_at"] == "2026-05-13T00:29:00Z"
+          assert cleanup["candidate_count"] == 2
+          assert cleanup["cleaned_count"] == 2
+          assert cleanup["skipped_count"] == 0
+          assert cleanup["failed_count"] == 0
 
         :logs ->
           assert get_in(decoded, [
@@ -123,7 +129,9 @@ defmodule Extravaganza.HeadlessRuntimeSurfaceTest do
 
   test "HeadlessSurface exposes runtime status logs and source publication wrappers" do
     assert {:ok, status} = HeadlessSurface.runtime_status(%{}, [])
-    assert status.health == %{"runtime" => "ok"}
+    assert status.health["runtime"] == "ok"
+    assert status.health["startup_terminal_cleanup"]["last_cleanup_at"] == "2026-05-13T00:29:00Z"
+    assert status.health["startup_terminal_cleanup"]["cleaned_count"] == 2
 
     assert {:ok, logs} = HeadlessSurface.runtime_logs(%{}, [])
     assert [%{event_kind: "runtime_profile_applied"}] = logs.entries
@@ -180,7 +188,20 @@ defmodule Extravaganza.HeadlessRuntimeSurfaceTest do
       RuntimeStatusSnapshot.new(%{
         tenant_ref: context.tenant_ref.id,
         program_ref: "program://symphony-workflow",
-        health: %{"runtime" => "ok"},
+        health: %{
+          "runtime" => "ok",
+          "startup_terminal_cleanup" => %{
+            "last_cleanup_at" => "2026-05-13T00:29:00Z",
+            "candidate_count" => 2,
+            "cleaned_count" => 2,
+            "skipped_count" => 0,
+            "failed_count" => 0,
+            "receipt_refs" => [
+              "cleanup-receipt://T-100",
+              "cleanup-receipt://T-101"
+            ]
+          }
+        },
         preflight: %{"linear" => "credential_present"},
         metadata: %{"source" => "runtime-backend-test"}
       })

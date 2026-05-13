@@ -218,6 +218,12 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
     assert status["operation"] == "status"
     assert status["data"]["schema_ref"] == "headless_runtime_status.v1"
     assert status["data"]["data"]["health"]["runtime"] == "ok"
+    cleanup = status["data"]["data"]["health"]["startup_terminal_cleanup"]
+    assert cleanup["last_cleanup_at"] == "2026-05-13T00:29:00Z"
+    assert cleanup["candidate_count"] == 2
+    assert cleanup["cleaned_count"] == 2
+    assert cleanup["skipped_count"] == 0
+    assert cleanup["failed_count"] == 0
 
     logs =
       conn
@@ -511,7 +517,20 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
       RuntimeStatusSnapshot.new(%{
         tenant_ref: "extravaganza",
         program_ref: "program://symphony-workflow",
-        health: %{"runtime" => "ok"},
+        health: %{
+          "runtime" => "ok",
+          "startup_terminal_cleanup" => %{
+            "last_cleanup_at" => "2026-05-13T00:29:00Z",
+            "candidate_count" => 2,
+            "cleaned_count" => 2,
+            "skipped_count" => 0,
+            "failed_count" => 0,
+            "receipt_refs" => [
+              "cleanup-receipt://T-100",
+              "cleanup-receipt://T-101"
+            ]
+          }
+        },
         preflight: %{"linear" => "credential_present"}
       })
     end
