@@ -9,6 +9,7 @@ defmodule Extravaganza.HeadlessLiveExamples do
   alias Extravaganza.{
     AppKitContext,
     Config,
+    HeadlessFixtureBackend,
     HeadlessSurface,
     ProductHost,
     ProductPack
@@ -21,8 +22,17 @@ defmodule Extravaganza.HeadlessLiveExamples do
       command: "mix extravaganza.headless.live.linear_source --json",
       product_entrypoint: "Extravaganza.ProductHost.live_linear_source_example",
       credential_refs: ["LINEAR_API_KEY"],
-      capability_ids: ["linear.issues.list", "linear.issues.retrieve"],
+      capability_ids: ["linear.users.get_self", "linear.issues.list", "linear.issues.retrieve"],
       provider_effect: "source_intake"
+    },
+    linear_current_states: %{
+      operation: "live.linear-current-states",
+      provider: "linear",
+      command: "mix extravaganza.headless.live.linear_current_states --json",
+      product_entrypoint: "Extravaganza.ProductHost.live_linear_current_states_example",
+      credential_refs: ["LINEAR_API_KEY"],
+      capability_ids: ["linear.users.get_self", "linear.issues.list"],
+      provider_effect: "source_current_state"
     },
     codex_turn: %{
       operation: "live.codex-turn",
@@ -75,6 +85,7 @@ defmodule Extravaganza.HeadlessLiveExamples do
 
   @example_order [
     :linear_source,
+    :linear_current_states,
     :codex_turn,
     :linear_publication,
     :linear_graphql_tool,
@@ -173,6 +184,9 @@ defmodule Extravaganza.HeadlessLiveExamples do
       kind == :linear_source ->
         linear_source_effect(example, proof, opts)
 
+      kind == :linear_current_states ->
+        linear_current_states_effect(example, proof, opts)
+
       kind == :linear_publication ->
         linear_publication_effect(example, proof, opts)
 
@@ -213,11 +227,71 @@ defmodule Extravaganza.HeadlessLiveExamples do
           "provider_response_received?" => truthy?(value(result, :provider_response_received?)),
           "receipt_recorded?" => true,
           "product_readback_confirmed?" => product_readback_confirmed?(proof),
+          "appkit_surfaces" => ["AppKit.SourceSurface", "AppKit.HeadlessSurface"],
+          "source_state_names" => source_state_names(opts),
+          "project_slug" => string_value(opts, :project_slug),
+          "viewer_preflight?" => present?(value(result, :viewer_resolution)),
+          "viewer_operation" => viewer_operation(result),
+          "viewer_provider_request_sent?" =>
+            truthy?(result |> value(:viewer_resolution) |> value(:provider_request_sent?)),
+          "viewer_provider_response_received?" =>
+            truthy?(result |> value(:viewer_resolution) |> value(:provider_response_received?)),
+          "viewer_lower_request_ref" =>
+            result |> value(:viewer_resolution) |> value(:lower_request_ref),
+          "viewer_lower_receipt_ref" =>
+            result |> value(:viewer_resolution) |> value(:lower_receipt_ref),
           "lower_request_ref" => value(result, :lower_request_ref),
           "lower_receipt_ref" => value(result, :lower_receipt_ref)
         }
         |> compact_map()
 
+      {:error, reason} ->
+        failed_effect(example, reason)
+    end
+  end
+
+  defp linear_current_states_effect(example, proof, opts) do
+    with {:ok, issue_ids} <- current_state_issue_ids(opts),
+         {:ok, result} <-
+           HeadlessSurface.current_linear_issue_states(
+             issue_ids,
+             linear_source_binding(opts),
+             surface_opts(opts)
+           ) do
+      current_state = value(result, :source_current_state) || %{}
+
+      %{
+        "provider" => example.provider,
+        "effect" => example.provider_effect,
+        "capability_ids" => example.capability_ids,
+        "status" => "receipt_recorded",
+        "operation" => value(current_state, :operation) || "linear.issues.list",
+        "source_binding_id" => value(current_state, :source_binding_id) || "linear-primary",
+        "requested_issue_ids" => value(result, :requested_issue_ids) || issue_ids,
+        "missing_issue_ids" => value(current_state, :missing_issue_ids) || [],
+        "current_state_count" => current_state_count(result),
+        "credential_present?" => true,
+        "credential_redeemed?" => truthy?(value(result, :credential_redeemed?)),
+        "provider_request_sent?" => truthy?(value(result, :provider_request_sent?)),
+        "provider_response_received?" => truthy?(value(result, :provider_response_received?)),
+        "receipt_recorded?" => present?(value(result, :lower_receipt_ref)),
+        "product_readback_confirmed?" => product_readback_confirmed?(proof),
+        "appkit_surfaces" => ["AppKit.SourceSurface", "AppKit.HeadlessSurface"],
+        "viewer_preflight?" => present?(value(result, :viewer_resolution)),
+        "viewer_operation" => viewer_operation(result),
+        "viewer_provider_request_sent?" =>
+          truthy?(result |> value(:viewer_resolution) |> value(:provider_request_sent?)),
+        "viewer_provider_response_received?" =>
+          truthy?(result |> value(:viewer_resolution) |> value(:provider_response_received?)),
+        "viewer_lower_request_ref" =>
+          result |> value(:viewer_resolution) |> value(:lower_request_ref),
+        "viewer_lower_receipt_ref" =>
+          result |> value(:viewer_resolution) |> value(:lower_receipt_ref),
+        "lower_request_ref" => value(result, :lower_request_ref),
+        "lower_receipt_ref" => value(result, :lower_receipt_ref)
+      }
+      |> compact_map()
+    else
       {:error, reason} ->
         failed_effect(example, reason)
     end
@@ -437,12 +511,17 @@ defmodule Extravaganza.HeadlessLiveExamples do
     value(receipt, :source_publication_receipt_ref) || value(receipt, :source_publication_ref)
   end
 
-  defp linear_source_binding(_opts) do
+  defp linear_source_binding(opts) do
+    filters =
+      %{assignee: "me"}
+      |> maybe_put(:state_names, source_state_names(opts))
+      |> maybe_put(:project_slug, string_value(opts, :project_slug))
+
     %{
       source_binding_id: "linear-primary",
       provider: "linear",
       connection_ref: "linear-primary",
-      candidate_filters: %{assignee: "me"},
+      candidate_filters: filters,
       state_mapping: %{
         "submitted" => ["Todo", "Backlog"],
         "retry_submission" => ["Todo"],
@@ -568,6 +647,62 @@ defmodule Extravaganza.HeadlessLiveExamples do
     |> length()
   end
 
+  defp current_state_count(result) do
+    current_state = value(result, :source_current_state)
+
+    cond do
+      is_list(value(current_state, :subject_attrs)) ->
+        current_state |> value(:subject_attrs) |> length()
+
+      is_map(value(result, :states)) ->
+        result |> value(:states) |> map_size()
+
+      true ->
+        0
+    end
+  end
+
+  defp current_state_issue_ids(opts) do
+    issue_ids =
+      opts
+      |> value(:issue_ids)
+      |> List.wrap()
+      |> Enum.flat_map(&split_csv/1)
+      |> Enum.map(&String.trim/1)
+      |> Enum.reject(&(&1 == ""))
+
+    cond do
+      issue_ids != [] ->
+        {:ok, issue_ids}
+
+      is_binary(string_value(opts, :issue_id)) ->
+        {:ok, [string_value(opts, :issue_id)]}
+
+      true ->
+        with {:ok, issue} <- resolve_live_publication_issue(opts),
+             {:ok, issue_id} <- publication_issue_id(issue) do
+          {:ok, [issue_id]}
+        end
+    end
+  end
+
+  defp source_state_names(opts) do
+    opts
+    |> value(:source_state_names)
+    |> List.wrap()
+    |> Enum.flat_map(&split_csv/1)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+    |> case do
+      [] -> nil
+      names -> Enum.uniq(names)
+    end
+  end
+
+  defp viewer_operation(result) do
+    if present?(value(result, :viewer_resolution)), do: "linear.users.get_self"
+  end
+
   defp product_readback_confirmed?(proof), do: Map.get(proof, "readback_count", 0) > 0
 
   defp runtime_readback_confirmed?(%RuntimeRunDetail{} = run_detail) do
@@ -576,10 +711,19 @@ defmodule Extravaganza.HeadlessLiveExamples do
   end
 
   defp surface_opts(opts) do
-    opts
-    |> Map.take([:tenant_id, :pack_version, :trace_id, :linear_api_key, :dry_run?])
-    |> Enum.to_list()
+    base =
+      opts
+      |> Map.take([:tenant_id, :pack_version, :trace_id, :linear_api_key, :dry_run?])
+      |> Enum.to_list()
+
+    base
+    |> put_keyword_new_present(:skip_bootstrap?, live_product_surface_proof?(opts))
+    |> put_keyword_new_present(:first, positive_integer_value(opts, :limit))
+    |> put_keyword_new_present(:cursor, string_value(opts, :cursor))
   end
+
+  defp live_product_surface_proof?(%{live_product_path?: true}), do: true
+  defp live_product_surface_proof?(_opts), do: nil
 
   defp config_overrides(opts) do
     opts
@@ -749,7 +893,15 @@ defmodule Extravaganza.HeadlessLiveExamples do
 
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, _key, ""), do: map
+  defp maybe_put(map, _key, []), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)
+
+  defp put_keyword_new_present(keyword, _key, nil), do: keyword
+  defp put_keyword_new_present(keyword, _key, ""), do: keyword
+  defp put_keyword_new_present(keyword, key, value), do: Keyword.put_new(keyword, key, value)
+
+  defp split_csv(value) when is_binary(value), do: String.split(value, ",")
+  defp split_csv(value), do: [to_string(value)]
 
   defp first_ref(receipt_refs, key) when is_map(receipt_refs) do
     receipt_refs
@@ -801,6 +953,7 @@ defmodule Extravaganza.HeadlessLiveExamples do
   end
 
   defp product_proof(%{fixture: _fixture}), do: fixture_product_proof()
+  defp product_proof(%{live_product_path?: true}), do: fixture_product_proof()
 
   defp product_proof(opts) do
     case Application.get_env(:extravaganza_core, :headless_fixture_context?) do
@@ -841,10 +994,12 @@ defmodule Extravaganza.HeadlessLiveExamples do
   end
 
   defp fixture_product_proof do
-    with {:ok, _run} <- HeadlessSurface.run_detail("run:fixture", %{}, []),
-         {:ok, _evidence} <- HeadlessSurface.evidence_chain("run:fixture", %{}, []),
-         {:ok, _events} <- HeadlessSurface.events(%{"run_id" => "run:fixture"}, []),
-         {:ok, _preview} <- HeadlessSurface.source_publication_preview("subject:fixture", []) do
+    opts = [backend: HeadlessFixtureBackend, skip_bootstrap?: true]
+
+    with {:ok, _run} <- HeadlessSurface.run_detail("run:fixture", %{}, opts),
+         {:ok, evidence} <- HeadlessSurface.evidence_chain("run:fixture", %{}, opts),
+         {:ok, _events} <- HeadlessSurface.events(%{"run_id" => "run:fixture"}, opts),
+         %{} <- Map.fetch!(evidence, "source_publication") do
       {:ok,
        %{
          "proof_class" => "product_fixture_headless",
@@ -968,7 +1123,12 @@ defmodule Extravaganza.HeadlessLiveExamples do
   end
 
   defp credential_supplied?(kind, opts)
-       when kind in [:linear_source, :linear_publication, :linear_graphql_tool],
+       when kind in [
+              :linear_source,
+              :linear_current_states,
+              :linear_publication,
+              :linear_graphql_tool
+            ],
        do:
          truthy?(Map.get(opts, :api_key_stdin?)) or truthy?(Map.get(opts, :credential_available?))
 

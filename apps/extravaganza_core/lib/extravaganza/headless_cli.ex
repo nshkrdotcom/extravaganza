@@ -42,6 +42,7 @@ defmodule Extravaganza.HeadlessCLI do
     :status,
     :logs,
     :live_linear_source,
+    :live_linear_current_states,
     :live_codex_turn,
     :live_linear_publication,
     :live_linear_graphql_tool,
@@ -54,6 +55,7 @@ defmodule Extravaganza.HeadlessCLI do
 
   @live_operations [
     :live_linear_source,
+    :live_linear_current_states,
     :live_codex_turn,
     :live_linear_publication,
     :live_linear_graphql_tool,
@@ -288,6 +290,14 @@ defmodule Extravaganza.HeadlessCLI do
     dispatch_live("live.linear-source", &ProductHost.live_linear_source_example/1, opts)
   end
 
+  defp dispatch(:live_linear_current_states, opts) do
+    dispatch_live(
+      "live.linear-current-states",
+      &ProductHost.live_linear_current_states_example/1,
+      opts
+    )
+  end
+
   defp dispatch(:live_codex_turn, opts) do
     dispatch_live("live.codex-turn", &ProductHost.live_codex_turn_example/1, opts)
   end
@@ -421,6 +431,13 @@ defmodule Extravaganza.HeadlessCLI do
   defp parse(["--issue-id", issue_id | rest], opts),
     do: parse(rest, Map.put(opts, :issue_id, issue_id))
 
+  defp parse(["--issue-ids", issue_ids | rest], opts),
+    do:
+      parse(
+        rest,
+        Map.update(opts, :issue_ids, split_csv(issue_ids), &(split_csv(issue_ids) ++ &1))
+      )
+
   defp parse(["--comment-id", comment_id | rest], opts),
     do: parse(rest, Map.put(opts, :comment_id, comment_id))
 
@@ -429,6 +446,28 @@ defmodule Extravaganza.HeadlessCLI do
 
   defp parse(["--state-name", state_name | rest], opts),
     do: parse(rest, Map.put(opts, :state_name, state_name))
+
+  defp parse(["--source-state", state_name | rest], opts),
+    do:
+      parse(
+        rest,
+        Map.update(opts, :source_state_names, [state_name], &(&1 ++ [state_name]))
+      )
+
+  defp parse(["--source-states", state_names | rest], opts),
+    do:
+      parse(
+        rest,
+        Map.update(
+          opts,
+          :source_state_names,
+          split_csv(state_names),
+          &(split_csv(state_names) ++ &1)
+        )
+      )
+
+  defp parse(["--project-slug", project_slug | rest], opts),
+    do: parse(rest, Map.put(opts, :project_slug, project_slug))
 
   defp parse(["--team-id", team_id | rest], opts),
     do: parse(rest, Map.put(opts, :team_id, team_id))
@@ -545,15 +584,20 @@ defmodule Extravaganza.HeadlessCLI do
           :pull_number,
           :ref,
           :issue_id,
+          :issue_ids,
           :comment_id,
           :state_id,
           :state_name,
+          :source_state_names,
+          :project_slug,
           :team_id,
           :message,
           :query,
           :variables_json,
           :allow_create_fallback?,
           :dry_run?,
+          :cursor,
+          :limit,
           :tenant_id,
           :pack_version,
           :trace_id
@@ -634,6 +678,13 @@ defmodule Extravaganza.HeadlessCLI do
       [key, value] when key != "" -> %{key => value}
       _other -> %{}
     end
+  end
+
+  defp split_csv(value) when is_binary(value) do
+    value
+    |> String.split(",")
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
   end
 
   defp default_linear_subject(opts) do

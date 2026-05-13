@@ -105,6 +105,11 @@ defmodule Extravaganza.ProductHost do
   @spec live_linear_source_example(keyword() | map()) :: {:ok, map()} | {:error, term()}
   def live_linear_source_example(opts \\ []), do: HeadlessLiveExamples.run(:linear_source, opts)
 
+  @spec live_linear_current_states_example(keyword() | map()) ::
+          {:ok, map()} | {:error, term()}
+  def live_linear_current_states_example(opts \\ []),
+    do: HeadlessLiveExamples.run(:linear_current_states, opts)
+
   @spec live_codex_turn_example(keyword() | map()) :: {:ok, map()} | {:error, term()}
   def live_codex_turn_example(opts \\ []), do: HeadlessLiveExamples.run(:codex_turn, opts)
 

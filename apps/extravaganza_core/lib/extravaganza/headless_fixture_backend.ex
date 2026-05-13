@@ -88,6 +88,16 @@ defmodule Extravaganza.HeadlessFixtureBackend do
        requested_issue_ids: issue_ids,
        states: Enum.into(issue_ids, %{}, &{&1, "Todo"}),
        missing_issue_ids: [],
+       credential_redeemed?: true,
+       provider_request_sent?: true,
+       provider_response_received?: true,
+       viewer_resolution: %{
+         output: %{user: %{id: "usr-linear-viewer"}},
+         provider_request_sent?: true,
+         provider_response_received?: true,
+         lower_request_ref: "lower-request://fixture/linear/viewer",
+         lower_receipt_ref: "lower-receipt://fixture/linear/viewer"
+       },
        lower_request_ref: "lower-request://fixture/linear/current-states",
        lower_receipt_ref: "lower-receipt://fixture/linear/current-states"
      }}
@@ -113,6 +123,13 @@ defmodule Extravaganza.HeadlessFixtureBackend do
              workflow_state: "Todo"
            }
          ]
+       },
+       viewer_resolution: %{
+         output: %{user: %{id: "usr-linear-viewer"}},
+         provider_request_sent?: true,
+         provider_response_received?: true,
+         lower_request_ref: "lower-request://fixture/linear/viewer",
+         lower_receipt_ref: "lower-receipt://fixture/linear/viewer"
        },
        lower_request_ref: "lower-request://fixture/linear/source",
        lower_receipt_ref: "lower-receipt://fixture/linear/source"

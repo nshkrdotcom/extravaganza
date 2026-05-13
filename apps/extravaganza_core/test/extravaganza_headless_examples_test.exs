@@ -14,6 +14,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
   alias AppKit.Core.RuntimeSurface.GitHubPrEvidenceReceipt
 
   alias Extravaganza.{HeadlessCLI, HeadlessFixtureBackend}
+  alias Mix.Tasks.Extravaganza.Headless.TaskSupport
 
   setup do
     previous_backend = Application.get_env(:app_kit_core, :headless_backend)
@@ -86,6 +87,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
              :status,
              :logs,
              :live_linear_source,
+             :live_linear_current_states,
              :live_codex_turn,
              :live_linear_publication,
              :live_linear_graphql_tool,
@@ -104,6 +106,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
           Mix.Tasks.Extravaganza.Headless.Status,
           Mix.Tasks.Extravaganza.Headless.Logs,
           Mix.Tasks.Extravaganza.Headless.LiveLinearSource,
+          Mix.Tasks.Extravaganza.Headless.LiveLinearCurrentStates,
           Mix.Tasks.Extravaganza.Headless.LiveCodexTurn,
           Mix.Tasks.Extravaganza.Headless.LiveLinearPublication,
           Mix.Tasks.Extravaganza.Headless.LiveLinearGraphqlTool,
@@ -121,6 +124,10 @@ defmodule Extravaganza.HeadlessExamplesTest do
           {"extravaganza.headless.live.linear_source", "live.linear-source",
            ["--json", "--trace-id", "trace:examples"]},
           {"extravaganza.headless.live_linear_source", "live.linear-source",
+           ["--json", "--trace-id", "trace:examples"]},
+          {"extravaganza.headless.live.linear_current_states", "live.linear-current-states",
+           ["--json", "--trace-id", "trace:examples"]},
+          {"extravaganza.headless.live_linear_current_states", "live.linear-current-states",
            ["--json", "--trace-id", "trace:examples"]},
           {"extravaganza.headless.live.codex_turn", "live.codex-turn",
            ["--json", "--trace-id", "trace:examples"]},
@@ -153,10 +160,37 @@ defmodule Extravaganza.HeadlessExamplesTest do
     end
   end
 
+  test "task support keeps live provider product examples on the surface command path" do
+    for operation <- [
+          :live_linear_source,
+          :live_linear_current_states,
+          :live_codex_turn,
+          :live_linear_publication,
+          :live_linear_graphql_tool,
+          :live_github_evidence,
+          :live_smoke
+        ] do
+      refute TaskSupport.start_app?(
+               operation,
+               ["--json", "--live-product-path"]
+             )
+    end
+
+    assert TaskSupport.start_app?(:state, ["--json"])
+    refute TaskSupport.start_app?(:profile, ["--json"])
+
+    refute TaskSupport.start_app?(:state, [
+             "--fixture",
+             "headless"
+           ])
+  end
+
   @tag :live_provider
   test "live provider examples skip explicitly without supplied credentials but exercise product path" do
     for {operation, expected_operation, provider, credential_refs} <- [
           {:live_linear_source, "live.linear-source", "linear", ["LINEAR_API_KEY"]},
+          {:live_linear_current_states, "live.linear-current-states", "linear",
+           ["LINEAR_API_KEY"]},
           {:live_codex_turn, "live.codex-turn", "codex", ["OPENAI_API_KEY", "CODEX_API_KEY"]},
           {:live_linear_publication, "live.linear-publication", "linear", ["LINEAR_API_KEY"]},
           {:live_linear_graphql_tool, "live.linear-graphql-tool", "linear", ["LINEAR_API_KEY"]},
@@ -240,11 +274,60 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert decoded["data"]["provider_effect"]["receipt_recorded?"] == true
     assert decoded["data"]["provider_effect"]["product_readback_confirmed?"] == true
     assert decoded["data"]["provider_effect"]["operation"] == "linear.issues.list"
+    assert decoded["data"]["provider_effect"]["viewer_preflight?"] == true
+    assert decoded["data"]["provider_effect"]["viewer_operation"] == "linear.users.get_self"
+    assert decoded["data"]["provider_effect"]["viewer_provider_request_sent?"] == true
+    assert decoded["data"]["provider_effect"]["viewer_provider_response_received?"] == true
+
+    assert decoded["data"]["provider_effect"]["viewer_lower_request_ref"] =~
+             "lower-request://linear/viewer"
+
     refute output =~ secret
     refute output =~ "live_provider_effect_deferred"
 
     assert_received {:fetch_linear_candidates, "extravaganza", source_binding, _opts}
     assert source_binding.source_binding_id == "linear-primary"
+  end
+
+  @tag :live_provider
+  test "linear source product path accepts configured state filters and pagination" do
+    secret = "linear-secret-value"
+
+    output =
+      capture_io(secret <> "\n", fn ->
+        assert :ok =
+                 HeadlessCLI.run(:live_linear_source, [
+                   "--json",
+                   "--api-key-stdin",
+                   "--source-state",
+                   "Todo",
+                   "--source-state",
+                   "Backlog",
+                   "--project-slug",
+                   "ENG",
+                   "--limit",
+                   "7",
+                   "--cursor",
+                   "cursor-1",
+                   "--trace-id",
+                   "trace:live-source-states"
+                 ])
+      end)
+
+    decoded = Jason.decode!(output)
+
+    assert decoded["ok"] == true
+    assert decoded["data"]["status"] == "completed"
+    assert decoded["data"]["provider_effect"]["source_state_names"] == ["Todo", "Backlog"]
+    assert decoded["data"]["provider_effect"]["project_slug"] == "ENG"
+    refute output =~ secret
+
+    assert_received {:fetch_linear_candidates, "extravaganza", source_binding, opts}
+    assert source_binding.candidate_filters.state_names == ["Todo", "Backlog"]
+    assert source_binding.candidate_filters.project_slug == "ENG"
+    assert Keyword.fetch!(opts, :first) == 7
+    assert Keyword.fetch!(opts, :cursor) == "cursor-1"
+    assert Keyword.fetch!(opts, :linear_api_key) == secret
   end
 
   @tag :live_provider
@@ -271,6 +354,33 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert String.starts_with?(tenant_id, "extravaganza-live-")
     assert opts |> Keyword.fetch!(:pack_version) |> String.starts_with?("1.0.0-live.")
     assert Keyword.fetch!(opts, :linear_api_key) == secret
+    refute output =~ secret
+  end
+
+  @tag :live_provider
+  test "linear source live product path does not require runtime repos for provider proof" do
+    Application.delete_env(:extravaganza_core, :headless_fixture_context?)
+
+    secret = "linear-secret-value"
+
+    output =
+      capture_io(secret <> "\n", fn ->
+        assert :ok =
+                 HeadlessCLI.run(:live_linear_source, [
+                   "--json",
+                   "--api-key-stdin",
+                   "--live-product-path",
+                   "--trace-id",
+                   "trace:live-source-surface-proof"
+                 ])
+      end)
+
+    decoded = Jason.decode!(output)
+
+    assert decoded["ok"] == true
+    assert decoded["data"]["status"] == "completed"
+    assert decoded["data"]["product_path"]["proof_source"] == "fixture_headless_surface"
+    assert decoded["data"]["provider_effect"]["provider_request_sent?"] == true
     refute output =~ secret
   end
 
@@ -309,6 +419,56 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert decoded["data"]["provider_effect"]["error"] =~ "unsupported_runtime_profile_change"
     assert decoded["data"]["provider_effect"]["error"] =~ "[REDACTED]"
     refute output =~ secret
+  end
+
+  @tag :live_provider
+  test "linear current-state live product path resolves issue states through AppKit" do
+    secret = "linear-secret-value"
+
+    output =
+      capture_io(secret <> "\n", fn ->
+        assert :ok =
+                 HeadlessCLI.run(:live_linear_current_states, [
+                   "--json",
+                   "--api-key-stdin",
+                   "--live-product-path",
+                   "--issue-ids",
+                   "lin-issue-321,lin-missing",
+                   "--trace-id",
+                   "trace:live-current-states"
+                 ])
+      end)
+
+    decoded = Jason.decode!(output)
+    provider_effect = decoded["data"]["provider_effect"]
+
+    assert decoded["ok"] == true
+    assert decoded["operation"] == "live.linear-current-states"
+    assert decoded["data"]["status"] == "completed"
+    assert provider_effect["status"] == "receipt_recorded"
+    assert provider_effect["operation"] == "linear.issues.list"
+    assert provider_effect["credential_present?"] == true
+    assert provider_effect["credential_redeemed?"] == true
+    assert provider_effect["provider_request_sent?"] == true
+    assert provider_effect["provider_response_received?"] == true
+    assert provider_effect["receipt_recorded?"] == true
+    assert provider_effect["requested_issue_ids"] == ["lin-issue-321", "lin-missing"]
+    assert provider_effect["missing_issue_ids"] == ["lin-missing"]
+    assert provider_effect["current_state_count"] == 1
+    assert provider_effect["viewer_preflight?"] == true
+    assert provider_effect["viewer_operation"] == "linear.users.get_self"
+    assert provider_effect["viewer_provider_request_sent?"] == true
+    assert provider_effect["viewer_provider_response_received?"] == true
+    assert provider_effect["viewer_lower_request_ref"] =~ "lower-request://linear/viewer"
+    assert provider_effect["lower_request_ref"] =~ "lower-request://linear/current-states"
+    refute output =~ secret
+
+    assert_received {:current_linear_issue_states, tenant_id, issue_ids, source_binding, opts}
+    assert String.starts_with?(tenant_id, "extravaganza-live-")
+    assert issue_ids == ["lin-issue-321", "lin-missing"]
+    assert source_binding.candidate_filters.assignee == "me"
+    assert Keyword.fetch!(opts, :linear_api_key) == secret
+    assert Keyword.fetch!(opts, :trace_id) == "trace:live-current-states"
   end
 
   @tag :live_provider
@@ -477,6 +637,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert data["completed_operations"] |> Enum.sort() == [
              "live.codex-turn",
              "live.github-evidence",
+             "live.linear-current-states",
              "live.linear-graphql-tool",
              "live.linear-publication",
              "live.linear-source"
@@ -506,6 +667,13 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert String.starts_with?(tenant_id, "extravaganza-live-")
     assert Keyword.fetch!(source_opts, :trace_id) == "trace:live-smoke-product"
     assert Keyword.fetch!(source_opts, :linear_api_key) == secret
+
+    assert_received {:current_linear_issue_states, _tenant_id, ["lin-issue-321"],
+                     current_source_binding, current_opts}
+
+    assert current_source_binding.candidate_filters.assignee == "me"
+    assert Keyword.fetch!(current_opts, :trace_id) == "trace:live-smoke-product"
+    assert Keyword.fetch!(current_opts, :linear_api_key) == secret
 
     assert_received {:start_agent_run, _tenant_id, request, codex_opts}
     assert request.trace_id == "trace:live-smoke-product"
@@ -554,7 +722,12 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert decoded["ok"] == true
     assert decoded["data"]["status"] == "completed"
     assert decoded["data"]["provider_effect"]["operation"] == "linear.issues.list"
-    assert decoded["data"]["product_path"]["appkit_surfaces"] == ["AppKit.HeadlessSurface"]
+
+    assert decoded["data"]["product_path"]["appkit_surfaces"] == [
+             "AppKit.SourceSurface",
+             "AppKit.HeadlessSurface"
+           ]
+
     refute output =~ secret
     refute output =~ "missing_authorized_source_invocation"
   end
@@ -815,6 +988,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert decoded["data"]["examples"] |> Map.keys() |> Enum.sort() == [
              "live.codex-turn",
              "live.github-evidence",
+             "live.linear-current-states",
              "live.linear-graphql-tool",
              "live.linear-publication",
              "live.linear-source"
@@ -899,6 +1073,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
           "scripts/headless/profile_validate.exs",
           "scripts/headless/profile_reload.exs",
           "scripts/headless/live_linear_source.exs",
+          "scripts/headless/live_linear_current_states.exs",
           "scripts/headless/live_codex_turn.exs",
           "scripts/headless/live_linear_publication.exs",
           "scripts/headless/live_linear_graphql_tool.exs",
@@ -1120,8 +1295,41 @@ defmodule Extravaganza.HeadlessExamplesTest do
     def sync_linear_issues(_context, _source_page, _opts), do: {:ok, %{}}
 
     @impl true
-    def current_linear_issue_states(_context, issue_ids, _source_binding, _opts) do
-      {:ok, %{requested_issue_ids: issue_ids, missing_issue_ids: []}}
+    def current_linear_issue_states(context, issue_ids, source_binding, opts) do
+      if pid = Process.get(:headless_examples_test_pid) do
+        send(
+          pid,
+          {:current_linear_issue_states, context.tenant_ref.id, issue_ids, source_binding, opts}
+        )
+      end
+
+      {:ok,
+       %{
+         requested_issue_ids: issue_ids,
+         credential_redeemed?: true,
+         provider_request_sent?: true,
+         provider_response_received?: true,
+         lower_request_ref: "lower-request://linear/current-states",
+         lower_receipt_ref: "lower-receipt://linear/current-states/succeeded",
+         source_current_state: %{
+           operation: "linear.issues.list",
+           subject_attrs: [
+             %{
+               source_ref: "linear://installation/issue/ENG-321",
+               provider_external_ref: "lin-issue-321",
+               source_state: "Todo"
+             }
+           ],
+           missing_issue_ids: Enum.reject(issue_ids, &(&1 == "lin-issue-321"))
+         },
+         viewer_resolution: %{
+           output: %{user: %{id: "usr-linear-viewer"}},
+           provider_request_sent?: true,
+           provider_response_received?: true,
+           lower_request_ref: "lower-request://linear/viewer",
+           lower_receipt_ref: "lower-receipt://linear/viewer/succeeded"
+         }
+       }}
     end
 
     @impl true
@@ -1153,6 +1361,14 @@ defmodule Extravaganza.HeadlessExamplesTest do
          },
          provider_request_sent?: true,
          provider_response_received?: true,
+         credential_redeemed?: true,
+         viewer_resolution: %{
+           output: %{user: %{id: "usr-linear-viewer"}},
+           provider_request_sent?: true,
+           provider_response_received?: true,
+           lower_request_ref: "lower-request://linear/viewer",
+           lower_receipt_ref: "lower-receipt://linear/viewer/succeeded"
+         },
          lower_request_ref: "lower-request://linear/source",
          lower_receipt_ref: "lower-receipt://linear/source"
        }}

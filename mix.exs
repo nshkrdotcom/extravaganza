@@ -50,6 +50,9 @@ defmodule Extravaganza.MixProject do
       "extravaganza.headless.live.linear_source": [
         "run --no-start scripts/headless/live_linear_source.exs --"
       ],
+      "extravaganza.headless.live.linear_current_states": [
+        "run --no-start scripts/headless/live_linear_current_states.exs --"
+      ],
       "extravaganza.headless.live.codex_turn": [
         "run --no-start scripts/headless/live_codex_turn.exs --"
       ],

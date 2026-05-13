@@ -182,6 +182,15 @@ defmodule Extravaganza.HeadlessSurface do
     end
   end
 
+  @spec current_linear_issue_states([String.t()], map(), keyword()) ::
+          {:ok, map()} | {:error, term()}
+  def current_linear_issue_states(issue_ids, source_binding, opts \\ [])
+      when is_list(issue_ids) and is_map(source_binding) and is_list(opts) do
+    with {:ok, %{context: context}} <- context_bundle(opts) do
+      AppKitSourceSurface.current_linear_issue_states(context, issue_ids, source_binding, opts)
+    end
+  end
+
   @spec publish_linear_source(map(), keyword()) :: {:ok, map()} | {:error, term()}
   def publish_linear_source(attrs, opts \\ []) when is_map(attrs) and is_list(opts) do
     with {:ok, %{context: context}} <- context_bundle(opts) do

@@ -3,6 +3,7 @@ defmodule Mix.Tasks.Extravaganza.Headless.TaskSupport do
 
   @live_operations [
     :live_linear_source,
+    :live_linear_current_states,
     :live_codex_turn,
     :live_linear_publication,
     :live_linear_graphql_tool,
@@ -13,22 +14,85 @@ defmodule Mix.Tasks.Extravaganza.Headless.TaskSupport do
     :profile,
     :profile_validate
   ]
+  @live_surface_dependency_apps [
+    :jido_integration_v2_control_plane,
+    :req
+  ]
 
   @spec run(atom(), [String.t()]) :: :ok
   def run(operation, argv) when is_atom(operation) and is_list(argv) do
+    configure_json_logging(argv)
+
     if start_app?(operation, argv) do
-      configure_json_logging(argv)
       Mix.Task.run("app.start")
     end
 
-    Extravaganza.HeadlessCLI.run(operation, argv)
+    case maybe_start_live_surface_dependencies(operation, argv) do
+      :ok ->
+        Extravaganza.HeadlessCLI.run(operation, argv)
+
+      {:error, reason} ->
+        emit_startup_error(reason, argv)
+    end
   end
 
-  defp start_app?(operation, argv) do
+  defp maybe_start_live_surface_dependencies(operation, argv) do
+    if live_surface_dependencies_required?(operation, argv),
+      do: start_live_surface_dependencies(),
+      else: :ok
+  end
+
+  defp live_surface_dependencies_required?(operation, argv),
+    do: operation in @live_operations and "--live-product-path" in argv
+
+  defp start_live_surface_dependencies do
+    Enum.reduce_while(@live_surface_dependency_apps, :ok, fn app, :ok ->
+      case Application.ensure_all_started(app) do
+        {:ok, _apps} -> {:cont, :ok}
+        {:error, {:already_started, _app}} -> {:cont, :ok}
+        {:error, reason} -> {:halt, {:error, {:live_surface_dependency_failed, app, reason}}}
+      end
+    end)
+  end
+
+  defp render_startup_error({:live_surface_dependency_failed, app, reason}) do
+    %{
+      ok: false,
+      schema: "extravaganza.headless.response.v1",
+      operation: "startup",
+      error: %{
+        code: "live_surface_dependency_failed",
+        app: app,
+        reason: inspect(reason)
+      }
+    }
+  end
+
+  defp render_startup_error(reason) do
+    %{
+      ok: false,
+      schema: "extravaganza.headless.response.v1",
+      operation: "startup",
+      error: %{code: "startup_failed", reason: inspect(reason)}
+    }
+  end
+
+  defp emit_startup_error(reason, argv) do
+    payload = render_startup_error(reason)
+
+    if "--json" in argv do
+      IO.puts(Jason.encode!(payload))
+    else
+      Mix.shell().error(payload.error.reason)
+    end
+  end
+
+  @doc false
+  def start_app?(operation, argv) do
     cond do
       "--fixture" in argv -> false
       operation in @no_start_operations -> false
-      operation in @live_operations -> "--live-product-path" in argv
+      operation in @live_operations -> false
       true -> true
     end
   end
@@ -240,6 +304,26 @@ defmodule Mix.Tasks.Extravaganza.Headless.LiveLinearSource do
   @moduledoc false
   @shortdoc "Run the live-gated Linear source example"
   def run(argv), do: TaskSupport.run(:live_linear_source, argv)
+end
+
+defmodule Mix.Tasks.Extravaganza.Headless.Live.LinearCurrentStates do
+  use Mix.Task
+
+  alias Mix.Tasks.Extravaganza.Headless.TaskSupport
+
+  @moduledoc false
+  @shortdoc "Run the live-gated Linear current-state example"
+  def run(argv), do: TaskSupport.run(:live_linear_current_states, argv)
+end
+
+defmodule Mix.Tasks.Extravaganza.Headless.LiveLinearCurrentStates do
+  use Mix.Task
+
+  alias Mix.Tasks.Extravaganza.Headless.TaskSupport
+
+  @moduledoc false
+  @shortdoc "Run the live-gated Linear current-state example"
+  def run(argv), do: TaskSupport.run(:live_linear_current_states, argv)
 end
 
 defmodule Mix.Tasks.Extravaganza.Headless.Live.CodexTurn do
