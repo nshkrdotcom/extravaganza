@@ -77,6 +77,11 @@ defmodule Extravaganza.SymphonyWorkflowImportTest do
     assert app_kit_profile["placement_profile"]["runtime_preferences"]["thread_sandbox"] ==
              "workspace-write"
 
+    assert app_kit_profile["placement_profile"]["runtime_preferences"]["worker"] == %{
+             "ssh_hosts" => ["worker-a", "worker-b"],
+             "max_concurrent_agents_per_host" => 2
+           }
+
     refute inspect(profile) =~ @secret
   end
 
@@ -387,6 +392,11 @@ defmodule Extravaganza.SymphonyWorkflowImportTest do
         - Done
     workspace:
       root: relative_workspaces
+    worker:
+      ssh_hosts:
+        - worker-a
+        - worker-b
+      max_concurrent_agents_per_host: 2
     agent:
       max_turns: 7
       max_concurrent_agents_by_state:
