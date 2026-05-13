@@ -472,6 +472,9 @@ defmodule Extravaganza.HeadlessCLI do
   defp parse(["--team-id", team_id | rest], opts),
     do: parse(rest, Map.put(opts, :team_id, team_id))
 
+  defp parse(["--assignee", assignee | rest], opts),
+    do: parse(rest, Map.put(opts, :assignee, assignee))
+
   defp parse(["--allow-create-fallback" | rest], opts),
     do: parse(rest, Map.put(opts, :allow_create_fallback?, true))
 
@@ -591,6 +594,7 @@ defmodule Extravaganza.HeadlessCLI do
           :source_state_names,
           :project_slug,
           :team_id,
+          :assignee,
           :message,
           :query,
           :variables_json,

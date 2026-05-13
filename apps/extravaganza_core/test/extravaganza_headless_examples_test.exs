@@ -305,6 +305,8 @@ defmodule Extravaganza.HeadlessExamplesTest do
                    "Backlog",
                    "--project-slug",
                    "ENG",
+                   "--team-id",
+                   "team-linear",
                    "--limit",
                    "7",
                    "--cursor",
@@ -320,11 +322,13 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert decoded["data"]["status"] == "completed"
     assert decoded["data"]["provider_effect"]["source_state_names"] == ["Todo", "Backlog"]
     assert decoded["data"]["provider_effect"]["project_slug"] == "ENG"
+    assert decoded["data"]["provider_effect"]["team_id"] == "team-linear"
     refute output =~ secret
 
     assert_received {:fetch_linear_candidates, "extravaganza", source_binding, opts}
     assert source_binding.candidate_filters.state_names == ["Todo", "Backlog"]
     assert source_binding.candidate_filters.project_slug == "ENG"
+    assert source_binding.candidate_filters.team_id == "team-linear"
     assert Keyword.fetch!(opts, :first) == 7
     assert Keyword.fetch!(opts, :cursor) == "cursor-1"
     assert Keyword.fetch!(opts, :linear_api_key) == secret
@@ -353,6 +357,35 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert_received {:fetch_linear_candidates, tenant_id, _source_binding, opts}
     assert String.starts_with?(tenant_id, "extravaganza-live-")
     assert opts |> Keyword.fetch!(:pack_version) |> String.starts_with?("1.0.0-live.")
+    assert Keyword.fetch!(opts, :linear_api_key) == secret
+    refute output =~ secret
+  end
+
+  @tag :live_provider
+  test "linear source product path can disable assignee-me routing explicitly" do
+    secret = "linear-secret-value"
+
+    output =
+      capture_io(secret <> "\n", fn ->
+        assert :ok =
+                 HeadlessCLI.run(:live_linear_source, [
+                   "--json",
+                   "--api-key-stdin",
+                   "--assignee",
+                   "all",
+                   "--trace-id",
+                   "trace:live-source-all-assignees"
+                 ])
+      end)
+
+    decoded = Jason.decode!(output)
+
+    assert decoded["ok"] == true
+    assert decoded["data"]["status"] == "completed"
+    assert decoded["data"]["provider_effect"]["assignee"] == "all"
+
+    assert_received {:fetch_linear_candidates, "extravaganza", source_binding, opts}
+    refute Map.has_key?(source_binding.candidate_filters, :assignee)
     assert Keyword.fetch!(opts, :linear_api_key) == secret
     refute output =~ secret
   end
@@ -722,6 +755,30 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert decoded["ok"] == true
     assert decoded["data"]["status"] == "completed"
     assert decoded["data"]["provider_effect"]["operation"] == "linear.issues.list"
+
+    assert [
+             %{
+               "source_ref" => "linear://fixture/issue/ENG-321",
+               "provider_external_ref" => "lin-issue-321",
+               "title" => "Investigate rollback",
+               "description" => "The deployment rolled back after the health checks failed.",
+               "priority" => 2,
+               "labels" => ["automation", "incident"],
+               "branch_ref" => "eng-321-investigate-rollback",
+               "source_url" => "https://linear.app/acme/issue/ENG-321",
+               "source_state" => "Todo",
+               "provider_revision" => "2026-03-12T10:00:00Z",
+               "blocker_refs" => [
+                 %{
+                   "identifier" => "SEC-9",
+                   "source_state" => "In Progress"
+                 }
+               ],
+               "source_routing" => %{
+                 "team" => %{"id" => "team-eng", "key" => "ENG"}
+               }
+             }
+           ] = decoded["data"]["provider_effect"]["subjects"]
 
     assert decoded["data"]["product_path"]["appkit_surfaces"] == [
              "AppKit.SourceSurface",

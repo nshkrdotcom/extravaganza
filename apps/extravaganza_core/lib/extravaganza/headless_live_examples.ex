@@ -230,6 +230,9 @@ defmodule Extravaganza.HeadlessLiveExamples do
           "appkit_surfaces" => ["AppKit.SourceSurface", "AppKit.HeadlessSurface"],
           "source_state_names" => source_state_names(opts),
           "project_slug" => string_value(opts, :project_slug),
+          "team_id" => string_value(opts, :team_id),
+          "assignee" => linear_source_assignee_label(opts),
+          "subjects" => source_subjects(result),
           "viewer_preflight?" => present?(value(result, :viewer_resolution)),
           "viewer_operation" => viewer_operation(result),
           "viewer_provider_request_sent?" =>
@@ -513,9 +516,11 @@ defmodule Extravaganza.HeadlessLiveExamples do
 
   defp linear_source_binding(opts) do
     filters =
-      %{assignee: "me"}
+      %{}
+      |> maybe_put(:assignee, linear_source_assignee_filter(opts))
       |> maybe_put(:state_names, source_state_names(opts))
       |> maybe_put(:project_slug, string_value(opts, :project_slug))
+      |> maybe_put(:team_id, string_value(opts, :team_id))
 
     %{
       source_binding_id: "linear-primary",
@@ -540,6 +545,15 @@ defmodule Extravaganza.HeadlessLiveExamples do
       state_mapping: %{}
     }
   end
+
+  defp linear_source_assignee_filter(opts) do
+    case linear_source_assignee_label(opts) do
+      "all" -> nil
+      assignee -> assignee
+    end
+  end
+
+  defp linear_source_assignee_label(opts), do: string_value(opts, :assignee) || "me"
 
   defp linear_publication_attrs(opts) do
     case string_value(opts, :issue_id) do
@@ -645,6 +659,15 @@ defmodule Extravaganza.HeadlessLiveExamples do
     |> value(:subject_attrs)
     |> List.wrap()
     |> length()
+  end
+
+  defp source_subjects(result) do
+    result
+    |> value(:source_intake)
+    |> value(:subject_attrs)
+    |> List.wrap()
+    |> Enum.filter(&is_map/1)
+    |> Enum.map(&redact_secret_fields/1)
   end
 
   defp current_state_count(result) do

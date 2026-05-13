@@ -104,8 +104,10 @@ defmodule Extravaganza.HeadlessFixtureBackend do
   end
 
   @impl true
-  def fetch_linear_candidates(_context, source_binding, _opts) do
+  def fetch_linear_candidates(_context, source_binding, opts) do
     source_binding_id = Map.get(source_binding, :source_binding_id, "linear-primary")
+    subjects = fixture_linear_subjects(source_binding) |> filter_fixture_subjects(source_binding)
+    page_subjects = page_fixture_subjects(subjects, opts)
 
     {:ok,
      %{
@@ -115,14 +117,12 @@ defmodule Extravaganza.HeadlessFixtureBackend do
        provider_response_received?: true,
        source_intake: %{
          operation: "linear.issues.list",
-         subject_attrs: [
-           %{
-             source_ref: "linear://fixture/issue/ENG-321",
-             source_id: "ENG-321",
-             title: "Investigate rollback",
-             workflow_state: "Todo"
-           }
-         ]
+         source_binding_id: source_binding_id,
+         subject_attrs: page_subjects,
+         page_info: %{
+           has_next_page: length(page_subjects) < length(subjects),
+           end_cursor: if(length(page_subjects) < length(subjects), do: "fixture-cursor-1")
+         }
        },
        viewer_resolution: %{
          output: %{user: %{id: "usr-linear-viewer"}},
@@ -243,6 +243,119 @@ defmodule Extravaganza.HeadlessFixtureBackend do
       true -> "linear.comments.create"
     end
   end
+
+  defp fixture_linear_subjects(source_binding) do
+    source_binding_id = Map.get(source_binding, :source_binding_id, "linear-primary")
+
+    [
+      %{
+        source_ref: "linear://fixture/issue/ENG-321",
+        source_id: "ENG-321",
+        provider: "linear",
+        provider_external_ref: "lin-issue-321",
+        provider_revision: "2026-03-12T10:00:00Z",
+        source_binding_id: source_binding_id,
+        title: "Investigate rollback",
+        description: "The deployment rolled back after the health checks failed.",
+        priority: 2,
+        labels: ["automation", "incident"],
+        branch_ref: "eng-321-investigate-rollback",
+        source_url: "https://linear.app/acme/issue/ENG-321",
+        source_state: "Todo",
+        workflow_state: "Todo",
+        blocker_refs: [
+          %{
+            "provider" => "linear",
+            "relation_type" => "blocks",
+            "direction" => "inbound",
+            "provider_external_ref" => "lin-issue-009",
+            "identifier" => "SEC-9",
+            "source_ref" => "linear://issue/SEC-9",
+            "source_state" => "In Progress",
+            "title" => "Restore deployment credentials",
+            "url" => "https://linear.app/acme/issue/SEC-9"
+          }
+        ],
+        source_routing: %{
+          "assignee" => %{"id" => "usr-linear-viewer", "name" => "Taylor Automation"},
+          "project" => %{"id" => "project-ops", "slug_id" => "ENG", "name" => "Engineering"},
+          "team" => %{"id" => "team-eng", "key" => "ENG", "name" => "Engineering"}
+        },
+        opened_at: "2026-03-12T09:15:00Z"
+      }
+    ]
+  end
+
+  defp filter_fixture_subjects(subjects, source_binding) do
+    filters = map_value(source_binding, :candidate_filters) || %{}
+    state_names = filters |> value(:state_names) |> List.wrap() |> Enum.reject(&is_nil/1)
+    project_slug = value(filters, :project_slug)
+    team_id = value(filters, :team_id)
+
+    Enum.filter(subjects, fn subject ->
+      state_match?(subject, state_names) and project_match?(subject, project_slug) and
+        team_match?(subject, team_id)
+    end)
+  end
+
+  defp state_match?(_subject, []), do: true
+
+  defp state_match?(subject, state_names) do
+    normalized_states = MapSet.new(Enum.map(state_names, &normalize_string/1))
+    MapSet.member?(normalized_states, normalize_string(value(subject, :source_state)))
+  end
+
+  defp project_match?(_subject, nil), do: true
+
+  defp project_match?(subject, project_slug) do
+    project = subject |> value(:source_routing) |> map_value(:project)
+
+    normalize_string(value(project, :slug_id) || value(project, :name)) ==
+      normalize_string(project_slug)
+  end
+
+  defp team_match?(_subject, nil), do: true
+
+  defp team_match?(subject, team_id) do
+    team = subject |> value(:source_routing) |> map_value(:team)
+    value(team, :id) == team_id
+  end
+
+  defp page_fixture_subjects(subjects, opts) do
+    case positive_integer(value(opts, :first) || value(opts, :page_size)) do
+      nil -> subjects
+      first -> Enum.take(subjects, first)
+    end
+  end
+
+  defp positive_integer(value) when is_integer(value) and value > 0, do: value
+
+  defp positive_integer(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {integer, ""} when integer > 0 -> integer
+      _other -> nil
+    end
+  end
+
+  defp positive_integer(_value), do: nil
+
+  defp map_value(attrs, key), do: if(is_map(value(attrs, key)), do: value(attrs, key), else: nil)
+
+  defp value(%{} = attrs, key) when is_atom(key),
+    do: Map.get(attrs, key) || Map.get(attrs, Atom.to_string(key))
+
+  defp value(_attrs, _key), do: nil
+
+  defp normalize_string(value) when is_binary(value) do
+    value
+    |> String.trim()
+    |> String.downcase()
+  end
+
+  defp normalize_string(value) when is_atom(value),
+    do: value |> Atom.to_string() |> normalize_string()
+
+  defp normalize_string(_value), do: ""
 
   defp fixture(name) do
     name
