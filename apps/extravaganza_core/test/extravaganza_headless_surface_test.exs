@@ -144,6 +144,14 @@ defmodule Extravaganza.HeadlessSurfaceTest do
 
     assert refresh.command_kind == "refresh"
     assert refresh.workflow_effect_state == "pending_signal"
+    assert refresh.coalesced? == false
+
+    assert_receive {:headless_refresh_request, refresh_request}
+    assert refresh_request.operations == ["poll", "reconcile"]
+    assert refresh_request.reason == "manual_refresh"
+
+    rendered_refresh = CommandResultPresenter.present(refresh, correlation_id: "corr:refresh")
+    assert rendered_refresh["data"]["coalesced?"] == false
 
     assert {:ok, %CommandResult{} = denied} =
              HeadlessSurface.request_control("subject:fixture", "cancel", %{

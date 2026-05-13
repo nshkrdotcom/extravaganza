@@ -38,6 +38,8 @@ defmodule Extravaganza.TestSupport.FakeHeadlessBackend do
 
   @impl true
   def request_runtime_refresh(_context, request, _opts) do
+    send(self(), {:headless_refresh_request, request})
+
     "command_result.json"
     |> fixture()
     |> Map.merge(%{

@@ -102,7 +102,7 @@ defmodule Extravaganza.HeadlessSurface do
         actor_ref: actor_ref(attrs),
         scope_ref: scope_ref(config, attrs),
         operations: operations(attrs),
-        reason: map_value(attrs, :reason)
+        reason: map_value(attrs, :reason) || "manual_refresh"
       }
 
       AppKitHeadlessSurface.request_refresh(context, request, opts)
@@ -330,7 +330,7 @@ defmodule Extravaganza.HeadlessSurface do
   defp operations(attrs) do
     case map_value(attrs, :operations) do
       value when is_list(value) -> value
-      nil -> ["state_snapshot"]
+      nil -> ["poll", "reconcile"]
       value -> [value]
     end
   end
