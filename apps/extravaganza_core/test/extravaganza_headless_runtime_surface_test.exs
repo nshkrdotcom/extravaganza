@@ -99,10 +99,22 @@ defmodule Extravaganza.HeadlessRuntimeSurfaceTest do
           assert decoded["data"]["data"]["tenant_ref"] == "extravaganza"
           cleanup = decoded["data"]["data"]["health"]["startup_terminal_cleanup"]
           assert cleanup["last_cleanup_at"] == "2026-05-13T00:29:00Z"
-          assert cleanup["candidate_count"] == 2
+          assert cleanup["candidate_count"] == 3
           assert cleanup["cleaned_count"] == 2
           assert cleanup["skipped_count"] == 0
-          assert cleanup["failed_count"] == 0
+          assert cleanup["failed_count"] == 1
+          assert cleanup["attempt_count"] == 3
+
+          assert cleanup["retained_workspace_refs"] == [
+                   "workspace://terminal-failed"
+                 ]
+
+          assert cleanup["failures"] == [
+                   %{
+                     "workspace_ref" => "workspace://terminal-failed",
+                     "reason" => "cleanup_denied"
+                   }
+                 ]
 
         :logs ->
           assert get_in(decoded, [
@@ -114,6 +126,19 @@ defmodule Extravaganza.HeadlessRuntimeSurfaceTest do
                    "tenant_ref"
                  ]) ==
                    "extravaganza"
+
+          cleanup_log =
+            Enum.find(
+              decoded["data"]["data"]["entries"],
+              &(&1["event_kind"] == "startup.terminal_cleanup.completed")
+            )
+
+          assert cleanup_log["payload"]["attempt_count"] == 3
+          assert cleanup_log["payload"]["failed_count"] == 1
+
+          assert cleanup_log["payload"]["retained_workspace_refs"] == [
+                   "workspace://terminal-failed"
+                 ]
       end
     end
   end
@@ -147,7 +172,9 @@ defmodule Extravaganza.HeadlessRuntimeSurfaceTest do
     assert status.health["startup_terminal_cleanup"]["cleaned_count"] == 2
 
     assert {:ok, logs} = HeadlessSurface.runtime_logs(%{}, [])
-    assert [%{event_kind: "runtime_profile_applied"}] = logs.entries
+
+    assert Enum.any?(logs.entries, &(&1.event_kind == "runtime_profile_applied"))
+    assert Enum.any?(logs.entries, &(&1.event_kind == "startup.terminal_cleanup.completed"))
 
     assert {:ok, published} =
              HeadlessSurface.publish_linear_source(%{
@@ -209,13 +236,23 @@ defmodule Extravaganza.HeadlessRuntimeSurfaceTest do
           "runtime" => "ok",
           "startup_terminal_cleanup" => %{
             "last_cleanup_at" => "2026-05-13T00:29:00Z",
-            "candidate_count" => 2,
+            "candidate_count" => 3,
+            "attempt_count" => 3,
             "cleaned_count" => 2,
             "skipped_count" => 0,
-            "failed_count" => 0,
+            "failed_count" => 1,
             "receipt_refs" => [
               "cleanup-receipt://T-100",
               "cleanup-receipt://T-101"
+            ],
+            "retained_workspace_refs" => [
+              "workspace://terminal-failed"
+            ],
+            "failures" => [
+              %{
+                "workspace_ref" => "workspace://terminal-failed",
+                "reason" => "cleanup_denied"
+              }
             ]
           }
         },
@@ -234,9 +271,22 @@ defmodule Extravaganza.HeadlessRuntimeSurfaceTest do
             occurred_at: "2026-05-11T00:00:00Z",
             summary: "Runtime profile applied",
             payload: %{"tenant_ref" => context.tenant_ref.id}
+          },
+          %{
+            ref: "runtime-log:fixture:2",
+            event_kind: "startup.terminal_cleanup.completed",
+            occurred_at: "2026-05-13T00:29:00Z",
+            summary: "Startup terminal workspace cleanup completed with retained workspaces",
+            payload: %{
+              "tenant_ref" => context.tenant_ref.id,
+              "attempt_count" => 3,
+              "cleaned_count" => 2,
+              "failed_count" => 1,
+              "retained_workspace_refs" => ["workspace://terminal-failed"]
+            }
           }
         ],
-        total_count: 1,
+        total_count: 2,
         has_more?: false
       })
     end
