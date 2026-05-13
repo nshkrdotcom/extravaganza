@@ -541,7 +541,14 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert provider_effect["provider_response_received?"] == true
     assert provider_effect["receipt_recorded?"] == true
     assert provider_effect["product_readback_confirmed?"] == true
+    assert provider_effect["session_start_confirmed?"] == true
     assert provider_effect["session_ref"] == "session://codex/live-product"
+    assert provider_effect["runtime_control_session_ref"] == "runtime-session://asm-live-product"
+    assert provider_effect["session_start_event_kind"] == "codex.session.started"
+
+    assert provider_effect["session_start_lower_receipt_ref"] ==
+             "lower-receipt://codex/session-start/asm-live-product/started"
+
     assert provider_effect["turn_ref"] == "turn://codex/live-product/1"
     assert provider_effect["lower_request_ref"] == "lower-request://codex/session-turn"
     assert provider_effect["lower_receipt_ref"] == "lower-receipt://codex/session-turn/succeeded"
@@ -1181,6 +1188,9 @@ defmodule Extravaganza.HeadlessExamplesTest do
     @turn_ref "turn://codex/live-product/1"
     @lower_request_ref "lower-request://codex/session-turn"
     @lower_receipt_ref "lower-receipt://codex/session-turn/succeeded"
+    @runtime_control_session_ref "runtime-session://asm-live-product"
+    @session_start_lower_request_ref "lower-request://codex/session-start"
+    @session_start_lower_receipt_ref "lower-receipt://codex/session-start/asm-live-product/started"
     @observed_at ~U[2026-05-12 00:00:00Z]
 
     @impl true
@@ -1228,16 +1238,41 @@ defmodule Extravaganza.HeadlessExamplesTest do
                updated_at: @observed_at,
                provider_refs: %{"codex" => "provider-ref://codex/live-product"},
                extensions: %{
+                 "codex_app_server_session_start" => %{
+                   "confirmed?" => true,
+                   "operation" => "codex.session.start",
+                   "lifecycle" => "started",
+                   "runtime_control_session_ref" => @runtime_control_session_ref,
+                   "lower_request_ref" => @session_start_lower_request_ref,
+                   "lower_receipt_ref" => @session_start_lower_receipt_ref
+                 },
                  "source_publication" => %{
                    "status" => "not_applicable",
                    "capability_id" => "codex.session.turn"
                  }
                }
              }),
+           {:ok, session_start_event} <-
+             RuntimeEventRow.new(%{
+               event_ref: "event://codex/live-product/session-start",
+               event_seq: 1,
+               event_kind: "codex.session.started",
+               observed_at: @observed_at,
+               subject_ref: "subject://extravaganza/live-codex-turn",
+               run_ref: run_ref,
+               workflow_ref: @workflow_ref,
+               session_ref: @runtime_control_session_ref,
+               turn_ref: @turn_ref,
+               payload_ref: "payload://codex/live-product/session-start",
+               extensions: %{
+                 "lower_request_ref" => @session_start_lower_request_ref,
+                 "lower_receipt_ref" => @session_start_lower_receipt_ref
+               }
+             }),
            {:ok, event} <-
              RuntimeEventRow.new(%{
                event_ref: "event://codex/live-product/terminal",
-               event_seq: 1,
+               event_seq: 2,
                event_kind: "run.terminal",
                observed_at: @observed_at,
                subject_ref: "subject://extravaganza/live-codex-turn",
@@ -1249,7 +1284,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
         RuntimeRunDetail.new(%{
           run_ref: run_ref,
           runtime_row: runtime_row,
-          events: [event],
+          events: [session_start_event, event],
           turns: [
             %{
               "turn_ref" => @turn_ref,
@@ -1259,6 +1294,11 @@ defmodule Extravaganza.HeadlessExamplesTest do
               "credential_redeemed?" => true,
               "provider_request_sent?" => true,
               "provider_response_received?" => true,
+              "session_start_confirmed?" => true,
+              "runtime_control_session_ref" => @runtime_control_session_ref,
+              "session_start_event_kind" => "codex.session.started",
+              "session_start_lower_request_ref" => @session_start_lower_request_ref,
+              "session_start_lower_receipt_ref" => @session_start_lower_receipt_ref,
               "lower_request_ref" => @lower_request_ref,
               "lower_receipt_ref" => @lower_receipt_ref
             }

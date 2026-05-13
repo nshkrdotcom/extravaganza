@@ -546,6 +546,7 @@ defmodule Extravaganza.HeadlessLiveExamples do
              surface_opts
            ) do
       turn = codex_turn_readback(run_detail)
+      session_start = codex_session_start_readback(run_detail, turn)
       lower_receipt_ref = value(turn, :lower_receipt_ref)
       provider_response_received? = truthy?(value(turn, :provider_response_received?))
 
@@ -565,6 +566,13 @@ defmodule Extravaganza.HeadlessLiveExamples do
         "run_ref" => future.run_ref,
         "workflow_ref" => future.workflow_ref,
         "session_ref" => value(turn, :session_ref) || runtime_session_ref(run_detail),
+        "session_start_confirmed?" => codex_session_start_confirmed?(session_start),
+        "runtime_control_session_ref" => value(session_start, :runtime_control_session_ref),
+        "session_start_event_kind" => value(session_start, :session_start_event_kind),
+        "session_start_lower_request_ref" =>
+          value(session_start, :session_start_lower_request_ref),
+        "session_start_lower_receipt_ref" =>
+          value(session_start, :session_start_lower_receipt_ref),
         "turn_ref" => value(turn, :turn_ref),
         "lower_request_ref" => value(turn, :lower_request_ref),
         "lower_receipt_ref" => lower_receipt_ref
@@ -986,13 +994,84 @@ defmodule Extravaganza.HeadlessLiveExamples do
     end) || %{}
   end
 
+  defp codex_session_start_readback(%RuntimeRunDetail{} = run_detail, turn) do
+    %{}
+    |> Map.merge(codex_session_start_from_extension(run_detail))
+    |> Map.merge(codex_session_start_from_event(run_detail))
+    |> Map.merge(codex_session_start_from_turn(turn))
+  end
+
+  defp codex_session_start_from_turn(turn) do
+    %{
+      "confirmed?" => if(truthy?(value(turn, :session_start_confirmed?)), do: true),
+      "runtime_control_session_ref" => value(turn, :runtime_control_session_ref),
+      "session_start_event_kind" => value(turn, :session_start_event_kind),
+      "session_start_lower_request_ref" => value(turn, :session_start_lower_request_ref),
+      "session_start_lower_receipt_ref" => value(turn, :session_start_lower_receipt_ref)
+    }
+    |> compact_map()
+  end
+
+  defp codex_session_start_from_extension(%RuntimeRunDetail{runtime_row: runtime_row}) do
+    runtime_row
+    |> value(:extensions)
+    |> value("codex_app_server_session_start")
+    |> case do
+      %{} = evidence ->
+        %{
+          "confirmed?" => if(truthy?(value(evidence, "confirmed?")), do: true),
+          "runtime_control_session_ref" => value(evidence, :runtime_control_session_ref),
+          "session_start_event_kind" =>
+            session_start_event_kind_from_lifecycle(value(evidence, :lifecycle)),
+          "session_start_lower_request_ref" => value(evidence, :lower_request_ref),
+          "session_start_lower_receipt_ref" => value(evidence, :lower_receipt_ref)
+        }
+        |> compact_map()
+
+      _missing ->
+        %{}
+    end
+  end
+
+  defp codex_session_start_from_event(%RuntimeRunDetail{} = run_detail) do
+    run_detail.events
+    |> List.wrap()
+    |> Enum.find(&(value(&1, :event_kind) in ["codex.session.started", "codex.session.reused"]))
+    |> case do
+      nil ->
+        %{}
+
+      event ->
+        extensions = value(event, :extensions) || %{}
+
+        %{
+          "confirmed?" => true,
+          "runtime_control_session_ref" => value(event, :session_ref),
+          "session_start_event_kind" => value(event, :event_kind),
+          "session_start_lower_request_ref" => value(extensions, :lower_request_ref),
+          "session_start_lower_receipt_ref" => value(extensions, :lower_receipt_ref)
+        }
+        |> compact_map()
+    end
+  end
+
+  defp codex_session_start_confirmed?(evidence) do
+    truthy?(value(evidence, "confirmed?")) or
+      truthy?(value(evidence, :session_start_confirmed?)) or
+      present?(value(evidence, :runtime_control_session_ref))
+  end
+
+  defp session_start_event_kind_from_lifecycle("started"), do: "codex.session.started"
+  defp session_start_event_kind_from_lifecycle(:started), do: "codex.session.started"
+  defp session_start_event_kind_from_lifecycle("reused"), do: "codex.session.reused"
+  defp session_start_event_kind_from_lifecycle(:reused), do: "codex.session.reused"
+  defp session_start_event_kind_from_lifecycle(_lifecycle), do: nil
+
   defp runtime_session_ref(%RuntimeRunDetail{runtime_row: runtime_row}) do
     runtime_row
     |> value(:session_ref)
     |> value(:id)
   end
-
-  defp runtime_session_ref(_run_detail), do: nil
 
   defp redact_secret_fields(%_{} = struct) do
     struct
