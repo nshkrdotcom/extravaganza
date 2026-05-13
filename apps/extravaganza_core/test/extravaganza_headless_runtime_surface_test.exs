@@ -62,6 +62,19 @@ defmodule Extravaganza.HeadlessRuntimeSurfaceTest do
              "runtime-profile://symphony-workflow"
 
     assert decoded["runtime_profile_ref"] == "runtime-profile://symphony-workflow"
+
+    remote_semantics =
+      decoded["data"]["profile"]["app_kit_runtime_profile"]["placement_profile"]["metadata"][
+        "remote_workspace_semantics"
+      ]
+
+    assert remote_semantics["replacement"] == "mezzanine_runtime_placement"
+
+    assert remote_semantics["ssh_command_execution"] ==
+             "delegated_to_governed_runtime_placement"
+
+    assert remote_semantics["direct_product_ssh"] == false
+    assert remote_semantics["ssh_hosts"] == ["worker-a"]
     refute output =~ @secret
   end
 
@@ -159,6 +172,10 @@ defmodule Extravaganza.HeadlessRuntimeSurfaceTest do
       project_slug: ENG
     codex:
       command: codex app-server
+    worker:
+      ssh_hosts:
+        - worker-a
+      max_concurrent_agents_per_host: 2
     ---
     Ship {{ issue.identifier }}
     """)

@@ -82,6 +82,16 @@ defmodule Extravaganza.SymphonyWorkflowImportTest do
              "max_concurrent_agents_per_host" => 2
            }
 
+    assert app_kit_profile["placement_profile"]["metadata"]["remote_workspace_semantics"] == %{
+             "source" => "symphony.worker",
+             "replacement" => "mezzanine_runtime_placement",
+             "ssh_command_execution" => "delegated_to_governed_runtime_placement",
+             "workspace_path_semantics" => "logical_workspace_ref_plus_runtime_file_scope",
+             "direct_product_ssh" => false,
+             "ssh_hosts" => ["worker-a", "worker-b"],
+             "max_concurrent_agents_per_host" => 2
+           }
+
     refute inspect(profile) =~ @secret
   end
 

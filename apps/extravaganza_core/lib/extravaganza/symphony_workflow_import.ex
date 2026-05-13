@@ -607,9 +607,24 @@ defmodule Extravaganza.SymphonyWorkflowImport do
           "tracker_terminal_states" => config["tracker"]["terminal_states"],
           "polling_interval_ms" => config["polling"]["interval_ms"],
           "max_concurrent_agents" => config["agent"]["max_concurrent_agents"],
-          "max_concurrent_agents_by_state" => config["agent"]["max_concurrent_agents_by_state"]
+          "max_concurrent_agents_by_state" => config["agent"]["max_concurrent_agents_by_state"],
+          "remote_workspace_semantics" => remote_workspace_semantics(config)
         }
       }
+    }
+  end
+
+  defp remote_workspace_semantics(config) do
+    worker = config["worker"] || %{}
+
+    %{
+      "source" => "symphony.worker",
+      "replacement" => "mezzanine_runtime_placement",
+      "ssh_command_execution" => "delegated_to_governed_runtime_placement",
+      "workspace_path_semantics" => "logical_workspace_ref_plus_runtime_file_scope",
+      "direct_product_ssh" => false,
+      "ssh_hosts" => worker["ssh_hosts"] || [],
+      "max_concurrent_agents_per_host" => worker["max_concurrent_agents_per_host"]
     }
   end
 
