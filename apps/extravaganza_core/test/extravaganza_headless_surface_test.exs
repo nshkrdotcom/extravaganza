@@ -141,7 +141,19 @@ defmodule Extravaganza.HeadlessSurfaceTest do
     assert {:ok, %RuntimeRunDetail{} = run} = HeadlessSurface.run_detail("run:fixture")
     rendered_run = RunPresenter.present(run)
 
-    assert Enum.map(rendered_run["data"]["events"], & &1["event_seq"]) == [1, 2]
+    assert Enum.map(rendered_run["data"]["events"], & &1["event_seq"]) == [1, 2, 3]
+
+    stale_retry_event =
+      Enum.find(
+        rendered_run["data"]["events"],
+        &(&1["event_kind"] == "retry.stale_token_ignored")
+      )
+
+    assert stale_retry_event["message_summary"] == "Stale retry timer ignored"
+    assert stale_retry_event["extensions"]["safe_action"] == "ignore_retry"
+    assert stale_retry_event["extensions"]["dispatch_allowed?"] == false
+    assert stale_retry_event["extensions"]["current_retry_retained?"] == true
+
     assert rendered_run["data"]["memory_proof_refs"] == []
     assert rendered_run["data"]["persistence_posture"]["durable?"] == false
 

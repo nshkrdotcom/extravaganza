@@ -48,6 +48,7 @@
     }
   },
   "events": [
+    {"event_ref": "event:run:3", "event_seq": 3, "event_kind": "retry.stale_token_ignored", "observed_at": "2026-04-27T00:03:00Z", "run_ref": "run:fixture", "attempt_ref": "attempt:fixture:stale", "message_summary": "Stale retry timer ignored", "extensions": {"safe_action": "ignore_retry", "reason": "stale_retry_token", "dispatch_allowed?": false, "current_retry_retained?": true}},
     {"event_ref": "event:run:2", "event_seq": 2, "event_kind": "lower_receipt_observed", "observed_at": "2026-04-27T00:02:00Z", "run_ref": "run:fixture", "message_summary": "Lower receipt observed"},
     {"event_ref": "event:run:1", "event_seq": 1, "event_kind": "run_started", "observed_at": "2026-04-27T00:01:00Z", "run_ref": "run:fixture", "message_summary": "Run started"}
   ],
