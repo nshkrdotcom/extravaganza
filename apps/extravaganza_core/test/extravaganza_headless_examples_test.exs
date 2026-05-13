@@ -30,6 +30,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     on_exit(fn ->
       Process.delete(:headless_examples_test_pid)
       Process.delete(:codex_agent_prompt_readback)
+      Process.delete(:codex_agent_continuation_readback)
       Process.delete(:headless_examples_source_response)
 
       if previous_backend do
@@ -552,6 +553,19 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert provider_effect["prompt_rendered?"] == true
     assert provider_effect["prompt_body_redacted?"] == true
     assert provider_effect["prompt_body_included?"] == false
+    assert provider_effect["turn_count"] == 2
+    assert provider_effect["max_turns"] == 2
+    assert provider_effect["continuation_turn_count"] == 1
+    assert provider_effect["continuation_turns_confirmed?"] == true
+
+    assert provider_effect["continuation_guidance_ref"] ==
+             "continuation-guidance://extravaganza/live-codex-turn/2"
+
+    assert provider_effect["continuation_guidance_rendered?"] == true
+    assert provider_effect["continuation_prompt_body_redacted?"] == true
+    assert provider_effect["continuation_prompt_body_included?"] == false
+    assert provider_effect["first_prompt_reused_on_continuation?"] == false
+    assert provider_effect["max_turns_reached?"] == true
     assert provider_effect["session_start_confirmed?"] == true
     assert provider_effect["session_ref"] == "session://codex/live-product"
     assert provider_effect["runtime_control_session_ref"] == "runtime-session://asm-live-product"
@@ -600,6 +614,16 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert request.params.initial_input.body_redacted? == true
     assert request.params.initial_input.body =~ "Issue: LIVE-CODEX-001"
     assert request.params.initial_input.body =~ "Confirm the live Codex product path"
+    assert request.params.max_turns == 2
+    assert request.params.continuation_policy.mode == "until_max_turns"
+    assert request.params.continuation_policy.active_state? == true
+
+    assert request.params.continuation_input.input_ref ==
+             "continuation-guidance://extravaganza/live-codex-turn/2"
+
+    assert request.params.continuation_input.body =~ "Continuation guidance"
+    refute request.params.continuation_input.body =~ "Issue: LIVE-CODEX-001"
+    refute request.params.continuation_input.body =~ "Confirm the live Codex product path"
     refute Map.has_key?(request.params, :prompt)
     assert Keyword.fetch!(opts, :trace_id) == "trace:live-codex-product"
 
@@ -608,6 +632,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     refute Map.has_key?(provider_effect, "prompt")
     refute output =~ "SECRET_PROMPT_BODY_DO_NOT_EXPOSE"
     refute output =~ "Preserve unrelated user work"
+    refute output =~ "FIRST_PROMPT_SECRET_BODY"
     refute output =~ "env-codex"
     refute output =~ "live_provider_effect_deferred"
   end
@@ -1247,6 +1272,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
       end
 
       initial_input = Map.fetch!(request.params, :initial_input)
+      continuation_input = Map.fetch!(request.params, :continuation_input)
 
       Process.put(:codex_agent_prompt_readback, %{
         "confirmed?" => true,
@@ -1257,6 +1283,21 @@ defmodule Extravaganza.HeadlessExamplesTest do
         "prompt_body_redacted?" => Map.fetch!(initial_input, :body_redacted?),
         "prompt_body_included?" => false,
         "source" => "product_profile"
+      })
+
+      Process.put(:codex_agent_continuation_readback, %{
+        "confirmed?" => true,
+        "turn_count" => Map.fetch!(request.params, :max_turns),
+        "continuation_turn_count" => 1,
+        "max_turns" => Map.fetch!(request.params, :max_turns),
+        "max_turns_reached?" => true,
+        "continuation_guidance_ref" => Map.fetch!(continuation_input, :input_ref),
+        "continuation_guidance_hash" => Map.fetch!(continuation_input, :content_hash),
+        "continuation_guidance_source_ref" => Map.fetch!(continuation_input, :source_ref),
+        "continuation_guidance_rendered?" => Map.fetch!(continuation_input, :rendered?),
+        "continuation_prompt_body_redacted?" => Map.fetch!(continuation_input, :body_redacted?),
+        "continuation_prompt_body_included?" => false,
+        "first_prompt_reused_on_continuation?" => false
       })
 
       RunOutcomeFuture.new(%{
@@ -1290,6 +1331,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
       end
 
       first_prompt = Process.get(:codex_agent_prompt_readback)
+      continuation = Process.get(:codex_agent_continuation_readback)
 
       with {:ok, runtime_row} <-
              RuntimeRow.new(%{
@@ -1309,6 +1351,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
                    "lower_receipt_ref" => @session_start_lower_receipt_ref
                  },
                  "codex_first_prompt" => first_prompt,
+                 "codex_continuation" => continuation,
                  "codex_app_server_protocol" => %{
                    "confirmed?" => true,
                    "transport" => "app_server",
@@ -1384,25 +1427,46 @@ defmodule Extravaganza.HeadlessExamplesTest do
                  "cwd_validation_confirmed?" => true
                }
              }),
+           {:ok, continuation_event} <-
+             RuntimeEventRow.new(%{
+               event_ref: "event://codex/live-product/continuation-2",
+               event_seq: 4,
+               event_kind: "codex.continuation_turn.confirmed",
+               observed_at: @observed_at,
+               subject_ref: "subject://extravaganza/live-codex-turn",
+               run_ref: run_ref,
+               workflow_ref: @workflow_ref,
+               session_ref: @runtime_control_session_ref,
+               turn_ref: "turn://codex/live-product/2",
+               payload_ref: "payload://codex/live-product/continuation-2",
+               extensions: continuation
+             }),
            {:ok, event} <-
              RuntimeEventRow.new(%{
                event_ref: "event://codex/live-product/terminal",
-               event_seq: 4,
+               event_seq: 5,
                event_kind: "run.terminal",
                observed_at: @observed_at,
                subject_ref: "subject://extravaganza/live-codex-turn",
                run_ref: run_ref,
                workflow_ref: @workflow_ref,
-               turn_ref: @turn_ref,
+               turn_ref: "turn://codex/live-product/2",
                payload_ref: "payload://codex/live-product/terminal"
              }) do
         RuntimeRunDetail.new(%{
           run_ref: run_ref,
           runtime_row: runtime_row,
-          events: [session_start_event, first_prompt_event, app_server_protocol_event, event],
+          events: [
+            session_start_event,
+            first_prompt_event,
+            app_server_protocol_event,
+            continuation_event,
+            event
+          ],
           turns: [
             %{
               "turn_ref" => @turn_ref,
+              "turn_index" => 1,
               "status" => "completed",
               "session_ref" => @session_ref,
               "operation" => "codex.session.turn",
@@ -1434,6 +1498,33 @@ defmodule Extravaganza.HeadlessExamplesTest do
               "provider_turn_id" => @provider_turn_id,
               "lower_request_ref" => @lower_request_ref,
               "lower_receipt_ref" => @lower_receipt_ref
+            },
+            %{
+              "turn_ref" => "turn://codex/live-product/2",
+              "turn_index" => 2,
+              "status" => "completed",
+              "session_ref" => @session_ref,
+              "operation" => "codex.session.turn",
+              "credential_redeemed?" => true,
+              "provider_request_sent?" => true,
+              "provider_response_received?" => true,
+              "continuation?" => true,
+              "continuation_guidance_ref" => continuation["continuation_guidance_ref"],
+              "continuation_guidance_hash" => continuation["continuation_guidance_hash"],
+              "continuation_guidance_source_ref" =>
+                continuation["continuation_guidance_source_ref"],
+              "continuation_guidance_rendered?" =>
+                continuation["continuation_guidance_rendered?"],
+              "continuation_prompt_body_redacted?" =>
+                continuation["continuation_prompt_body_redacted?"],
+              "continuation_prompt_body_included?" =>
+                continuation["continuation_prompt_body_included?"],
+              "first_prompt_reused_on_continuation?" =>
+                continuation["first_prompt_reused_on_continuation?"],
+              "provider_session_id" => @provider_session_id,
+              "provider_turn_id" => "codex-provider-turn-live-product-2",
+              "lower_request_ref" => "lower-request://codex/session-turn/2",
+              "lower_receipt_ref" => "lower-receipt://codex/session-turn/2/succeeded"
             }
           ],
           candidate_fact_refs: [],

@@ -548,6 +548,7 @@ defmodule Extravaganza.HeadlessLiveExamples do
            ) do
       turn = codex_turn_readback(run_detail)
       first_prompt = codex_first_prompt_readback(run_detail, turn)
+      continuation = codex_continuation_readback(run_detail)
       session_start = codex_session_start_readback(run_detail, turn)
       app_server_protocol = codex_app_server_protocol_readback(run_detail, turn)
       lower_receipt_ref = value(turn, :lower_receipt_ref)
@@ -577,6 +578,23 @@ defmodule Extravaganza.HeadlessLiveExamples do
         "prompt_rendered?" => truthy?(value(first_prompt, :prompt_rendered?)),
         "prompt_body_redacted?" => truthy?(value(first_prompt, :prompt_body_redacted?)),
         "prompt_body_included?" => truthy?(value(first_prompt, :prompt_body_included?)),
+        "turn_count" => value(continuation, :turn_count),
+        "max_turns" => value(continuation, :max_turns),
+        "continuation_turn_count" => value(continuation, :continuation_turn_count),
+        "continuation_turns_confirmed?" => codex_continuation_confirmed?(continuation),
+        "continuation_guidance_ref" => value(continuation, :continuation_guidance_ref),
+        "continuation_guidance_hash" => value(continuation, :continuation_guidance_hash),
+        "continuation_guidance_source_ref" =>
+          value(continuation, :continuation_guidance_source_ref),
+        "continuation_guidance_rendered?" =>
+          truthy?(value(continuation, :continuation_guidance_rendered?)),
+        "continuation_prompt_body_redacted?" =>
+          truthy?(value(continuation, :continuation_prompt_body_redacted?)),
+        "continuation_prompt_body_included?" =>
+          truthy?(value(continuation, :continuation_prompt_body_included?)),
+        "first_prompt_reused_on_continuation?" =>
+          truthy?(value(continuation, :first_prompt_reused_on_continuation?)),
+        "max_turns_reached?" => truthy?(value(continuation, :max_turns_reached?)),
         "session_start_confirmed?" => codex_session_start_confirmed?(session_start),
         "runtime_control_session_ref" => value(session_start, :runtime_control_session_ref),
         "session_start_event_kind" => value(session_start, :session_start_event_kind),
@@ -936,6 +954,7 @@ defmodule Extravaganza.HeadlessLiveExamples do
     trace_id = string_value(opts, :trace_id) || "trace://extravaganza/live-codex-turn"
     dedupe_key = "extravaganza-live-codex-turn-#{ref_suffix(config.pack_version)}"
     initial_input = codex_initial_input(config, opts)
+    continuation_input = codex_continuation_input(config, opts)
 
     %{
       tenant_ref: "tenant://#{config.tenant_id}",
@@ -956,8 +975,13 @@ defmodule Extravaganza.HeadlessLiveExamples do
         provider_family: "codex",
         lower_runtime_kind: "codex_session",
         provider_effect?: true,
-        max_turns: 1,
+        max_turns: 2,
         initial_input: initial_input,
+        continuation_policy: %{
+          mode: "until_max_turns",
+          active_state?: true
+        },
+        continuation_input: continuation_input,
         fixture_script: "success_first_try",
         release_manifest_ref: "release-manifest://extravaganza/live-codex-turn/v1"
       }
@@ -977,6 +1001,34 @@ defmodule Extravaganza.HeadlessLiveExamples do
       redaction_policy_ref: "redaction://prompt/excerpt-only",
       template_ref: "prompt-template://extravaganza/live-codex-turn/default"
     }
+  end
+
+  defp codex_continuation_input(%Config{} = _config, _opts) do
+    body = codex_continuation_guidance()
+
+    %{
+      body: body,
+      input_ref: "continuation-guidance://extravaganza/live-codex-turn/2",
+      content_hash: prompt_hash(body),
+      source_ref: "workflow://extravaganza/live-codex-turn/default",
+      rendered?: true,
+      body_redacted?: true,
+      redaction_policy_ref: "redaction://prompt/excerpt-only",
+      template_ref: "continuation-template://extravaganza/live-codex-turn/default"
+    }
+  end
+
+  defp codex_continuation_guidance do
+    """
+    Continuation guidance:
+
+    - The previous Codex turn completed normally, but the live product proof subject is still active.
+    - This is continuation turn #2 of 2 for the current agent run.
+    - Resume from the current workspace and prior thread context instead of restarting from scratch.
+    - Do not restate the original task instructions before acting.
+    - Return one concise sentence confirming continuation handling and do not modify files.
+    """
+    |> String.trim()
   end
 
   defp codex_first_turn_prompt(%Config{} = config) do
@@ -1157,6 +1209,59 @@ defmodule Extravaganza.HeadlessLiveExamples do
     truthy?(value(evidence, "confirmed?")) or
       present?(value(evidence, :prompt_ref)) or
       present?(value(evidence, :prompt_hash))
+  end
+
+  defp codex_continuation_readback(%RuntimeRunDetail{} = run_detail) do
+    %{}
+    |> Map.merge(codex_continuation_from_extension(run_detail))
+    |> Map.merge(codex_continuation_from_event(run_detail))
+    |> Map.merge(codex_continuation_from_turns(run_detail))
+  end
+
+  defp codex_continuation_from_extension(%RuntimeRunDetail{runtime_row: runtime_row}) do
+    runtime_row
+    |> value(:extensions)
+    |> value("codex_continuation")
+    |> case do
+      %{} = evidence -> evidence
+      _missing -> %{}
+    end
+  end
+
+  defp codex_continuation_from_event(%RuntimeRunDetail{} = run_detail) do
+    run_detail.events
+    |> List.wrap()
+    |> Enum.find(&(value(&1, :event_kind) == "codex.continuation_turn.confirmed"))
+    |> case do
+      nil ->
+        %{}
+
+      event ->
+        event
+        |> value(:extensions)
+        |> case do
+          %{} = extensions -> Map.put(extensions, "confirmed?", true)
+          _missing -> %{"confirmed?" => true}
+        end
+    end
+  end
+
+  defp codex_continuation_from_turns(%RuntimeRunDetail{} = run_detail) do
+    turns = List.wrap(run_detail.turns)
+    continuation_turns = Enum.filter(turns, &truthy?(value(&1, :continuation?)))
+
+    %{
+      "turn_count" => if(turns != [], do: length(turns)),
+      "continuation_turn_count" => if(continuation_turns != [], do: length(continuation_turns)),
+      "confirmed?" => if(continuation_turns != [], do: true)
+    }
+    |> compact_map()
+  end
+
+  defp codex_continuation_confirmed?(evidence) do
+    truthy?(value(evidence, "confirmed?")) or
+      truthy?(value(evidence, :confirmed?)) or
+      (value(evidence, :continuation_turn_count) || 0) > 0
   end
 
   defp codex_session_start_readback(%RuntimeRunDetail{} = run_detail, turn) do
