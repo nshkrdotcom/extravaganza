@@ -69,14 +69,26 @@ defmodule ExtravaganzaWeb.PageController do
   end
 
   def operator_console(conn, _params) do
+    {runtime_dashboard, runtime_dashboard_error} = runtime_dashboard()
+
     with {:ok, session} <- OperatorConsole.authorize(operator_console_session()),
          {:ok, console} <- OperatorConsole.render(session, operator_console_sections()) do
-      render(conn, :operator_console, console: console, console_error: nil)
+      render(conn, :operator_console,
+        console: console,
+        console_error: nil,
+        runtime_dashboard: runtime_dashboard,
+        runtime_dashboard_error: runtime_dashboard_error
+      )
     else
       {:error, reason} ->
         conn
         |> put_status(:internal_server_error)
-        |> render(:operator_console, console: nil, console_error: inspect(reason))
+        |> render(:operator_console,
+          console: nil,
+          console_error: inspect(reason),
+          runtime_dashboard: runtime_dashboard,
+          runtime_dashboard_error: runtime_dashboard_error
+        )
     end
   end
 
@@ -177,6 +189,21 @@ defmodule ExtravaganzaWeb.PageController do
 
   defp subject_action_params(params) when is_map(params) do
     Map.drop(params, ["_csrf_token", "action", "subject_id"])
+  end
+
+  defp runtime_dashboard do
+    case ProductHost.state_snapshot(%{}) do
+      {:ok, snapshot} ->
+        dashboard =
+          snapshot
+          |> StatePresenter.present()
+          |> get_in(["data", "operator_dashboard"])
+
+        {dashboard || %{}, nil}
+
+      {:error, reason} ->
+        {%{}, inspect(reason)}
+    end
   end
 
   defp operator_console_session do

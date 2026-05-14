@@ -35,6 +35,11 @@ defmodule Extravaganza.HeadlessDocsTest do
     assert live_guide =~ "headless_runtime_logs.v1"
     assert live_guide =~ "`startup.terminal_cleanup.completed`"
     assert live_guide =~ "Log presenters redact secret-like fields"
+    assert live_guide =~ "## Operator Dashboard Replacement"
+    assert live_guide =~ "`operator_dashboard` projection"
+    assert live_guide =~ "tokens-per-second throughput"
+    assert live_guide =~ "open http://localhost:4000/operator-console"
+    assert live_guide =~ "curl http://localhost:4000/api/v1/events"
 
     assert credentials_guide =~
              "~/scripts/with_bash_secrets mix extravaganza.headless.live.linear_source --live-product-path --json"

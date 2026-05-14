@@ -98,6 +98,39 @@ absolute paths. Durable log storage and sink configuration remain AppKit/
 Mezzanine runtime responsibilities; Extravaganza owns the product command,
 request shape, API envelope, and operator documentation.
 
+## Operator Dashboard Replacement
+
+Extravaganza intentionally replaces Symphony's terminal `StatusDashboard` with
+the product-owned `/operator-console` browser surface plus the same JSON
+readbacks exposed by `/api/v1/state`, `/api/v1/status`, `/api/v1/events`, and
+`/api/v1/logs`. The replacement dashboard is derived from AppKit runtime
+readback through `StatePresenter.present/2`; the web layer does not query lower
+stores, provider SDKs, or ambient OS environment variables.
+
+The `operator_dashboard` projection in `headless_state_snapshot.v1` includes
+the former terminal dashboard data: running, retrying, and completed counts;
+running rows with session id, turn count, last event, last message, timestamp,
+workspace summary, and token totals; retry rows with attempts, due times, and
+errors; aggregate input, output, and total token counts; runtime seconds and
+tokens-per-second throughput; Codex rate-limit summaries; polling and refresh
+timing; and links to the queue, state, status, events, and logs surfaces.
+
+Use the browser surface for operator scanning:
+
+```bash
+mix phx.server
+open http://localhost:4000/operator-console
+```
+
+Use JSON when automating the same proof:
+
+```bash
+curl http://localhost:4000/api/v1/state
+curl http://localhost:4000/api/v1/status
+curl http://localhost:4000/api/v1/events
+curl http://localhost:4000/api/v1/logs
+```
+
 ## Deterministic headless proof (recommended first acceptance)
 
 Run one command that exercises most surfaces in one sequence:

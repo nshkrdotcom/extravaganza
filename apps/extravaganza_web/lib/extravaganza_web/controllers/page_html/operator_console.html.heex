@@ -30,6 +30,122 @@
     </div>
   <% end %>
 
+  <%= if @runtime_dashboard_error do %>
+    <div style="padding:1rem 1.1rem; border-radius:0.8rem; border:1px solid rgba(184,76,42,0.28); background:rgba(184,76,42,0.08);">
+      <strong style="display:block; margin-bottom:0.35rem;">Runtime dashboard unavailable</strong>
+      <span style="font-size:0.95rem; line-height:1.6;"><%= @runtime_dashboard_error %></span>
+    </div>
+  <% end %>
+
+  <% dashboard = @runtime_dashboard || %{} %>
+  <% counts = dashboard_map(dashboard, "counts") %>
+  <% token_summary = dashboard_map(dashboard, "token_summary") %>
+  <% throughput = dashboard_map(dashboard, "throughput") %>
+  <% running_rows = dashboard_list(dashboard, "running") %>
+  <% retrying_rows = dashboard_list(dashboard, "retrying") %>
+  <% rate_limits = dashboard_list(dashboard, "rate_limits") %>
+  <% polling = dashboard_map(dashboard, "polling") %>
+  <% links = dashboard_map(dashboard, "surface_links") %>
+
+  <%= if dashboard != %{} do %>
+    <section style="display:grid; gap:1rem;">
+      <div style="display:flex; flex-wrap:wrap; justify-content:space-between; gap:0.75rem; align-items:end;">
+        <div style="display:grid; gap:0.25rem;">
+          <p style="margin:0; letter-spacing:0.14em; text-transform:uppercase; font-size:0.72rem; font-weight:700; color:#7d3a21;">
+            <%= Map.get(dashboard, "replacement_for", "runtime_readback") %>
+          </p>
+          <h2 style="margin:0; font-size:1.45rem; line-height:1.2;">Runtime Dashboard</h2>
+        </div>
+        <div style="display:flex; flex-wrap:wrap; gap:0.55rem;">
+          <%= for {label, href} <- Enum.sort(links) do %>
+            <a href={href} style="display:inline-flex; align-items:center; justify-content:center; padding:0.55rem 0.75rem; border-radius:0.55rem; border:1px solid rgba(20,40,29,0.16); background:rgba(255,255,255,0.82); text-decoration:none; font-size:0.9rem; font-weight:700;">
+              <%= String.capitalize(label) %>
+            </a>
+          <% end %>
+        </div>
+      </div>
+
+      <section style="display:grid; gap:0.8rem; grid-template-columns:repeat(auto-fit, minmax(10rem, 1fr));">
+        <article style="padding:0.95rem 1rem; border-radius:0.75rem; border:1px solid rgba(20,40,29,0.14); background:rgba(255,255,255,0.82);">
+          <p style="margin:0 0 0.35rem; font-size:0.72rem; letter-spacing:0.12em; text-transform:uppercase; color:#7d3a21; font-weight:700;">Running</p>
+          <strong style="font-size:1.7rem;"><%= Map.get(counts, "running", 0) %></strong>
+        </article>
+        <article style="padding:0.95rem 1rem; border-radius:0.75rem; border:1px solid rgba(20,40,29,0.14); background:rgba(255,255,255,0.82);">
+          <p style="margin:0 0 0.35rem; font-size:0.72rem; letter-spacing:0.12em; text-transform:uppercase; color:#7d3a21; font-weight:700;">Retrying</p>
+          <strong style="font-size:1.7rem;"><%= Map.get(counts, "retrying", 0) %></strong>
+        </article>
+        <article style="padding:0.95rem 1rem; border-radius:0.75rem; border:1px solid rgba(20,40,29,0.14); background:rgba(255,255,255,0.82);">
+          <p style="margin:0 0 0.35rem; font-size:0.72rem; letter-spacing:0.12em; text-transform:uppercase; color:#7d3a21; font-weight:700;">Completed</p>
+          <strong style="font-size:1.7rem;"><%= Map.get(counts, "completed", 0) %></strong>
+        </article>
+        <article style="padding:0.95rem 1rem; border-radius:0.75rem; border:1px solid rgba(20,40,29,0.14); background:rgba(255,255,255,0.82);">
+          <p style="margin:0 0 0.35rem; font-size:0.72rem; letter-spacing:0.12em; text-transform:uppercase; color:#7d3a21; font-weight:700;">Total Tokens</p>
+          <strong style="font-size:1.7rem;"><%= token_summary |> Map.get("total_tokens", 0) |> format_dashboard_int() %></strong>
+        </article>
+        <article style="padding:0.95rem 1rem; border-radius:0.75rem; border:1px solid rgba(20,40,29,0.14); background:rgba(255,255,255,0.82);">
+          <p style="margin:0 0 0.35rem; font-size:0.72rem; letter-spacing:0.12em; text-transform:uppercase; color:#7d3a21; font-weight:700;">Throughput</p>
+          <strong style="font-size:1.7rem;"><%= throughput |> Map.get("tokens_per_second", 0.0) |> format_dashboard_tps() %></strong>
+        </article>
+        <article style="padding:0.95rem 1rem; border-radius:0.75rem; border:1px solid rgba(20,40,29,0.14); background:rgba(255,255,255,0.82);">
+          <p style="margin:0 0 0.35rem; font-size:0.72rem; letter-spacing:0.12em; text-transform:uppercase; color:#7d3a21; font-weight:700;">Rate Limits</p>
+          <strong style="font-size:1.7rem;"><%= length(rate_limits) %></strong>
+        </article>
+      </section>
+
+      <section style="display:grid; gap:1rem; grid-template-columns:repeat(auto-fit, minmax(18rem, 1fr));">
+        <article style="display:grid; gap:0.75rem; padding:1rem; border-radius:0.8rem; border:1px solid rgba(20,40,29,0.14); background:rgba(255,255,255,0.82);">
+          <strong>Running Work</strong>
+          <%= for row <- running_rows do %>
+            <% row_tokens = dashboard_map(row, "tokens") %>
+            <div style="display:grid; gap:0.35rem; padding:0.75rem; border-radius:0.65rem; background:rgba(20,40,29,0.06);">
+              <div style="display:flex; flex-wrap:wrap; gap:0.55rem; align-items:center;">
+                <code><%= Map.get(row, "subject_ref") %></code>
+                <span><%= Map.get(row, "state") %></span>
+              </div>
+              <div style="display:flex; flex-wrap:wrap; gap:0.55rem; font-size:0.92rem;">
+                <span><%= Map.get(row, "session_id") %></span>
+                <span><%= Map.get(row, "turn_count", 0) %> turns</span>
+                <span><%= row_tokens |> Map.get("total_tokens", 0) |> format_dashboard_int() %> tokens</span>
+              </div>
+              <span style="font-size:0.92rem; line-height:1.45;"><%= Map.get(row, "last_event") %>: <%= Map.get(row, "last_message") %></span>
+            </div>
+          <% end %>
+        </article>
+
+        <article style="display:grid; gap:0.75rem; padding:1rem; border-radius:0.8rem; border:1px solid rgba(20,40,29,0.14); background:rgba(255,255,255,0.82);">
+          <strong>Retry Queue</strong>
+          <%= for row <- retrying_rows do %>
+            <div style="display:grid; gap:0.35rem; padding:0.75rem; border-radius:0.65rem; background:rgba(20,40,29,0.06);">
+              <code><%= Map.get(row, "attempt") %></code>
+              <span style="font-size:0.92rem;"><%= Map.get(row, "status") %> - <%= Map.get(row, "error") %></span>
+              <span style="font-size:0.92rem;"><%= Map.get(row, "due_at") %></span>
+            </div>
+          <% end %>
+        </article>
+
+        <article style="display:grid; gap:0.75rem; padding:1rem; border-radius:0.8rem; border:1px solid rgba(20,40,29,0.14); background:rgba(255,255,255,0.82);">
+          <strong>Rate Limits</strong>
+          <%= for row <- rate_limits do %>
+            <div style="display:grid; gap:0.35rem; padding:0.75rem; border-radius:0.65rem; background:rgba(20,40,29,0.06);">
+              <code><%= Map.get(row, "limit_id") %></code>
+              <span style="font-size:0.92rem;"><%= Map.get(row, "remaining") %> remaining - <%= Map.get(row, "window") %></span>
+              <span style="font-size:0.92rem;"><%= Map.get(row, "reset_at") %></span>
+            </div>
+          <% end %>
+        </article>
+
+        <article style="display:grid; gap:0.75rem; padding:1rem; border-radius:0.8rem; border:1px solid rgba(20,40,29,0.14); background:rgba(255,255,255,0.82);">
+          <strong>Refresh</strong>
+          <div style="display:grid; gap:0.35rem; padding:0.75rem; border-radius:0.65rem; background:rgba(20,40,29,0.06);">
+            <span style="font-size:0.92rem;">Next poll <%= Map.get(polling, "next_poll_at") %></span>
+            <span style="font-size:0.92rem;"><%= Map.get(polling, "poll_interval_ms", 0) %> ms interval</span>
+            <code><%= Map.get(polling, "last_refresh_command_ref") %></code>
+          </div>
+        </article>
+      </section>
+    </section>
+  <% end %>
+
   <%= if @console do %>
     <section style="display:grid; gap:1rem; grid-template-columns:repeat(auto-fit, minmax(15rem, 1fr));">
       <article style="padding:1.1rem 1.2rem; border-radius:1.1rem; border:1px solid rgba(20,40,29,0.14); background:rgba(255,255,255,0.82);">

@@ -203,10 +203,16 @@ defmodule Extravaganza.Presenters.StatePresenter do
   defp with_future_slots(data) when is_map(data) do
     data = Map.merge(@future_m2_slots, data)
 
-    data = Map.put_new(data, "symphony_orchestrator_state", symphony_orchestrator_state(data))
+    derived_orchestrator_state = symphony_orchestrator_state(data)
+    data = Map.put_new(data, "symphony_orchestrator_state", derived_orchestrator_state)
+
+    orchestrator_state =
+      map_value(data, "symphony_orchestrator_state") || derived_orchestrator_state
+
     coverage = state_readback_coverage(data)
 
     data
+    |> Map.put("operator_dashboard", operator_dashboard(orchestrator_state))
     |> Map.put("state_readback_coverage", coverage)
     |> Map.put("state_readback_coverage_gaps", state_readback_coverage_gaps(coverage))
   end
@@ -418,6 +424,45 @@ defmodule Extravaganza.Presenters.StatePresenter do
       "running" => Enum.count(rows, &running?/1),
       "retrying" => length(list_value(data, "retry_rows")),
       "completed" => Enum.count(rows, &completed?/1)
+    }
+  end
+
+  defp operator_dashboard(orchestrator_state) do
+    codex_totals = map_value(orchestrator_state, "codex_totals") || empty_codex_totals()
+
+    %{
+      "replacement_for" => "symphony_status_dashboard",
+      "counts" => map_value(orchestrator_state, "counts") || %{},
+      "running" => list_value(orchestrator_state, "running"),
+      "retrying" => list_value(orchestrator_state, "retrying"),
+      "token_summary" => codex_totals,
+      "throughput" => throughput_summary(codex_totals),
+      "rate_limits" => list_value(orchestrator_state, "codex_rate_limits"),
+      "polling" => map_value(orchestrator_state, "polling") || %{},
+      "surface_links" => %{
+        "events" => "/api/v1/events",
+        "logs" => "/api/v1/logs",
+        "queue" => "/queue",
+        "state" => "/api/v1/state",
+        "status" => "/api/v1/status"
+      }
+    }
+  end
+
+  defp throughput_summary(codex_totals) do
+    seconds_running = integer_value(codex_totals, "seconds_running")
+    total_tokens = integer_value(codex_totals, "total_tokens")
+
+    tokens_per_second =
+      if seconds_running > 0 do
+        total_tokens / seconds_running
+      else
+        0.0
+      end
+
+    %{
+      "source" => "codex_totals.seconds_running",
+      "tokens_per_second" => tokens_per_second
     }
   end
 

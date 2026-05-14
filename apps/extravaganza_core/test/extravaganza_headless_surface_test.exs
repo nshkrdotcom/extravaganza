@@ -183,6 +183,46 @@ defmodule Extravaganza.HeadlessSurfaceTest do
 
     assert rendered["data"]["state_readback_coverage_gaps"] == []
 
+    dashboard = rendered["data"]["operator_dashboard"]
+    assert dashboard["replacement_for"] == "symphony_status_dashboard"
+    assert dashboard["counts"] == %{"running" => 1, "retrying" => 2, "completed" => 1}
+
+    assert dashboard["token_summary"] == %{
+             "input_tokens" => 1200,
+             "output_tokens" => 450,
+             "seconds_running" => 0,
+             "source" => "runtime:event:tokens",
+             "total_tokens" => 1650
+           }
+
+    assert dashboard["throughput"] == %{
+             "source" => "codex_totals.seconds_running",
+             "tokens_per_second" => 0.0
+           }
+
+    assert [dashboard_running] = dashboard["running"]
+    assert dashboard_running["session_id"] == "session:running"
+    assert dashboard_running["turn_count"] == 7
+    assert dashboard_running["last_event"] == "turn_completed"
+    assert dashboard_running["last_message"] == "fixture turn completed"
+    assert dashboard_running["tokens"] == running["tokens"]
+
+    assert Enum.map(dashboard["retrying"], & &1["attempt"]) == [
+             "attempt:retrying:2",
+             "attempt:retrying:3"
+           ]
+
+    assert dashboard["rate_limits"] == orchestrator_state["codex_rate_limits"]
+    assert dashboard["polling"] == orchestrator_state["polling"]
+
+    assert dashboard["surface_links"] == %{
+             "events" => "/api/v1/events",
+             "logs" => "/api/v1/logs",
+             "queue" => "/queue",
+             "state" => "/api/v1/state",
+             "status" => "/api/v1/status"
+           }
+
     coverage = rendered["data"]["state_readback_coverage"]
 
     assert Map.keys(coverage) |> Enum.sort() == [
