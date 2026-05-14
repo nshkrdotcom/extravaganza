@@ -220,6 +220,21 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
 
     assert reviews["operation"] == "reviews"
     assert reviews["data"]["schema_ref"] == "headless_reviews.v1"
+    assert reviews["data"]["data"]["review_readback_coverage_gaps"] == []
+
+    review_coverage = reviews["data"]["data"]["review_readback_coverage"]
+    assert review_coverage["pending_queue"]["total_entries"] == 1
+    assert review_coverage["decision_identity"]["decision_refs"] == ["decision:fixture"]
+    assert review_coverage["gate_policy"]["review_kinds"] == ["operator_review"]
+
+    assert review_coverage["workflow_effects"]["effects"] == %{
+             "accept" => ["continue_lower_workflow"],
+             "escalate" => ["pause_lower_workflow"],
+             "reject" => ["request_rework"],
+             "waive" => ["continue_lower_workflow"]
+           }
+
+    assert review_coverage["appkit_review_surface"]["surfaces"] == ["AppKit.ReviewSurface"]
 
     body =
       conn

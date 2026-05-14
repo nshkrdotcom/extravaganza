@@ -2,11 +2,16 @@ defmodule ExtravaganzaProductCoreTest do
   use ExUnit.Case, async: false
 
   alias AppKit.Core.{
+    ActionResult,
     DecisionRef,
+    DecisionSummary,
     EvidenceProjection,
     ExecutionRef,
     ExecutionStateProjection,
     LowerReceiptSummary,
+    PageRequest,
+    PageResult,
+    RequestContext,
     ReviewProjection,
     RunRef,
     RuntimeEventSummary,
@@ -25,8 +30,8 @@ defmodule ExtravaganzaProductCoreTest do
     Config,
     DefaultAuthoringBundle,
     HeadlessSameRunSmoke,
+    HeadlessSurface,
     PolicyPresets,
-    Presenters.StatePresenter,
     ProductBootstrap,
     ProductHost,
     ProductInstallTemplate,
@@ -36,6 +41,8 @@ defmodule ExtravaganzaProductCoreTest do
     RunProfiles.DefaultCodexProfile,
     Workflows
   }
+
+  alias Extravaganza.Presenters.{CommandResultPresenter, ReviewPresenter, StatePresenter}
 
   alias Extravaganza.TestSupport.ExecutionTraceFixture
   alias Extravaganza.TestSupport.LinearIssueFixture
@@ -168,6 +175,99 @@ defmodule ExtravaganzaProductCoreTest do
         })
 
       evidence
+    end
+  end
+
+  defmodule FakeReviewBackend do
+    @behaviour AppKit.Core.Backends.ReviewBackend
+
+    def list_pending(%RequestContext{} = _context, %PageRequest{} = _page_request, _opts) do
+      with {:ok, subject_ref} <-
+             SubjectRef.new(%{id: "subject://review-fixture", subject_kind: "linear_issue"}),
+           {:ok, decision_ref} <-
+             DecisionRef.new(%{
+               id: "review-unit:fixture",
+               decision_kind: "operator_review",
+               subject_ref: subject_ref
+             }),
+           {:ok, summary} <-
+             DecisionSummary.new(%{
+               decision_ref: decision_ref,
+               subject_ref: subject_ref,
+               status: "pending",
+               summary: "Review backend coverage fixture",
+               required_by: ~U[2026-05-09 00:00:00Z],
+               payload: %{
+                 "review_kind" => "operator_review",
+                 "quorum_profile" => %{
+                   "quorum_mode" => "single_decision",
+                   "required_decision_count" => 1
+                 },
+                 "workflow_effects" => %{
+                   "accept" => "continue_lower_workflow",
+                   "reject" => "request_rework",
+                   "waive" => "continue_lower_workflow",
+                   "escalate" => "pause_lower_workflow"
+                 },
+                 "appkit_surfaces" => ["AppKit.ReviewSurface"]
+               }
+             }) do
+        PageResult.new(%{
+          entries: [summary],
+          total_count: 1,
+          has_more: false,
+          metadata: %{"appkit_surfaces" => ["AppKit.ReviewSurface"]}
+        })
+      end
+    end
+
+    def get_review(%RequestContext{} = _context, %DecisionRef{} = decision_ref, _opts) do
+      {:ok, %{decision_ref: decision_ref}}
+    end
+
+    def record_decision(
+          %RequestContext{} = context,
+          %DecisionRef{} = decision_ref,
+          attrs,
+          _opts
+        ) do
+      send(self(), {:review_decision_recorded, context, decision_ref, attrs})
+
+      decision = to_string(Map.get(attrs, :decision, "accept"))
+
+      ActionResult.new(%{
+        status: :completed,
+        action_ref: %{
+          id: "#{decision_ref.id}:#{decision}",
+          action_kind: "review_#{decision}",
+          subject_ref: decision_ref.subject_ref
+        },
+        message: Map.get(attrs, :reason) || Map.get(attrs, "reason"),
+        metadata: %{
+          "review_unit_id" => decision_ref.id,
+          "decision" => decision,
+          "workflow_control_effect" => %{
+            "decision" => decision,
+            "effect" => "continue_lower_workflow",
+            "workflow_signal" => "operator.resume",
+            "workflow_effect_state" => "pending_signal"
+          },
+          "workflow_effect_state" => "pending_signal",
+          "idempotency_key" =>
+            Map.get(attrs, :idempotency_key) || Map.get(attrs, "idempotency_key"),
+          "correlation_id" => Map.get(attrs, :correlation_id) || Map.get(attrs, "correlation_id"),
+          "appkit_surfaces" => ["AppKit.ReviewSurface"]
+        }
+      })
+    end
+
+    def record_decision_by_id(%RequestContext{} = _context, decision_id, attrs, _opts) do
+      ActionResult.new(%{
+        status: :completed,
+        action_ref: %{id: "#{decision_id}:accept", action_kind: "review_accept"},
+        message: Map.get(attrs, :reason) || Map.get(attrs, "reason"),
+        metadata: %{"review_unit_id" => decision_id}
+      })
     end
   end
 
@@ -1146,6 +1246,82 @@ defmodule ExtravaganzaProductCoreTest do
              after_page.page.entries,
              &(&1.decision_ref.id in closed_review_ids)
            )
+  end
+
+  test "headless review queue and decisions expose AppKit review coverage and workflow effects",
+       %{
+         tenant_id: tenant_id,
+         pack_version: pack_version
+       } do
+    activate_fixture_registration!(tenant_id: tenant_id, pack_version: pack_version)
+
+    opts = [
+      tenant_id: tenant_id,
+      pack_version: pack_version,
+      review_backend: FakeReviewBackend
+    ]
+
+    assert {:ok, reviews_page} = HeadlessSurface.list_reviews(%{}, opts)
+
+    rendered_reviews = ReviewPresenter.present_page(reviews_page, correlation_id: "corr:reviews")
+
+    assert rendered_reviews["schema_ref"] == "headless_reviews.v1"
+    assert rendered_reviews["data"]["review_readback_coverage_gaps"] == []
+
+    coverage = rendered_reviews["data"]["review_readback_coverage"]
+
+    assert coverage["pending_queue"]["total_entries"] == 1
+    assert coverage["decision_identity"]["decision_refs"] == ["review-unit:fixture"]
+    assert coverage["gate_policy"]["review_kinds"] == ["operator_review"]
+
+    assert coverage["workflow_effects"]["effects"] == %{
+             "accept" => ["continue_lower_workflow"],
+             "escalate" => ["pause_lower_workflow"],
+             "reject" => ["request_rework"],
+             "waive" => ["continue_lower_workflow"]
+           }
+
+    assert coverage["appkit_review_surface"]["surfaces"] == ["AppKit.ReviewSurface"]
+
+    [entry] = rendered_reviews["data"]["entries"]
+    assert entry["payload"]["quorum_profile"]["quorum_mode"] == "single_decision"
+
+    review_identity = %{
+      id: entry["decision_ref"]["id"],
+      decision_kind: entry["decision_ref"]["decision_kind"],
+      subject_id: entry["subject_ref"]["id"],
+      subject_kind: entry["subject_ref"]["subject_kind"]
+    }
+
+    assert {:ok, result} =
+             HeadlessSurface.record_review_decision(
+               review_identity,
+               %{
+                 decision: :accept,
+                 reason: "accepted from headless coverage test",
+                 idempotency_key: "idem:review",
+                 correlation_id: "corr:review"
+               },
+               opts
+             )
+
+    assert_receive {:review_decision_recorded, _context, _decision_ref, _attrs}
+
+    rendered_result = CommandResultPresenter.present(result, correlation_id: "corr:review")
+
+    assert rendered_result["schema_ref"] == "headless_command_result.v1"
+    assert rendered_result["data"]["command_kind"] == "review_decision"
+    assert rendered_result["data"]["status"] == "completed"
+    assert rendered_result["data"]["action_kind"] == "review_accept"
+    assert rendered_result["data"]["idempotency_key"] == "idem:review"
+    assert rendered_result["data"]["correlation_id"] == "corr:review"
+
+    assert rendered_result["data"]["metadata"]["workflow_control_effect"] == %{
+             "decision" => "accept",
+             "effect" => "continue_lower_workflow",
+             "workflow_effect_state" => "pending_signal",
+             "workflow_signal" => "operator.resume"
+           }
   end
 
   test "product-local operator detail exposes actions, trace, and leased read surfaces", %{

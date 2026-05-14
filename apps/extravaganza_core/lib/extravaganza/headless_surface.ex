@@ -285,7 +285,21 @@ defmodule Extravaganza.HeadlessSurface do
             subject_ref: %{id: "subject:fixture", subject_kind: "linear_issue"},
             status: "pending",
             summary: "Fixture review pending",
-            required_by: "2026-05-08T00:00:00Z"
+            required_by: "2026-05-08T00:00:00Z",
+            payload: %{
+              "review_kind" => "operator_review",
+              "quorum_profile" => %{
+                "quorum_mode" => "single_decision",
+                "required_decision_count" => 1
+              },
+              "workflow_effects" => %{
+                "accept" => "continue_lower_workflow",
+                "reject" => "request_rework",
+                "waive" => "continue_lower_workflow",
+                "escalate" => "pause_lower_workflow"
+              },
+              "appkit_surfaces" => ["AppKit.ReviewSurface"]
+            }
           }
         ],
         total_count: 1,
