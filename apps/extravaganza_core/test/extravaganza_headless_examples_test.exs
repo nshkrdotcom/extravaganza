@@ -16,6 +16,9 @@ defmodule Extravaganza.HeadlessExamplesTest do
   alias Extravaganza.{HeadlessCLI, HeadlessFixtureBackend}
   alias Mix.Tasks.Extravaganza.Headless.TaskSupport
 
+  @guardrails_ack "--ack-headless-guardrails"
+  @legacy_guardrails_ack "--i-understand-that-this-will-be-running-without-the-usual-guardrails"
+
   setup do
     previous_backend = Application.get_env(:app_kit_core, :headless_backend)
     previous_agent_intake_backend = Application.get_env(:app_kit_core, :agent_intake_backend)
@@ -187,11 +190,162 @@ defmodule Extravaganza.HeadlessExamplesTest do
 
     assert TaskSupport.start_app?(:state, ["--json"])
     refute TaskSupport.start_app?(:profile, ["--json"])
+    assert TaskSupport.guardrails_acknowledgement_pending?(:refresh, ["--json"])
+    refute TaskSupport.start_app?(:refresh, ["--json"])
+
+    refute TaskSupport.guardrails_acknowledgement_pending?(:refresh, [
+             "--json",
+             @guardrails_ack
+           ])
+
+    assert TaskSupport.start_app?(:refresh, ["--json", @guardrails_ack])
+
+    assert TaskSupport.guardrails_acknowledgement_pending?(:live_codex_turn, [
+             "--json",
+             "--live-product-path"
+           ])
+
+    refute TaskSupport.guardrails_acknowledgement_pending?(:live_codex_turn, [
+             "--json",
+             @guardrails_ack,
+             "--live-product-path"
+           ])
 
     refute TaskSupport.start_app?(:state, [
              "--fixture",
              "headless"
            ])
+  end
+
+  @tag :live_provider
+  test "live product paths require explicit operator acknowledgement" do
+    output =
+      capture_io(fn ->
+        assert :ok =
+                 HeadlessCLI.run(:live_codex_turn, [
+                   "--json",
+                   "--live-product-path",
+                   "--trace-id",
+                   "trace:live-ack-missing"
+                 ])
+      end)
+
+    decoded = Jason.decode!(output)
+
+    assert decoded["ok"] == false
+    assert decoded["operation"] == "live.codex-turn"
+    assert decoded["error"]["code"] == "operator_ack_required"
+
+    assert decoded["error"]["details"]["required_flags"] == [
+             @guardrails_ack,
+             @legacy_guardrails_ack
+           ]
+
+    refute_received {:start_agent_run, _, _, _}
+
+    Mix.Task.reenable("extravaganza.headless.live_codex_turn")
+
+    task_output =
+      capture_io(fn ->
+        assert :ok =
+                 Mix.Task.run("extravaganza.headless.live_codex_turn", [
+                   "--json",
+                   "--live-product-path",
+                   "--trace-id",
+                   "trace:live-task-ack-missing"
+                 ])
+      end)
+
+    task_decoded = Jason.decode!(task_output)
+    assert task_decoded["ok"] == false
+    assert task_decoded["operation"] == "live.codex-turn"
+    assert task_decoded["error"]["code"] == "operator_ack_required"
+
+    Application.put_env(:app_kit_core, :agent_intake_backend, __MODULE__.CodexAgentBackend)
+
+    output =
+      capture_io(fn ->
+        assert :ok =
+                 HeadlessCLI.run(:live_codex_turn, [
+                   "--json",
+                   @guardrails_ack,
+                   "--live-product-path",
+                   "--trace-id",
+                   "trace:live-ack-product"
+                 ])
+      end)
+
+    decoded = Jason.decode!(output)
+    assert decoded["ok"] == true
+    assert decoded["data"]["status"] == "completed"
+    assert decoded["data"]["provider_effect"]["status"] == "receipt_recorded"
+
+    legacy_output =
+      capture_io("linear-secret-value\n", fn ->
+        assert :ok =
+                 HeadlessCLI.run(:live_linear_source, [
+                   "--json",
+                   @legacy_guardrails_ack,
+                   "--api-key-stdin",
+                   "--live-product-path",
+                   "--trace-id",
+                   "trace:live-ack-legacy"
+                 ])
+      end)
+
+    legacy_decoded = Jason.decode!(legacy_output)
+    assert legacy_decoded["ok"] == true
+    assert legacy_decoded["data"]["status"] == "completed"
+    refute legacy_output =~ "linear-secret-value"
+  end
+
+  test "non-fixture mutating commands require explicit operator acknowledgement" do
+    output =
+      capture_io(fn ->
+        assert :ok =
+                 HeadlessCLI.run(:refresh, [
+                   "--json",
+                   "--trace-id",
+                   "trace:refresh-ack-missing"
+                 ])
+      end)
+
+    decoded = Jason.decode!(output)
+
+    assert decoded["ok"] == false
+    assert decoded["operation"] == "refresh"
+    assert decoded["error"]["code"] == "operator_ack_required"
+
+    accepted_output =
+      capture_io(fn ->
+        assert :ok =
+                 HeadlessCLI.run(:refresh, [
+                   "--json",
+                   @guardrails_ack,
+                   "--trace-id",
+                   "trace:refresh-ack-product"
+                 ])
+      end)
+
+    accepted = Jason.decode!(accepted_output)
+    assert accepted["ok"] == true
+    assert get_in(accepted, ["data", "data", "status"]) == "accepted"
+
+    fixture_output =
+      capture_io(fn ->
+        assert :ok =
+                 HeadlessCLI.run(:refresh, [
+                   "--json",
+                   "--fixture",
+                   "headless",
+                   "--trace-id",
+                   "trace:refresh-fixture"
+                 ])
+      end)
+
+    fixture = Jason.decode!(fixture_output)
+    assert fixture["ok"] == true
+    assert get_in(fixture, ["data", "data", "status"]) == "accepted"
   end
 
   @tag :live_provider
@@ -366,6 +520,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
                  HeadlessCLI.run(:live_linear_source, [
                    "--json",
                    "--api-key-stdin",
+                   @guardrails_ack,
                    "--live-product-path",
                    "--trace-id",
                    "trace:live-source"
@@ -411,6 +566,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
                  HeadlessCLI.run(:live_linear_source, [
                    "--json",
                    "--api-key-stdin",
+                   @guardrails_ack,
                    "--live-product-path",
                    "--source-state",
                    "Todo",
@@ -458,6 +614,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
                  HeadlessCLI.run(:live_linear_source, [
                    "--json",
                    "--api-key-stdin",
+                   @guardrails_ack,
                    "--live-product-path",
                    "--trace-id",
                    "trace:live-source-product"
@@ -482,6 +639,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
         assert :ok =
                  HeadlessCLI.run(:live_linear_source, [
                    "--json",
+                   @guardrails_ack,
                    "--live-product-path",
                    "--connection-id",
                    "connection-linear-existing",
@@ -554,6 +712,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
                  HeadlessCLI.run(:live_linear_source, [
                    "--json",
                    "--api-key-stdin",
+                   @guardrails_ack,
                    "--live-product-path",
                    "--assignee",
                    "all",
@@ -587,6 +746,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
                  HeadlessCLI.run(:live_linear_source, [
                    "--json",
                    "--api-key-stdin",
+                   @guardrails_ack,
                    "--live-product-path",
                    "--trace-id",
                    "trace:live-source-surface-proof"
@@ -624,6 +784,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
                  HeadlessCLI.run(:live_linear_source, [
                    "--json",
                    "--api-key-stdin",
+                   @guardrails_ack,
                    "--live-product-path",
                    "--trace-id",
                    "trace:live-source-error"
@@ -649,6 +810,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
                  HeadlessCLI.run(:live_linear_current_states, [
                    "--json",
                    "--api-key-stdin",
+                   @guardrails_ack,
                    "--live-product-path",
                    "--issue-ids",
                    "lin-issue-321,lin-missing",
@@ -700,6 +862,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
         assert :ok =
                  HeadlessCLI.run(:live_codex_turn, [
                    "--json",
+                   @guardrails_ack,
                    "--live-product-path",
                    "--trace-id",
                    "trace:live-codex-product"
@@ -884,6 +1047,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
         assert :ok =
                  HeadlessCLI.run(:live_github_evidence, [
                    "--json",
+                   @guardrails_ack,
                    "--live-product-path",
                    "--repo",
                    "nshkrdotcom/extravaganza",
@@ -959,6 +1123,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
         assert :ok =
                  HeadlessCLI.run(:live_github_pr_cleanup, [
                    "--json",
+                   @guardrails_ack,
                    "--live-product-path",
                    "--repo",
                    "nshkrdotcom/extravaganza",
@@ -1018,6 +1183,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
                  HeadlessCLI.run(:live_smoke, [
                    "--json",
                    "--api-key-stdin",
+                   @guardrails_ack,
                    "--live-product-path",
                    "--repo",
                    "nshkrdotcom/extravaganza",
@@ -1150,6 +1316,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
                  HeadlessCLI.run(:live_linear_publication, [
                    "--json",
                    "--api-key-stdin",
+                   @guardrails_ack,
                    "--live-product-path",
                    "--trace-id",
                    "trace:live-publication"
@@ -1192,6 +1359,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
                  HeadlessCLI.run(:live_linear_publication, [
                    "--json",
                    "--api-key-stdin",
+                   @guardrails_ack,
                    "--live-product-path",
                    "--issue-id",
                    "lin-issue-321",
@@ -1228,6 +1396,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
                  HeadlessCLI.run(:live_linear_publication, [
                    "--json",
                    "--api-key-stdin",
+                   @guardrails_ack,
                    "--live-product-path",
                    "--issue-id",
                    "lin-issue-321",
@@ -1267,6 +1436,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
                  HeadlessCLI.run(:live_linear_publication, [
                    "--json",
                    "--api-key-stdin",
+                   @guardrails_ack,
                    "--live-product-path",
                    "--issue-id",
                    "lin-issue-321",
@@ -1308,6 +1478,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
                  HeadlessCLI.run(:live_linear_publication, [
                    "--json",
                    "--api-key-stdin",
+                   @guardrails_ack,
                    "--live-product-path",
                    "--issue-id",
                    "lin-issue-321",
@@ -1350,6 +1521,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
                  HeadlessCLI.run(:live_linear_graphql_tool, [
                    "--json",
                    "--api-key-stdin",
+                   @guardrails_ack,
                    "--live-product-path",
                    "--query",
                    "query Viewer { viewer { id } }",

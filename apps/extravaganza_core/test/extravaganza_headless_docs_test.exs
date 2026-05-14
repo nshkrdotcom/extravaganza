@@ -29,6 +29,8 @@ defmodule Extravaganza.HeadlessDocsTest do
     assert live_guide =~ "deterministic fixture mode"
     assert live_guide =~ "live product path mode"
     assert live_guide =~ "--live-product-path"
+    assert live_guide =~ "--ack-headless-guardrails"
+    assert live_guide =~ "--i-understand-that-this-will-be-running-without-the-usual-guardrails"
     assert live_guide =~ "~/scripts/with_bash_secrets mix extravaganza.headless.live.smoke"
     assert live_guide =~ "mix extravaganza.headless.live.github_pr_cleanup"
     assert live_guide =~ "--confirm-close"
@@ -62,16 +64,16 @@ defmodule Extravaganza.HeadlessDocsTest do
     assert live_guide =~ "ExtravaganzaWeb.static_paths() == []"
 
     assert credentials_guide =~
-             "~/scripts/with_bash_secrets mix extravaganza.headless.live.linear_source --live-product-path --json"
+             "~/scripts/with_bash_secrets mix extravaganza.headless.live.linear_source --live-product-path --ack-headless-guardrails --json"
 
     assert credentials_guide =~
-             "~/scripts/with_bash_secrets mix extravaganza.headless.live.codex_turn --live-product-path --json"
+             "~/scripts/with_bash_secrets mix extravaganza.headless.live.codex_turn --live-product-path --ack-headless-guardrails --json"
 
     assert credentials_guide =~
-             "~/scripts/with_bash_secrets mix extravaganza.headless.live.github_evidence --live-product-path --json"
+             "~/scripts/with_bash_secrets mix extravaganza.headless.live.github_evidence --live-product-path --ack-headless-guardrails --json"
 
     assert credentials_guide =~
-             "~/scripts/with_bash_secrets mix extravaganza.headless.live.github_pr_cleanup --live-product-path --json --repo"
+             "~/scripts/with_bash_secrets mix extravaganza.headless.live.github_pr_cleanup --live-product-path --ack-headless-guardrails --json --repo"
   end
 
   test "provider acceptance docs enumerate live commands, side effects, object ids, and evidence" do
@@ -83,7 +85,7 @@ defmodule Extravaganza.HeadlessDocsTest do
     for fragment <- [
           "## Provider Acceptance Matrix",
           "live.linear-source",
-          "~/scripts/with_bash_secrets mix extravaganza.headless.live.linear_source --live-product-path --json",
+          "~/scripts/with_bash_secrets mix extravaganza.headless.live.linear_source --live-product-path --ack-headless-guardrails --json",
           "`LINEAR_API_KEY`",
           "`--source-states`",
           "`--project-slug`",
@@ -94,12 +96,12 @@ defmodule Extravaganza.HeadlessDocsTest do
           "`subjects[].source_ref`",
           "`viewer_lower_request_ref`",
           "live.linear-current-states",
-          "~/scripts/with_bash_secrets mix extravaganza.headless.live.linear_current_states --live-product-path --json --issue-ids",
+          "~/scripts/with_bash_secrets mix extravaganza.headless.live.linear_current_states --live-product-path --ack-headless-guardrails --json --issue-ids",
           "`requested_issue_ids`",
           "`missing_issue_ids`",
           "`current_state_count`",
           "live.codex-turn",
-          "~/scripts/with_bash_secrets mix extravaganza.headless.live.codex_turn --live-product-path --json",
+          "~/scripts/with_bash_secrets mix extravaganza.headless.live.codex_turn --live-product-path --ack-headless-guardrails --json",
           "`OPENAI_API_KEY`",
           "`CODEX_API_KEY`",
           "`codex.session.turn`",
@@ -113,7 +115,7 @@ defmodule Extravaganza.HeadlessDocsTest do
           "`token_accounting_confirmed?`",
           "`session_stop_confirmed?`",
           "live.linear-publication",
-          "~/scripts/with_bash_secrets mix extravaganza.headless.live.linear_publication --live-product-path --json --issue-id",
+          "~/scripts/with_bash_secrets mix extravaganza.headless.live.linear_publication --live-product-path --ack-headless-guardrails --json --issue-id",
           "`--comment-id`",
           "`--message`",
           "`--state-name`",
@@ -126,13 +128,13 @@ defmodule Extravaganza.HeadlessDocsTest do
           "`state_id`",
           "`state_name`",
           "live.linear-graphql-tool",
-          "~/scripts/with_bash_secrets mix extravaganza.headless.live.linear_graphql_tool --live-product-path --json --query",
+          "~/scripts/with_bash_secrets mix extravaganza.headless.live.linear_graphql_tool --live-product-path --ack-headless-guardrails --json --query",
           "`--variables-json`",
           "`linear.graphql.execute`",
           "`tool_name`",
           "`dynamic_tool_response`",
           "live.github-evidence",
-          "~/scripts/with_bash_secrets mix extravaganza.headless.live.github_evidence --live-product-path --json --repo",
+          "~/scripts/with_bash_secrets mix extravaganza.headless.live.github_evidence --live-product-path --ack-headless-guardrails --json --repo",
           "`GH_TOKEN`",
           "`GITHUB_TOKEN`",
           "`github.pr.evidence`",
@@ -143,7 +145,7 @@ defmodule Extravaganza.HeadlessDocsTest do
           "`receipt_refs`",
           "`operation_receipts`",
           "live.github-pr-cleanup",
-          "~/scripts/with_bash_secrets mix extravaganza.headless.live.github_pr_cleanup --live-product-path --json --repo",
+          "~/scripts/with_bash_secrets mix extravaganza.headless.live.github_pr_cleanup --live-product-path --ack-headless-guardrails --json --repo",
           "`--branch`",
           "`--confirm-close`",
           "`--closing-comment`",
@@ -156,7 +158,7 @@ defmodule Extravaganza.HeadlessDocsTest do
           "`write_operations`",
           "intentionally excluded from `live.smoke`",
           "live.smoke",
-          "~/scripts/with_bash_secrets mix extravaganza.headless.live.smoke --live-product-path --json",
+          "~/scripts/with_bash_secrets mix extravaganza.headless.live.smoke --live-product-path --ack-headless-guardrails --json",
           "`required_operations`",
           "`completed_operations`",
           "`provider_effect_count`",

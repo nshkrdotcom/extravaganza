@@ -63,9 +63,9 @@ mix extravaganza.headless.run run:fixture --json
 mix extravaganza.headless.evidence run:fixture --json
 mix extravaganza.headless.status --json
 mix extravaganza.headless.logs --json
-mix extravaganza.headless.source_publish subject:fixture --json
+mix extravaganza.headless.source_publish subject:fixture --ack-headless-guardrails --json
 mix extravaganza.headless.profile_validate --workflow WORKFLOW.md --json
-mix extravaganza.headless.profile_reload --workflow WORKFLOW.md --json
+mix extravaganza.headless.profile_reload --workflow WORKFLOW.md --ack-headless-guardrails --json
 ```
 
 ## Structured Logs
@@ -272,18 +272,21 @@ expects exit code `0` only when the start command returns a valid `ok` envelope.
 ## Live-gated product examples
 
 Live examples are product entrypoints. They require `--live-product-path` to
-start app runtime context. Without it, they intentionally run a fixture-backed
-proof path and report `example_mode: "deterministic_fixture"` plus
-`live_provider_effect?: false`.
+start app runtime context and `--ack-headless-guardrails` to acknowledge live
+provider effects. Without `--live-product-path`, they intentionally run a
+fixture-backed proof path and report `example_mode: "deterministic_fixture"`
+plus `live_provider_effect?: false`. The Symphony preview flag
+`--i-understand-that-this-will-be-running-without-the-usual-guardrails` is also
+accepted as an acknowledgement alias.
 
 ```bash
-mix extravaganza.headless.live.linear_source --live-product-path --json
-mix extravaganza.headless.live.linear_current_states --live-product-path --json
-mix extravaganza.headless.live.codex_turn --live-product-path --json
-mix extravaganza.headless.live.linear_publication --live-product-path --json
-mix extravaganza.headless.live.linear_graphql_tool --live-product-path --json
-mix extravaganza.headless.live.github_evidence --live-product-path --json
-mix extravaganza.headless.live.smoke --live-product-path --json
+mix extravaganza.headless.live.linear_source --live-product-path --ack-headless-guardrails --json
+mix extravaganza.headless.live.linear_current_states --live-product-path --ack-headless-guardrails --json
+mix extravaganza.headless.live.codex_turn --live-product-path --ack-headless-guardrails --json
+mix extravaganza.headless.live.linear_publication --live-product-path --ack-headless-guardrails --json
+mix extravaganza.headless.live.linear_graphql_tool --live-product-path --ack-headless-guardrails --json
+mix extravaganza.headless.live.github_evidence --live-product-path --ack-headless-guardrails --json
+mix extravaganza.headless.live.smoke --live-product-path --ack-headless-guardrails --json
 ```
 
 GitHub PR branch cleanup is a standalone live example because it writes
@@ -291,7 +294,7 @@ provider state by commenting on and closing matching open PRs for a branch. It
 requires explicit confirmation and is not included in `live.smoke`:
 
 ```bash
-mix extravaganza.headless.live.github_pr_cleanup --live-product-path --json --repo OWNER/REPO --branch BRANCH --confirm-close
+mix extravaganza.headless.live.github_pr_cleanup --live-product-path --ack-headless-guardrails --json --repo OWNER/REPO --branch BRANCH --confirm-close
 ```
 
 On this workstation, run live provider checks by prepending the local secrets
@@ -299,19 +302,19 @@ wrapper. The wrapper only injects shell credentials for this node; it is not
 product behavior and the command output must not print secret values.
 
 ```bash
-~/scripts/with_bash_secrets mix extravaganza.headless.live.linear_source --live-product-path --json
-~/scripts/with_bash_secrets mix extravaganza.headless.live.codex_turn --live-product-path --json
-~/scripts/with_bash_secrets mix extravaganza.headless.live.github_evidence --live-product-path --json
-~/scripts/with_bash_secrets mix extravaganza.headless.live.github_pr_cleanup --live-product-path --json --repo OWNER/REPO --branch BRANCH --confirm-close
-~/scripts/with_bash_secrets mix extravaganza.headless.live.smoke --live-product-path --json
+~/scripts/with_bash_secrets mix extravaganza.headless.live.linear_source --live-product-path --ack-headless-guardrails --json
+~/scripts/with_bash_secrets mix extravaganza.headless.live.codex_turn --live-product-path --ack-headless-guardrails --json
+~/scripts/with_bash_secrets mix extravaganza.headless.live.github_evidence --live-product-path --ack-headless-guardrails --json
+~/scripts/with_bash_secrets mix extravaganza.headless.live.github_pr_cleanup --live-product-path --ack-headless-guardrails --json --repo OWNER/REPO --branch BRANCH --confirm-close
+~/scripts/with_bash_secrets mix extravaganza.headless.live.smoke --live-product-path --ack-headless-guardrails --json
 ```
 
 Wrapper script form (same command path):
 
 ```bash
-mix run --no-start scripts/headless/live_linear_source.exs -- --live-product-path --json
-mix run --no-start scripts/headless/live_github_pr_cleanup.exs -- --live-product-path --json --repo OWNER/REPO --branch BRANCH --confirm-close
-mix run --no-start scripts/headless/live_smoke.exs -- --live-product-path --json
+mix run --no-start scripts/headless/live_linear_source.exs -- --live-product-path --ack-headless-guardrails --json
+mix run --no-start scripts/headless/live_github_pr_cleanup.exs -- --live-product-path --ack-headless-guardrails --json --repo OWNER/REPO --branch BRANCH --confirm-close
+mix run --no-start scripts/headless/live_smoke.exs -- --live-product-path --ack-headless-guardrails --json
 ```
 
 ## API onboarding (programmatic operator view)

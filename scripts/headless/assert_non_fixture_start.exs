@@ -1,7 +1,7 @@
 repo_root = Path.expand("../..", __DIR__)
 
 {output, status} =
-  System.cmd("mix", ["extravaganza.headless.start", "--json"],
+  System.cmd("mix", ["extravaganza.headless.start", "--ack-headless-guardrails", "--json"],
     cd: repo_root,
     env: [{"MIX_ENV", "test"}],
     stderr_to_stdout: true
@@ -24,7 +24,7 @@ else
   nonzero when is_integer(nonzero) ->
     IO.puts("""
     non-fixture headless start failed
-    expected: MIX_ENV=test mix extravaganza.headless.start --json exits 0 with an ok start envelope
+    expected: MIX_ENV=test mix extravaganza.headless.start --ack-headless-guardrails --json exits 0 with an ok start envelope
     exit_status: #{nonzero}
 
     #{display_output.(output)}

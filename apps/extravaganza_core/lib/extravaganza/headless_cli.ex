@@ -65,8 +65,48 @@ defmodule Extravaganza.HeadlessCLI do
     :live_smoke
   ]
 
+  @mutating_operations [
+    :start,
+    :refresh,
+    :control,
+    :review,
+    :source_sync,
+    :source_publish,
+    :profile_reload
+  ]
+
+  @guardrails_ack_flag "--ack-headless-guardrails"
+  @legacy_guardrails_ack_flag "--i-understand-that-this-will-be-running-without-the-usual-guardrails"
+  @guardrails_ack_flags [@guardrails_ack_flag, @legacy_guardrails_ack_flag]
+
+  @operation_envelope_names %{
+    live_linear_source: "live.linear-source",
+    live_linear_current_states: "live.linear-current-states",
+    live_codex_turn: "live.codex-turn",
+    live_linear_publication: "live.linear-publication",
+    live_linear_graphql_tool: "live.linear-graphql-tool",
+    live_github_evidence: "live.github-evidence",
+    live_github_pr_cleanup: "live.github-pr-cleanup",
+    live_smoke: "live.smoke"
+  }
+
   @spec operations() :: [atom()]
   def operations, do: @operations
+
+  @spec guardrails_ack_flags() :: [String.t()]
+  def guardrails_ack_flags, do: @guardrails_ack_flags
+
+  @spec guardrails_acknowledgement_error(atom(), [String.t()]) ::
+          nil | {:operator_ack_required, map()}
+  def guardrails_acknowledgement_error(operation, argv)
+      when is_atom(operation) and is_list(argv) do
+    if operation in @operations do
+      argv
+      |> parse()
+      |> maybe_default_live_fixture(operation)
+      |> guardrails_acknowledgement_error_from_opts(operation)
+    end
+  end
 
   @spec run(atom(), [String.t()]) :: :ok
   def run(operation, argv) when operation in @operations and is_list(argv) do
@@ -78,8 +118,18 @@ defmodule Extravaganza.HeadlessCLI do
     maybe_install_fixture_backend(opts)
 
     operation
-    |> dispatch(opts)
+    |> guarded_dispatch(opts)
     |> print_envelope(operation, opts)
+  end
+
+  defp guarded_dispatch(operation, opts) do
+    case guardrails_acknowledgement_error_from_opts(opts, operation) do
+      nil ->
+        dispatch(operation, opts)
+
+      reason ->
+        HeadlessJSON.error(operation_envelope_name(operation), reason, opts)
+    end
   end
 
   defp dispatch(:state, opts),
@@ -545,6 +595,12 @@ defmodule Extravaganza.HeadlessCLI do
   defp parse(["--live-product-path" | rest], opts),
     do: parse(rest, Map.put(opts, :live_product_path?, true))
 
+  defp parse([@guardrails_ack_flag | rest], opts),
+    do: parse(rest, Map.put(opts, :guardrails_ack?, true))
+
+  defp parse([@legacy_guardrails_ack_flag | rest], opts),
+    do: parse(rest, Map.put(opts, :guardrails_ack?, true))
+
   defp parse(["--api-key-stdin" | rest], opts),
     do: parse(rest, Map.put(opts, :api_key_stdin?, true))
 
@@ -590,6 +646,55 @@ defmodule Extravaganza.HeadlessCLI do
   defp maybe_default_live_fixture(opts, _operation), do: opts
 
   defp positional(opts, index), do: opts |> Map.get(:positionals, []) |> Enum.at(index)
+
+  defp guardrails_acknowledgement_error_from_opts(opts, operation) do
+    if guardrails_ack_required?(operation, opts) and not truthy?(Map.get(opts, :guardrails_ack?)) do
+      {:operator_ack_required,
+       %{
+         operation: operation_envelope_name(operation),
+         required_flags: @guardrails_ack_flags,
+         legacy_flag_supported?: true,
+         reason: guardrails_ack_reason(operation, opts)
+       }}
+    else
+      nil
+    end
+  end
+
+  defp guardrails_ack_required?(operation, opts) do
+    cond do
+      deterministic_fixture_without_live_path?(opts) ->
+        false
+
+      operation in @live_operations and truthy?(Map.get(opts, :live_product_path?)) ->
+        true
+
+      operation in @mutating_operations ->
+        true
+
+      true ->
+        false
+    end
+  end
+
+  defp deterministic_fixture_without_live_path?(opts),
+    do: Map.has_key?(opts, :fixture) and not truthy?(Map.get(opts, :live_product_path?))
+
+  defp guardrails_ack_reason(operation, opts) do
+    cond do
+      operation in @live_operations and truthy?(Map.get(opts, :live_product_path?)) ->
+        "live_product_path"
+
+      operation in @mutating_operations ->
+        "mutating_command"
+
+      true ->
+        "headless_guardrail"
+    end
+  end
+
+  defp operation_envelope_name(operation),
+    do: Map.get(@operation_envelope_names, operation, operation)
 
   defp product_opts(opts) do
     unique = unique_suffix()
@@ -729,6 +834,8 @@ defmodule Extravaganza.HeadlessCLI do
     |> Enum.map(&String.trim/1)
     |> Enum.reject(&(&1 == ""))
   end
+
+  defp truthy?(value), do: value not in [nil, false]
 
   defp default_linear_subject(opts) do
     issue_id = Map.get(opts, :issue_id) || "HEADLESS-#{unique_suffix()}"

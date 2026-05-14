@@ -432,6 +432,18 @@ defmodule Extravaganza.HeadlessJSON do
     |> compact()
   end
 
+  defp error_attrs({:operator_ack_required, details}, secret_values) do
+    %{
+      "code" => "operator_ack_required",
+      "message" =>
+        "operator acknowledgement is required before this headless command may trigger side effects",
+      "class" => "operator_ack_required",
+      "retryable" => false,
+      "missing_refs" => ["operator_acknowledgement"],
+      "details" => sanitize(details, secret_values)
+    }
+  end
+
   defp error_attrs(reason, _secret_values) do
     code = reason |> normalize_reason() |> to_string()
 

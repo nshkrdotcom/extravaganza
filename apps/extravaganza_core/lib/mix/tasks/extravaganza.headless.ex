@@ -24,18 +24,27 @@ defmodule Mix.Tasks.Extravaganza.Headless.TaskSupport do
   def run(operation, argv) when is_atom(operation) and is_list(argv) do
     configure_json_logging(argv)
 
-    if start_app?(operation, argv) do
-      Mix.Task.run("app.start")
-    end
+    if guardrails_acknowledgement_pending?(operation, argv) do
+      Extravaganza.HeadlessCLI.run(operation, argv)
+    else
+      if start_app?(operation, argv) do
+        Mix.Task.run("app.start")
+      end
 
-    case maybe_start_live_surface_dependencies(operation, argv) do
-      :ok ->
-        Extravaganza.HeadlessCLI.run(operation, argv)
+      case maybe_start_live_surface_dependencies(operation, argv) do
+        :ok ->
+          Extravaganza.HeadlessCLI.run(operation, argv)
 
-      {:error, reason} ->
-        emit_startup_error(reason, argv)
+        {:error, reason} ->
+          emit_startup_error(reason, argv)
+      end
     end
   end
+
+  @doc false
+  @spec guardrails_acknowledgement_pending?(atom(), [String.t()]) :: boolean()
+  def guardrails_acknowledgement_pending?(operation, argv),
+    do: not is_nil(Extravaganza.HeadlessCLI.guardrails_acknowledgement_error(operation, argv))
 
   defp maybe_start_live_surface_dependencies(operation, argv) do
     if live_surface_dependencies_required?(operation, argv),
@@ -44,7 +53,9 @@ defmodule Mix.Tasks.Extravaganza.Headless.TaskSupport do
   end
 
   defp live_surface_dependencies_required?(operation, argv),
-    do: operation in @live_operations and "--live-product-path" in argv
+    do:
+      operation in @live_operations and "--live-product-path" in argv and
+        not guardrails_acknowledgement_pending?(operation, argv)
 
   defp start_live_surface_dependencies do
     Enum.reduce_while(@live_surface_dependency_apps, :ok, fn app, :ok ->
@@ -92,6 +103,7 @@ defmodule Mix.Tasks.Extravaganza.Headless.TaskSupport do
   @spec start_app?(atom(), [String.t()]) :: boolean()
   def start_app?(operation, argv) do
     cond do
+      guardrails_acknowledgement_pending?(operation, argv) -> false
       "--fixture" in argv -> false
       operation in @no_start_operations -> false
       operation in @live_operations -> false

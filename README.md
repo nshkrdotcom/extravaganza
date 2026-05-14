@@ -38,7 +38,7 @@
 4. Run live provider paths through the same product command surface:
 
    ```bash
-   mix extravaganza.headless.live.smoke --live-product-path --json
+   mix extravaganza.headless.live.smoke --live-product-path --ack-headless-guardrails --json
    ```
 
    If you want live examples to attempt provider execution, export provider
@@ -54,8 +54,13 @@
    Then rerun:
 
    ```bash
-   mix extravaganza.headless.live.smoke --live-product-path --json
+   mix extravaganza.headless.live.smoke --live-product-path --ack-headless-guardrails --json
    ```
+
+   `--ack-headless-guardrails` is required for live provider paths and
+   non-fixture mutating commands. The Symphony preview flag
+   `--i-understand-that-this-will-be-running-without-the-usual-guardrails` is
+   also accepted for CLI compatibility.
 
    See `guides/headless_provider_credentials.md` for the full example
    matrix and verification checks by provider.
@@ -141,7 +146,7 @@ What this means in practice:
 
 - `MIX_ENV=test mix extravaganza.headless.smoke --deterministic --same-run --json`
   is the local fixture-backed product proof.
-- `mix extravaganza.headless.live.smoke --live-product-path --json` exercises
+- `mix extravaganza.headless.live.smoke --live-product-path --ack-headless-guardrails --json` exercises
   the same product command surface against live provider paths when credentials
   are present.
 - `mix phx.server` exposes the API routes used by operator tooling and browser

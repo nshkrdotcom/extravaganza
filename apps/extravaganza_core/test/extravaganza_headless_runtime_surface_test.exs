@@ -13,6 +13,7 @@ defmodule Extravaganza.HeadlessRuntimeSurfaceTest do
   alias Extravaganza.{HeadlessCLI, HeadlessSurface}
 
   @secret "linear-secret-value"
+  @guardrails_ack "--ack-headless-guardrails"
 
   setup do
     previous_runtime_backend = Application.get_env(:app_kit_core, :runtime_backend)
@@ -40,6 +41,7 @@ defmodule Extravaganza.HeadlessRuntimeSurfaceTest do
         assert :ok =
                  HeadlessCLI.run(:profile_reload, [
                    "--json",
+                   @guardrails_ack,
                    "--workflow",
                    workflow_path,
                    "--env",
@@ -198,6 +200,7 @@ defmodule Extravaganza.HeadlessRuntimeSurfaceTest do
         assert :ok =
                  HeadlessCLI.run(:source_publish, [
                    "--json",
+                   @guardrails_ack,
                    "--subject",
                    "subject:fixture",
                    "--trace-id",
