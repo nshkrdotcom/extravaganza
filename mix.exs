@@ -114,6 +114,7 @@ defmodule Extravaganza.MixProject do
       homepage_url: @source_url,
       extras: [
         "README.md",
+        "guides/headless_api_reference.md",
         "guides/headless_live_demo.md",
         "guides/headless_provider_credentials.md",
         "guides/headless_symphony_headless_gap_analysis.md",
@@ -128,6 +129,7 @@ defmodule Extravaganza.MixProject do
       groups_for_extras: [
         Overview: ["README.md", "docs/overview.md"],
         Guides: [
+          "guides/headless_api_reference.md",
           "guides/headless_live_demo.md",
           "guides/headless_provider_credentials.md",
           "guides/headless_symphony_headless_gap_analysis.md",

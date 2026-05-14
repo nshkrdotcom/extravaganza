@@ -375,6 +375,7 @@ modules directly from product business code.
 ## Guides
 
 - [Headless Live Demo Onboarding](guides/headless_live_demo.md)
+- [Headless API Reference](guides/headless_api_reference.md)
 - [Headless Symphony Gap Analysis](guides/headless_symphony_headless_gap_analysis.md)
 - [Headless Provider Credentials and Verification](guides/headless_provider_credentials.md)
 
