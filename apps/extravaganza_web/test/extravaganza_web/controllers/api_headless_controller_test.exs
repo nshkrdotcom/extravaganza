@@ -14,6 +14,16 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
   alias Mezzanine.Pack.Compiler
 
   @secret "linear-api-secret"
+  @live_api_routes [
+    {"/api/v1/live/linear-source", "live.linear-source"},
+    {"/api/v1/live/linear-current-states", "live.linear-current-states"},
+    {"/api/v1/live/codex-turn", "live.codex-turn"},
+    {"/api/v1/live/linear-publication", "live.linear-publication"},
+    {"/api/v1/live/linear-graphql-tool", "live.linear-graphql-tool"},
+    {"/api/v1/live/github-evidence", "live.github-evidence"},
+    {"/api/v1/live/github-pr-cleanup", "live.github-pr-cleanup"},
+    {"/api/v1/live/smoke", "live.smoke"}
+  ]
 
   setup do
     previous_backend = Application.get_env(:app_kit_core, :headless_backend)
@@ -586,6 +596,79 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
 
     assert not_found["ok"] == false
     assert not_found["error"]["code"] == "not_found"
+  end
+
+  test "live example API routes require explicit operator acknowledgement", %{conn: conn} do
+    for {path, operation} <- @live_api_routes do
+      body =
+        conn
+        |> recycle()
+        |> post(path, %{})
+        |> json_response(400)
+
+      assert body["ok"] == false
+      assert body["operation"] == operation
+      assert body["error"]["code"] == "operator_ack_required"
+      assert get_in(body, ["error", "details", "operation"]) == operation
+      assert get_in(body, ["error", "details", "required_flags"]) == ["ack_headless_guardrails"]
+    end
+  end
+
+  test "live example API routes return standard envelopes after acknowledgement", %{conn: conn} do
+    for {path, operation} <- @live_api_routes do
+      trace_id = "trace:api:#{operation}"
+
+      body =
+        conn
+        |> recycle()
+        |> post(path, %{
+          "ack_headless_guardrails" => true,
+          "trace_id" => trace_id
+        })
+        |> json_response(200)
+
+      assert body["ok"] == true
+      assert body["operation"] == operation
+      assert body["trace_id"] == trace_id
+      assert body["data"]["operation"] == operation
+      assert body["data"]["product_path_exercised?"] == true
+      assert body["data"]["requires_live_product_path?"] == true
+      assert body["data"]["live_provider_effect?"] == false
+    end
+  end
+
+  test "live example API routes reject raw provider credential parameters", %{conn: conn} do
+    body =
+      conn
+      |> post("/api/v1/live/linear-source", %{
+        "ack_headless_guardrails" => true,
+        "linear_api_key" => @secret,
+        "trace_id" => "trace:api:raw-credential"
+      })
+      |> json_response(400)
+
+    assert body["ok"] == false
+    assert body["operation"] == "live.linear-source"
+    assert body["trace_id"] == "trace:api:raw-credential"
+    assert body["error"]["code"] == "bad_request"
+
+    assert get_in(body, ["error", "details", "reason"]) ==
+             "raw_provider_credential_param_not_supported"
+
+    refute Jason.encode!(body) =~ @secret
+  end
+
+  test "live example API routes return JSON method-not-allowed envelopes", %{conn: conn} do
+    for {path, _operation} <- @live_api_routes do
+      body =
+        conn
+        |> recycle()
+        |> get(path)
+        |> json_response(405)
+
+      assert body["ok"] == false
+      assert body["error"]["code"] == "method_not_allowed"
+    end
   end
 
   test "known API error classes use stable statuses and shared error envelopes", %{conn: conn} do

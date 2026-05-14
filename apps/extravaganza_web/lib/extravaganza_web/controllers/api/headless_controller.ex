@@ -1,7 +1,7 @@
 defmodule ExtravaganzaWeb.Api.HeadlessController do
   use ExtravaganzaWeb, :controller
 
-  alias Extravaganza.{HeadlessJSON, HeadlessSurface, SymphonyWorkflowImport}
+  alias Extravaganza.{HeadlessJSON, HeadlessSurface, ProductHost, SymphonyWorkflowImport}
 
   alias Extravaganza.Presenters.{
     CommandResultPresenter,
@@ -17,6 +17,14 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
   }
 
   alias ExtravaganzaWeb.ObservabilityUpdates
+
+  @live_ack_param "ack_headless_guardrails"
+  @live_ack_params [@live_ack_param, "ack-headless-guardrails", "guardrails_ack"]
+  @live_forbidden_credential_params ~w[
+    access_token api_key auth_json authorization authorization_header codex_api_key
+    gh_token github_token lease_token linear_api_key openai_api_key provider_payload
+    raw_secret raw_token secret target_credentials token token_file
+  ]
 
   @status_by_code %{
     "not_found" => :not_found,
@@ -268,6 +276,71 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
     end
   end
 
+  @spec live_linear_source(Plug.Conn.t(), map()) :: Plug.Conn.t()
+  def live_linear_source(conn, params) do
+    live_example(conn, params, "live.linear-source", &ProductHost.live_linear_source_example/1)
+  end
+
+  @spec live_linear_current_states(Plug.Conn.t(), map()) :: Plug.Conn.t()
+  def live_linear_current_states(conn, params) do
+    live_example(
+      conn,
+      params,
+      "live.linear-current-states",
+      &ProductHost.live_linear_current_states_example/1
+    )
+  end
+
+  @spec live_codex_turn(Plug.Conn.t(), map()) :: Plug.Conn.t()
+  def live_codex_turn(conn, params) do
+    live_example(conn, params, "live.codex-turn", &ProductHost.live_codex_turn_example/1)
+  end
+
+  @spec live_linear_publication(Plug.Conn.t(), map()) :: Plug.Conn.t()
+  def live_linear_publication(conn, params) do
+    live_example(
+      conn,
+      params,
+      "live.linear-publication",
+      &ProductHost.live_linear_publication_example/1
+    )
+  end
+
+  @spec live_linear_graphql_tool(Plug.Conn.t(), map()) :: Plug.Conn.t()
+  def live_linear_graphql_tool(conn, params) do
+    live_example(
+      conn,
+      params,
+      "live.linear-graphql-tool",
+      &ProductHost.live_linear_graphql_tool_example/1
+    )
+  end
+
+  @spec live_github_evidence(Plug.Conn.t(), map()) :: Plug.Conn.t()
+  def live_github_evidence(conn, params) do
+    live_example(
+      conn,
+      params,
+      "live.github-evidence",
+      &ProductHost.live_github_evidence_example/1
+    )
+  end
+
+  @spec live_github_pr_cleanup(Plug.Conn.t(), map()) :: Plug.Conn.t()
+  def live_github_pr_cleanup(conn, params) do
+    live_example(
+      conn,
+      params,
+      "live.github-pr-cleanup",
+      &ProductHost.live_github_pr_cleanup_example/1
+    )
+  end
+
+  @spec live_smoke(Plug.Conn.t(), map()) :: Plug.Conn.t()
+  def live_smoke(conn, params) do
+    live_example(conn, params, "live.smoke", &ProductHost.live_smoke/1)
+  end
+
   @spec reviews(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def reviews(conn, params) do
     case HeadlessSurface.list_reviews(params) do
@@ -358,6 +431,206 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
     |> json(envelope)
   end
 
+  defp render_live_error(conn, operation, params, reason) do
+    envelope = HeadlessJSON.error(operation, reason, live_presenter_opts(conn, params))
+    code = get_in(envelope, ["error", "code"])
+
+    conn
+    |> put_status(Map.get(@status_by_code, code, :internal_server_error))
+    |> json(envelope)
+  end
+
+  defp live_example(conn, params, operation, callback) when is_function(callback, 1) do
+    case live_request_error(params, operation) do
+      nil ->
+        envelope =
+          HeadlessJSON.wrap(
+            operation,
+            callback.(live_opts(params)),
+            fn value -> value end,
+            live_presenter_opts(conn, params)
+          )
+
+        conn
+        |> put_status(envelope_status(envelope))
+        |> json(envelope)
+
+      reason ->
+        render_live_error(conn, operation, params, reason)
+    end
+  end
+
+  defp envelope_status(%{"ok" => true}), do: :ok
+
+  defp envelope_status(%{"error" => %{"code" => code}}),
+    do: Map.get(@status_by_code, code, :internal_server_error)
+
+  defp live_request_error(params, operation) do
+    cond do
+      credential_param = raw_credential_param(params) ->
+        {:bad_request,
+         %{
+           "reason" => "raw_provider_credential_param_not_supported",
+           "parameter" => credential_param
+         }}
+
+      not live_acknowledged?(params) ->
+        {:operator_ack_required,
+         %{
+           operation: operation,
+           required_flags: [@live_ack_param],
+           legacy_flag_supported?: false,
+           reason: "live_api_route"
+         }}
+
+      true ->
+        nil
+    end
+  end
+
+  defp raw_credential_param(params) do
+    Enum.find(@live_forbidden_credential_params, &Map.has_key?(params, &1))
+  end
+
+  defp live_acknowledged?(params) do
+    Enum.any?(@live_ack_params, fn key -> truthy?(Map.get(params, key)) end)
+  end
+
+  defp live_opts(params) do
+    %{}
+    |> maybe_put_string_param(params, :connection_id, ["connection_id"])
+    |> maybe_put_string_param(params, :credential_ref, ["credential_ref"])
+    |> maybe_put_string_param(params, :credential_lease_ref, ["credential_lease_ref"])
+    |> maybe_put_string_param(params, :fixture, ["fixture"])
+    |> maybe_put_string_param(params, :repo, ["repo"])
+    |> maybe_put_string_param(params, :branch, ["branch"])
+    |> maybe_put_string_param(params, :pull_number, ["pull_number"])
+    |> maybe_put_string_param(params, :ref, ["ref"])
+    |> maybe_put_string_param(params, :issue_id, ["issue_id"])
+    |> maybe_put_string_param(params, :comment_id, ["comment_id"])
+    |> maybe_put_string_param(params, :state_id, ["state_id"])
+    |> maybe_put_string_param(params, :state_name, ["state_name"])
+    |> maybe_put_string_param(params, :project_slug, ["project_slug"])
+    |> maybe_put_string_param(params, :team_id, ["team_id"])
+    |> maybe_put_string_param(params, :assignee, ["assignee"])
+    |> maybe_put_string_param(params, :message, ["message"])
+    |> maybe_put_string_param(params, :closing_comment, ["closing_comment"])
+    |> maybe_put_string_param(params, :query, ["query"])
+    |> maybe_put_string_param(params, :variables_json, ["variables_json"])
+    |> maybe_put_string_param(params, :cursor, ["cursor"])
+    |> maybe_put_string_param(params, :limit, ["limit"])
+    |> maybe_put_string_param(params, :tenant_id, ["tenant_id"])
+    |> maybe_put_string_param(params, :pack_version, ["pack_version"])
+    |> maybe_put_string_param(params, :trace_id, ["trace_id"])
+    |> maybe_put_list_param(params, :issue_ids, ["issue_ids"])
+    |> maybe_put_list_param(params, :source_state_names, [
+      "source_state_names",
+      "source_states",
+      "source_state"
+    ])
+    |> maybe_put_bool_param(params, :credential_available?, [
+      "credential_available",
+      "credential_available?"
+    ])
+    |> maybe_put_bool_param(params, :live_product_path?, [
+      "live_product_path",
+      "live_product_path?"
+    ])
+    |> maybe_put_bool_param(params, :allow_create_fallback?, [
+      "allow_create_fallback",
+      "allow_create_fallback?"
+    ])
+    |> maybe_put_bool_param(params, :dry_run?, ["dry_run", "dry_run?"])
+    |> maybe_put_bool_param(params, :confirm_close?, ["confirm_close", "confirm_close?"])
+    |> put_default_live_fixture()
+    |> live_product_defaults()
+    |> Map.put_new(:credential_available?, false)
+  end
+
+  defp put_default_live_fixture(%{live_product_path?: true} = opts), do: opts
+  defp put_default_live_fixture(opts), do: Map.put_new(opts, :fixture, "headless_live")
+
+  defp live_product_defaults(%{live_product_path?: true} = opts) do
+    unique = System.unique_integer([:positive])
+
+    opts
+    |> Map.put_new(:tenant_id, "extravaganza-live-api-#{unique}")
+    |> Map.put_new(:pack_version, "1.0.0-live-api.#{unique}")
+  end
+
+  defp live_product_defaults(opts), do: opts
+
+  defp maybe_put_string_param(opts, params, key, param_keys) do
+    case string_param(params, param_keys) do
+      nil -> opts
+      value -> Map.put(opts, key, value)
+    end
+  end
+
+  defp maybe_put_bool_param(opts, params, key, param_keys) do
+    case first_param(params, param_keys) do
+      {:ok, value} -> Map.put(opts, key, truthy?(value))
+      :error -> opts
+    end
+  end
+
+  defp maybe_put_list_param(opts, params, key, param_keys) do
+    case first_param(params, param_keys) do
+      {:ok, value} ->
+        values = list_param(value)
+        if values == [], do: opts, else: Map.put(opts, key, values)
+
+      :error ->
+        opts
+    end
+  end
+
+  defp string_param(params, param_keys) do
+    case first_param(params, param_keys) do
+      {:ok, value} -> string_value(value)
+      :error -> nil
+    end
+  end
+
+  defp first_param(params, param_keys) do
+    Enum.find_value(param_keys, :error, fn key ->
+      if Map.has_key?(params, key), do: {:ok, Map.get(params, key)}
+    end)
+  end
+
+  defp string_value(value) when is_binary(value) do
+    case String.trim(value) do
+      "" -> nil
+      trimmed -> trimmed
+    end
+  end
+
+  defp string_value(value) when is_integer(value), do: Integer.to_string(value)
+  defp string_value(value) when is_atom(value) and not is_nil(value), do: Atom.to_string(value)
+  defp string_value(_value), do: nil
+
+  defp list_param(values) when is_list(values) do
+    values
+    |> Enum.map(&string_value/1)
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp list_param(value) when is_binary(value) do
+    value
+    |> String.split(",", trim: true)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+  end
+
+  defp list_param(value) do
+    case string_value(value) do
+      nil -> []
+      value -> [value]
+    end
+  end
+
+  defp truthy?(value), do: value in [true, "true", 1, "1"]
+
   defp success_status(operation, data) when operation in [:refresh, :review, :control] do
     if accepted_command?(data), do: :accepted, else: :ok
   end
@@ -431,5 +704,12 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
       correlation_id: conn.assigns[:correlation_id],
       generated_at: DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601()
     ]
+  end
+
+  defp live_presenter_opts(conn, params) do
+    case string_param(params, ["trace_id"]) do
+      nil -> presenter_opts(conn)
+      trace_id -> Keyword.put(presenter_opts(conn), :trace_id, trace_id)
+    end
   end
 end

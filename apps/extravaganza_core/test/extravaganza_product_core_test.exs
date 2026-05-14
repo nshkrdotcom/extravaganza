@@ -2165,6 +2165,8 @@ defmodule ExtravaganzaProductCoreTest do
     assert {"GET", "/api/v1/logs"} in route_keys
     assert {"POST", "/api/v1/profile/reload"} in route_keys
     assert {"POST", "/api/v1/source-publication"} in route_keys
+    assert {"POST", "/api/v1/live/smoke"} in route_keys
+    assert {"POST", "/api/v1/live/linear-source"} in route_keys
     refute {"GET", "/api/v1/queue"} in route_keys
     refute {"POST", "/api/v1/start"} in route_keys
 

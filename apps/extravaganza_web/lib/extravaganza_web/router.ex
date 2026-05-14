@@ -64,6 +64,30 @@ defmodule ExtravaganzaWeb.Router do
     post("/source-publication", HeadlessController, :source_publish)
     match(:*, "/source-publication", HeadlessController, :method_not_allowed)
 
+    post("/live/linear-source", HeadlessController, :live_linear_source)
+    match(:*, "/live/linear-source", HeadlessController, :method_not_allowed)
+
+    post("/live/linear-current-states", HeadlessController, :live_linear_current_states)
+    match(:*, "/live/linear-current-states", HeadlessController, :method_not_allowed)
+
+    post("/live/codex-turn", HeadlessController, :live_codex_turn)
+    match(:*, "/live/codex-turn", HeadlessController, :method_not_allowed)
+
+    post("/live/linear-publication", HeadlessController, :live_linear_publication)
+    match(:*, "/live/linear-publication", HeadlessController, :method_not_allowed)
+
+    post("/live/linear-graphql-tool", HeadlessController, :live_linear_graphql_tool)
+    match(:*, "/live/linear-graphql-tool", HeadlessController, :method_not_allowed)
+
+    post("/live/github-evidence", HeadlessController, :live_github_evidence)
+    match(:*, "/live/github-evidence", HeadlessController, :method_not_allowed)
+
+    post("/live/github-pr-cleanup", HeadlessController, :live_github_pr_cleanup)
+    match(:*, "/live/github-pr-cleanup", HeadlessController, :method_not_allowed)
+
+    post("/live/smoke", HeadlessController, :live_smoke)
+    match(:*, "/live/smoke", HeadlessController, :method_not_allowed)
+
     get("/subjects/:subject_id", HeadlessController, :subject)
     match(:*, "/subjects/:subject_id", HeadlessController, :method_not_allowed)
 
