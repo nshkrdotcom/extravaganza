@@ -530,6 +530,18 @@ defmodule Extravaganza.HeadlessCLI do
   defp parse(["--api-key-stdin" | rest], opts),
     do: parse(rest, Map.put(opts, :api_key_stdin?, true))
 
+  defp parse(["--connection-id", connection_id | rest], opts),
+    do: parse(rest, Map.put(opts, :connection_id, connection_id))
+
+  defp parse(["--credential-ref", credential_ref | rest], opts),
+    do: parse(rest, Map.put(opts, :credential_ref, credential_ref))
+
+  defp parse(["--credential-lease-ref", credential_lease_ref | rest], opts),
+    do: parse(rest, Map.put(opts, :credential_lease_ref, credential_lease_ref))
+
+  defp parse(["--credential-available" | rest], opts),
+    do: parse(rest, Map.put(opts, :credential_available?, true))
+
   defp parse([value | rest], opts) do
     parse(rest, Map.update!(opts, :positionals, &(&1 ++ [value])))
   end
@@ -581,6 +593,9 @@ defmodule Extravaganza.HeadlessCLI do
         |> Map.take([
           :api_key_stdin?,
           :credential_available?,
+          :connection_id,
+          :credential_ref,
+          :credential_lease_ref,
           :fixture,
           :live_product_path?,
           :repo,

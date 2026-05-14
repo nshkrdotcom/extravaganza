@@ -154,6 +154,7 @@ defmodule Extravaganza.HeadlessLiveExamples do
 
   defp example_payload(kind, example, proof, opts) do
     provider_effect = provider_effect(kind, example, proof, opts)
+    credential_preflight = credential_preflight(kind, example, opts)
 
     payload =
       proof
@@ -168,6 +169,7 @@ defmodule Extravaganza.HeadlessLiveExamples do
         "provider" => example.provider,
         "capability_ids" => example.capability_ids,
         "credential_refs" => example.credential_refs,
+        "credential_preflight" => credential_preflight,
         "command" => example.command,
         "product_path_exercised?" => true,
         "product_path" => product_path(proof, example.product_entrypoint, provider_effect),
@@ -188,7 +190,8 @@ defmodule Extravaganza.HeadlessLiveExamples do
           "effect" => example.provider_effect,
           "capability_ids" => example.capability_ids,
           "status" => "skipped",
-          "skip_reason" => skip_reason(kind, example, opts)
+          "skip_reason" => skip_reason(kind, example, opts),
+          "credential_preflight" => credential_preflight(kind, example, opts)
         }
 
       kind == :linear_source ->
@@ -984,7 +987,16 @@ defmodule Extravaganza.HeadlessLiveExamples do
   defp surface_opts(opts) do
     base =
       opts
-      |> Map.take([:tenant_id, :pack_version, :trace_id, :linear_api_key, :dry_run?])
+      |> Map.take([
+        :tenant_id,
+        :pack_version,
+        :trace_id,
+        :linear_api_key,
+        :connection_id,
+        :credential_ref,
+        :credential_lease_ref,
+        :dry_run?
+      ])
       |> Enum.to_list()
 
     base
@@ -1858,19 +1870,109 @@ defmodule Extravaganza.HeadlessLiveExamples do
   defp maybe_put_ref(refs, key, value), do: Map.put(refs, key, value)
 
   defp skip_reason(kind, example, opts) do
-    if credential_supplied?(kind, opts) do
-      %{
-        "code" => "live_provider_effect_deferred",
-        "provider" => example.provider,
-        "detail" =>
-          "product command exercised the headless live example entrypoint; live provider effect remains gated to the owner lower bridge"
-      }
-    else
-      %{
-        "code" => "credential_not_supplied_to_product_command",
-        "provider" => example.provider,
-        "credential_refs" => example.credential_refs
-      }
+    cond do
+      credential_ref_present?(opts) ->
+        %{
+          "code" => "credential_ref_requires_connection_id",
+          "provider" => example.provider,
+          "credential_refs" => example.credential_refs,
+          "detail" =>
+            "explicit credential refs are redacted metadata; provider dispatch requires the lower connection_id binding"
+        }
+
+      credential_supplied?(kind, opts) ->
+        %{
+          "code" => "live_provider_effect_deferred",
+          "provider" => example.provider,
+          "detail" =>
+            "product command exercised the headless live example entrypoint; live provider effect remains gated to the owner lower bridge"
+        }
+
+      true ->
+        %{
+          "code" => "credential_not_supplied_to_product_command",
+          "provider" => example.provider,
+          "credential_refs" => example.credential_refs
+        }
+    end
+  end
+
+  defp credential_preflight(kind, example, opts) do
+    connection_id = string_value(opts, :connection_id)
+    credential_ref = string_value(opts, :credential_ref)
+    credential_lease_ref = string_value(opts, :credential_lease_ref)
+    stdin? = truthy?(Map.get(opts, :api_key_stdin?))
+    available? = truthy?(Map.get(opts, :credential_available?))
+
+    status =
+      cond do
+        present?(connection_id) or stdin? or available? or
+            (kind in [:codex_turn, :github_evidence] and
+               truthy?(Map.get(opts, :live_product_path?))) ->
+          "dispatchable"
+
+        present?(credential_ref) or present?(credential_lease_ref) ->
+          "missing_dispatch_binding"
+
+        true ->
+          "missing"
+      end
+
+    %{
+      "provider" => example.provider,
+      "status" => status,
+      "dispatch_binding" => credential_dispatch_binding(kind, opts),
+      "connection_id" => connection_id,
+      "credential_ref" => credential_ref,
+      "credential_lease_ref" => credential_lease_ref,
+      "credential_source" => credential_source(kind, opts),
+      "secret_material_present?" => stdin?,
+      "secret_material_redacted?" => true
+    }
+    |> compact_map()
+  end
+
+  defp credential_dispatch_binding(kind, opts) do
+    cond do
+      present?(string_value(opts, :connection_id)) ->
+        "connection_id"
+
+      truthy?(Map.get(opts, :api_key_stdin?)) ->
+        "ephemeral_stdin"
+
+      truthy?(Map.get(opts, :credential_available?)) ->
+        "external_harness"
+
+      kind in [:codex_turn, :github_evidence] and truthy?(Map.get(opts, :live_product_path?)) ->
+        "app_config"
+
+      true ->
+        nil
+    end
+  end
+
+  defp credential_source(kind, opts) do
+    cond do
+      truthy?(Map.get(opts, :api_key_stdin?)) ->
+        "stdin"
+
+      present?(string_value(opts, :connection_id)) ->
+        "connection_id"
+
+      truthy?(Map.get(opts, :credential_available?)) ->
+        "external_harness"
+
+      kind in [:codex_turn, :github_evidence] and truthy?(Map.get(opts, :live_product_path?)) ->
+        "app_config"
+
+      present?(string_value(opts, :credential_ref)) ->
+        "credential_ref"
+
+      present?(string_value(opts, :credential_lease_ref)) ->
+        "credential_lease_ref"
+
+      true ->
+        nil
     end
   end
 
@@ -1882,19 +1984,31 @@ defmodule Extravaganza.HeadlessLiveExamples do
               :linear_graphql_tool
             ],
        do:
-         truthy?(Map.get(opts, :api_key_stdin?)) or truthy?(Map.get(opts, :credential_available?))
+         truthy?(Map.get(opts, :api_key_stdin?)) or truthy?(Map.get(opts, :credential_available?)) or
+           present?(string_value(opts, :connection_id))
 
   defp credential_supplied?(:codex_turn, opts),
     do:
       truthy?(Map.get(opts, :credential_available?)) or
-        truthy?(Map.get(opts, :live_product_path?))
+        truthy?(Map.get(opts, :live_product_path?)) or
+        present?(string_value(opts, :connection_id))
 
   defp credential_supplied?(:github_evidence, opts),
     do:
       truthy?(Map.get(opts, :credential_available?)) or
-        truthy?(Map.get(opts, :live_product_path?))
+        truthy?(Map.get(opts, :live_product_path?)) or
+        present?(string_value(opts, :connection_id))
 
-  defp credential_supplied?(_kind, opts), do: truthy?(Map.get(opts, :credential_available?))
+  defp credential_supplied?(_kind, opts),
+    do:
+      truthy?(Map.get(opts, :credential_available?)) or
+        present?(string_value(opts, :connection_id))
+
+  defp credential_ref_present?(opts) do
+    not present?(string_value(opts, :connection_id)) and
+      (present?(string_value(opts, :credential_ref)) or
+         present?(string_value(opts, :credential_lease_ref)))
+  end
 
   defp present?(value) when is_binary(value), do: String.trim(value) != ""
   defp present?(value), do: not is_nil(value)

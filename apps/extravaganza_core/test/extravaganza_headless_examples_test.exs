@@ -364,6 +364,73 @@ defmodule Extravaganza.HeadlessExamplesTest do
   end
 
   @tag :live_provider
+  test "linear source accepts explicit connection and credential refs without raw key material" do
+    output =
+      capture_io(fn ->
+        assert :ok =
+                 HeadlessCLI.run(:live_linear_source, [
+                   "--json",
+                   "--connection-id",
+                   "connection-linear-existing",
+                   "--credential-ref",
+                   "credential-ref-linear-existing",
+                   "--credential-lease-ref",
+                   "credential-lease-linear-existing",
+                   "--trace-id",
+                   "trace:live-source-existing-connection"
+                 ])
+      end)
+
+    decoded = Jason.decode!(output)
+    preflight = decoded["data"]["credential_preflight"]
+
+    assert decoded["ok"] == true
+    assert decoded["data"]["status"] == "completed"
+    assert preflight["status"] == "dispatchable"
+    assert preflight["dispatch_binding"] == "connection_id"
+    assert preflight["connection_id"] == "connection-linear-existing"
+    assert preflight["credential_ref"] == "credential-ref-linear-existing"
+    assert preflight["credential_lease_ref"] == "credential-lease-linear-existing"
+    assert preflight["secret_material_present?"] == false
+    assert preflight["secret_material_redacted?"] == true
+
+    assert_received {:fetch_linear_candidates, "extravaganza", _source_binding, opts}
+    assert Keyword.fetch!(opts, :connection_id) == "connection-linear-existing"
+    assert Keyword.fetch!(opts, :credential_ref) == "credential-ref-linear-existing"
+    assert Keyword.fetch!(opts, :credential_lease_ref) == "credential-lease-linear-existing"
+    refute Keyword.has_key?(opts, :linear_api_key)
+    refute output =~ "api_key"
+  end
+
+  @tag :live_provider
+  test "linear source credential ref without connection binding renders redacted preflight skip" do
+    output =
+      capture_io(fn ->
+        assert :ok =
+                 HeadlessCLI.run(:live_linear_source, [
+                   "--json",
+                   "--credential-ref",
+                   "credential-ref-linear-existing",
+                   "--trace-id",
+                   "trace:live-source-ref-only"
+                 ])
+      end)
+
+    decoded = Jason.decode!(output)
+    provider_effect = decoded["data"]["provider_effect"]
+    preflight = decoded["data"]["credential_preflight"]
+
+    assert decoded["ok"] == true
+    assert decoded["data"]["status"] == "skipped"
+    assert provider_effect["status"] == "skipped"
+    assert provider_effect["skip_reason"]["code"] == "credential_ref_requires_connection_id"
+    assert preflight["status"] == "missing_dispatch_binding"
+    assert preflight["credential_ref"] == "credential-ref-linear-existing"
+    assert preflight["secret_material_present?"] == false
+    refute_received {:fetch_linear_candidates, _, _, _}
+  end
+
+  @tag :live_provider
   test "linear source product path can disable assignee-me routing explicitly" do
     secret = "linear-secret-value"
 
@@ -525,10 +592,16 @@ defmodule Extravaganza.HeadlessExamplesTest do
     decoded = Jason.decode!(output)
     data = decoded["data"]
     provider_effect = data["provider_effect"]
+    preflight = data["credential_preflight"]
 
     assert decoded["ok"] == true
     assert decoded["operation"] == "live.codex-turn"
     assert data["status"] == "completed"
+    assert preflight["status"] == "dispatchable"
+    assert preflight["dispatch_binding"] == "app_config"
+    assert preflight["credential_source"] == "app_config"
+    assert preflight["secret_material_present?"] == false
+    assert preflight["secret_material_redacted?"] == true
 
     assert data["product_path"]["appkit_surfaces"] == [
              "AppKit.AgentIntake",
@@ -708,10 +781,16 @@ defmodule Extravaganza.HeadlessExamplesTest do
     decoded = Jason.decode!(output)
     data = decoded["data"]
     provider_effect = data["provider_effect"]
+    preflight = data["credential_preflight"]
 
     assert decoded["ok"] == true
     assert decoded["operation"] == "live.github-evidence"
     assert data["status"] == "completed"
+    assert preflight["status"] == "dispatchable"
+    assert preflight["dispatch_binding"] == "app_config"
+    assert preflight["credential_source"] == "app_config"
+    assert preflight["secret_material_present?"] == false
+    assert preflight["secret_material_redacted?"] == true
 
     assert data["product_path"]["appkit_surfaces"] == [
              "AppKit.RuntimeSurface",
