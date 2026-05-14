@@ -52,6 +52,9 @@ defmodule ExtravaganzaWeb.Router do
     get("/preflight", HeadlessController, :preflight)
     match(:*, "/preflight", HeadlessController, :method_not_allowed)
 
+    post("/shutdown", HeadlessController, :shutdown)
+    match(:*, "/shutdown", HeadlessController, :method_not_allowed)
+
     get("/logs", HeadlessController, :logs)
     match(:*, "/logs", HeadlessController, :method_not_allowed)
 

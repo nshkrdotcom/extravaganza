@@ -130,6 +130,23 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
     assert get_in(body, ["data", "credential_policy", "ambient_os_env_read?"]) == false
   end
 
+  test "POST /api/v1/shutdown returns offline status and lower-run orphan proof", %{conn: conn} do
+    body =
+      conn
+      |> post(~p"/api/v1/shutdown", %{
+        "confirm_no_active_lower_runs" => true,
+        "reason" => "phase92-api"
+      })
+      |> json_response(200)
+
+    assert body["ok"] == true
+    assert body["operation"] == "stop"
+    assert body["data"]["schema_ref"] == "headless_shutdown.v1"
+    assert body["data"]["offline_status"]["app_status"] == "offline"
+    assert body["data"]["lower_run_posture"]["active_lower_run_count"] == 0
+    assert body["data"]["orphan_prevention"]["orphaned_lower_runs?"] == false
+  end
+
   test "GET /api/v1/subjects/:subject_id and compatibility issue route share subject presenter",
        %{
          conn: conn

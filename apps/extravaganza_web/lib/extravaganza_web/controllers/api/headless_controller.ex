@@ -4,6 +4,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
   alias Extravaganza.{
     HeadlessJSON,
     HeadlessPreflight,
+    HeadlessShutdown,
     HeadlessSurface,
     ProductHost,
     SymphonyWorkflowImport
@@ -65,6 +66,8 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
     "startup_failed" => :service_unavailable,
     "app_not_started" => :service_unavailable,
     "temporal_substrate_unavailable" => :service_unavailable,
+    "lower_run_posture_required" => :conflict,
+    "active_lower_runs_present" => :conflict,
     "runtime_installation_not_provisioned" => :service_unavailable,
     "method_not_allowed" => :method_not_allowed,
     "operator_ack_required" => :bad_request,
@@ -117,6 +120,14 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
   def preflight(conn, params) do
     case HeadlessPreflight.run(params) do
       {:ok, report} -> render_success(conn, :preflight, report)
+      {:error, reason} -> render_error(conn, reason)
+    end
+  end
+
+  @spec shutdown(Plug.Conn.t(), map()) :: Plug.Conn.t()
+  def shutdown(conn, params) do
+    case HeadlessShutdown.run(params) do
+      {:ok, report} -> render_success(conn, :stop, report)
       {:error, reason} -> render_error(conn, reason)
     end
   end

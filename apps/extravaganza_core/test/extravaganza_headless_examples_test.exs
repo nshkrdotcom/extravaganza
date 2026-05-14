@@ -92,6 +92,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
              :status,
              :logs,
              :preflight,
+             :stop,
              :live_linear_source,
              :live_linear_current_states,
              :live_codex_turn,
@@ -113,6 +114,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
           Mix.Tasks.Extravaganza.Headless.Status,
           Mix.Tasks.Extravaganza.Headless.Logs,
           Mix.Tasks.Extravaganza.Headless.Preflight,
+          Mix.Tasks.Extravaganza.Headless.Stop,
           Mix.Tasks.Extravaganza.Headless.LiveLinearSource,
           Mix.Tasks.Extravaganza.Headless.LiveLinearCurrentStates,
           Mix.Tasks.Extravaganza.Headless.LiveCodexTurn,
@@ -140,6 +142,15 @@ defmodule Extravaganza.HeadlessExamplesTest do
              "linear_primary",
              "--credential-refs",
              "LINEAR_API_KEY,GH_TOKEN"
+           ]},
+          {"extravaganza.headless.stop", "stop",
+           [
+             "--json",
+             "--fixture",
+             "headless_m1",
+             "--confirm-no-active-lower-runs",
+             "--trace-id",
+             "trace:examples"
            ]},
           {"extravaganza.headless.live.linear_source", "live.linear-source",
            ["--json", "--trace-id", "trace:examples"]},
@@ -203,6 +214,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
 
     assert TaskSupport.start_app?(:state, ["--json"])
     refute TaskSupport.start_app?(:preflight, ["--json"])
+    refute TaskSupport.start_app?(:stop, ["--json"])
     refute TaskSupport.start_app?(:profile, ["--json"])
     assert TaskSupport.guardrails_acknowledgement_pending?(:refresh, ["--json"])
     refute TaskSupport.start_app?(:refresh, ["--json"])
@@ -1669,7 +1681,8 @@ defmodule Extravaganza.HeadlessExamplesTest do
           {:state, common_args()},
           {:run, ["run:fixture" | common_args()]},
           {:evidence, ["run:fixture" | common_args()]},
-          {:events, ["--run", "run:fixture" | common_args()]}
+          {:events, ["--run", "run:fixture" | common_args()]},
+          {:stop, ["--confirm-no-active-lower-runs" | common_args()]}
         ] do
       output = capture_io(fn -> assert :ok = HeadlessCLI.run(operation, argv) end)
       decoded = Jason.decode!(output)
@@ -1713,6 +1726,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
           "scripts/headless/status.exs",
           "scripts/headless/logs.exs",
           "scripts/headless/preflight.exs",
+          "scripts/headless/stop.exs",
           "scripts/headless/profile_validate.exs",
           "scripts/headless/profile_reload.exs",
           "scripts/headless/live_linear_source.exs",

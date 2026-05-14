@@ -17,6 +17,8 @@ defmodule ExtravaganzaWeb.HeadlessServer do
     "GET /api/v1/state" => "mix extravaganza.headless.state --json",
     "GET /api/v1/status" => "mix extravaganza.headless.status --json",
     "GET /api/v1/preflight" => "mix extravaganza.headless.preflight --json",
+    "POST /api/v1/shutdown" =>
+      "mix extravaganza.headless.stop --json --confirm-no-active-lower-runs",
     "GET /api/v1/logs" => "mix extravaganza.headless.logs --json",
     "GET /api/v1/events" => "mix extravaganza.headless.events --json --run run:fixture",
     "GET /api/v1/:issue_identifier" => "curl http://127.0.0.1:PORT/api/v1/:issue_identifier",
@@ -218,6 +220,7 @@ defmodule ExtravaganzaWeb.HeadlessServer do
           "mix extravaganza.headless.logs",
           "mix extravaganza.headless.stop",
           "/api/v1/status",
+          "/api/v1/shutdown",
           "/api/v1/logs"
         ],
         "evidence" =>
@@ -263,6 +266,7 @@ defmodule ExtravaganzaWeb.HeadlessServer do
           "mix extravaganza.headless.refresh",
           "mix extravaganza.headless.stop",
           "/api/v1/status",
+          "/api/v1/shutdown",
           "/api/v1/refresh"
         ],
         "evidence" =>
@@ -285,6 +289,7 @@ defmodule ExtravaganzaWeb.HeadlessServer do
           "/operator-console",
           "/api/v1/state",
           "/api/v1/status",
+          "/api/v1/shutdown",
           "/api/v1/refresh",
           "/api/v1/source-publication"
         ],
@@ -304,16 +309,18 @@ defmodule ExtravaganzaWeb.HeadlessServer do
           "AppKit operator surface"
         ],
         "product_exposure" => [
+          "mix extravaganza.headless.stop",
           "/operator-console",
           "/api/v1/state",
           "/api/v1/status",
           "/api/v1/events",
+          "POST /api/v1/shutdown",
           "/api/v1/logs"
         ],
         "evidence" =>
-          "Operator console and API readbacks expose status; offline shutdown rendering remains separate.",
-        "status" => "mapped_with_shutdown_offline_follow_up",
-        "remaining_gap_refs" => ["META-SVC-004"]
+          "Operator console and API readbacks expose status; product stop renders offline JSON.",
+        "status" => "closed",
+        "remaining_gap_refs" => []
       }
     ]
   end

@@ -636,6 +636,16 @@ defmodule Extravaganza.HeadlessJSON do
     {"Temporal substrate is unavailable", "app_not_started", true, ["temporal_substrate"]}
   end
 
+  defp classified_attrs("lower_run_posture_required") do
+    {"shutdown requires lower-run posture proof", "shutdown_precondition", false,
+     ["lower_run_posture"]}
+  end
+
+  defp classified_attrs("active_lower_runs_present") do
+    {"shutdown is blocked while active lower runs are present", "shutdown_precondition", false,
+     ["lower_run_refs"]}
+  end
+
   defp classified_attrs("runtime_installation_not_provisioned") do
     {"runtime installation is not provisioned", "product_host_unavailable", true,
      ["runtime_installation_ref"]}

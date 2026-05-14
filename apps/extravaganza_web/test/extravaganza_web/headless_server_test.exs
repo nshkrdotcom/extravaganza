@@ -63,6 +63,9 @@ defmodule ExtravaganzaWeb.HeadlessServerTest do
 
     assert plan["route_map"]["POST /api/v1/source-publication"] ==
              "mix extravaganza.headless.source_publish SUBJECT_ID --json"
+
+    assert plan["route_map"]["POST /api/v1/shutdown"] ==
+             "mix extravaganza.headless.stop --json --confirm-no-active-lower-runs"
   end
 
   @tag :tmp_dir
@@ -143,6 +146,12 @@ defmodule ExtravaganzaWeb.HeadlessServerTest do
                "message" => "Phase 89 lifecycle source event"
              })
 
+    assert {200, %{"ok" => true, "operation" => "stop"}} =
+             post_json("#{base_url}/api/v1/shutdown", %{
+               "confirm_no_active_lower_runs" => true,
+               "reason" => "phase92-lifecycle"
+             })
+
     assert Process.alive?(pid)
   end
 
@@ -193,6 +202,7 @@ defmodule ExtravaganzaWeb.HeadlessServerTest do
              "mix extravaganza.headless.refresh",
              "mix extravaganza.headless.stop",
              "/api/v1/status",
+             "/api/v1/shutdown",
              "/api/v1/refresh"
            ]
 
@@ -202,9 +212,11 @@ defmodule ExtravaganzaWeb.HeadlessServerTest do
              "mix extravaganza.headless.web"
            ]
 
-    assert row_for(equivalence, "SymphonyElixir.StatusDashboard")["remaining_gap_refs"] == [
-             "META-SVC-004"
-           ]
+    status_dashboard = row_for(equivalence, "SymphonyElixir.StatusDashboard")
+    assert status_dashboard["status"] == "closed"
+    assert status_dashboard["remaining_gap_refs"] == []
+    assert "mix extravaganza.headless.stop" in status_dashboard["product_exposure"]
+    assert "POST /api/v1/shutdown" in status_dashboard["product_exposure"]
   end
 
   defp write_workflow!(tmp_dir, opts) do

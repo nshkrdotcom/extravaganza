@@ -19,6 +19,7 @@ defmodule Extravaganza.HeadlessCLI do
     HeadlessFixtureBackend,
     HeadlessJSON,
     HeadlessPreflight,
+    HeadlessShutdown,
     HeadlessSurface,
     ProductHost,
     SymphonyWorkflowImport
@@ -43,6 +44,7 @@ defmodule Extravaganza.HeadlessCLI do
     :status,
     :logs,
     :preflight,
+    :stop,
     :live_linear_source,
     :live_linear_current_states,
     :live_codex_turn,
@@ -74,7 +76,8 @@ defmodule Extravaganza.HeadlessCLI do
     :review,
     :source_sync,
     :source_publish,
-    :profile_reload
+    :profile_reload,
+    :stop
   ]
 
   @guardrails_ack_flag "--ack-headless-guardrails"
@@ -351,6 +354,15 @@ defmodule Extravaganza.HeadlessCLI do
     )
   end
 
+  defp dispatch(:stop, opts) do
+    HeadlessJSON.wrap(
+      :stop,
+      HeadlessShutdown.run(shutdown_opts(opts)),
+      fn value -> value end,
+      opts
+    )
+  end
+
   defp dispatch(:live_linear_source, opts) do
     dispatch_live("live.linear-source", &ProductHost.live_linear_source_example/1, opts)
   end
@@ -526,6 +538,33 @@ defmodule Extravaganza.HeadlessCLI do
           :credential_refs,
           split_csv(credential_refs),
           &(split_csv(credential_refs) ++ &1)
+        )
+      )
+
+  defp parse(["--confirm-no-active-lower-runs" | rest], opts),
+    do: parse(rest, Map.put(opts, :confirm_no_active_lower_runs?, true))
+
+  defp parse(["--active-lower-run-ref", active_lower_run_ref | rest], opts),
+    do:
+      parse(
+        rest,
+        Map.update(
+          opts,
+          :active_lower_run_refs,
+          [active_lower_run_ref],
+          &(&1 ++ [active_lower_run_ref])
+        )
+      )
+
+  defp parse(["--active-lower-run-refs", active_lower_run_refs | rest], opts),
+    do:
+      parse(
+        rest,
+        Map.update(
+          opts,
+          :active_lower_run_refs,
+          split_csv(active_lower_run_refs),
+          &(split_csv(active_lower_run_refs) ++ &1)
         )
       )
 
@@ -891,6 +930,15 @@ defmodule Extravaganza.HeadlessCLI do
       :credential_ref
     ])
     |> Map.put(:backend_opts, surface_opts(opts))
+  end
+
+  defp shutdown_opts(opts) do
+    Map.take(opts, [
+      :active_lower_run_refs,
+      :confirm_no_active_lower_runs?,
+      :reason,
+      :trace_id
+    ])
   end
 
   defp parse_env_assignment(assignment) when is_binary(assignment) do

@@ -25,6 +25,7 @@ matrix below. Non-fixture commands that mutate product state still require
 - `mix extravaganza.headless.status --json`
 - `mix extravaganza.headless.logs --json`
 - `mix extravaganza.headless.preflight --json --temporal-status reachable`
+- `mix extravaganza.headless.stop --confirm-no-active-lower-runs --ack-headless-guardrails --json`
 - `mix extravaganza.headless.profile_validate --workflow WORKFLOW.md --json`
 - `mix extravaganza.headless.profile_reload --workflow WORKFLOW.md --ack-headless-guardrails --json`
 - `mix extravaganza.headless.smoke --json`

@@ -78,6 +78,7 @@ mix extravaganza.headless.evidence run:fixture --json
 mix extravaganza.headless.status --json
 mix extravaganza.headless.logs --json
 mix extravaganza.headless.preflight --json --skip-app-start --temporal-status reachable
+mix extravaganza.headless.stop --json --fixture headless_m1 --confirm-no-active-lower-runs
 mix extravaganza.headless.source_publish subject:fixture --ack-headless-guardrails --json
 mix extravaganza.headless.profile_validate --workflow WORKFLOW.md --json
 mix extravaganza.headless.profile_reload --workflow WORKFLOW.md --ack-headless-guardrails --json
@@ -192,6 +193,7 @@ SSE stream. The observability proof surface is the product route set:
 - `GET /api/v1/status`
 - `GET /api/v1/events`
 - `GET /api/v1/logs`
+- `POST /api/v1/shutdown`
 - `POST /api/v1/refresh`
 
 This preserves the headless dashboard/API behavior without requiring
@@ -414,6 +416,7 @@ Use these scripts for onboarding and smoke runs:
 - `scripts/headless/source_publish.exs`
 - `scripts/headless/status.exs`
 - `scripts/headless/logs.exs`
+- `scripts/headless/stop.exs`
 - `scripts/headless/profile_validate.exs`
 - `scripts/headless/profile_reload.exs`
 - `scripts/headless/live_linear_source.exs`

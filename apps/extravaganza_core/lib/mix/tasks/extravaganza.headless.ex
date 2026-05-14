@@ -14,7 +14,8 @@ defmodule Mix.Tasks.Extravaganza.Headless.TaskSupport do
   @no_start_operations [
     :preflight,
     :profile,
-    :profile_validate
+    :profile_validate,
+    :stop
   ]
   @live_surface_dependency_apps [
     :jido_integration_v2_control_plane,
@@ -320,6 +321,17 @@ defmodule Mix.Tasks.Extravaganza.Headless.Preflight do
   @shortdoc "Print headless dependency preflight JSON"
   @impl Mix.Task
   def run(argv), do: TaskSupport.run(:preflight, argv)
+end
+
+defmodule Mix.Tasks.Extravaganza.Headless.Stop do
+  use Mix.Task
+
+  alias Mix.Tasks.Extravaganza.Headless.TaskSupport
+
+  @moduledoc false
+  @shortdoc "Print headless shutdown/offline status JSON"
+  @impl Mix.Task
+  def run(argv), do: TaskSupport.run(:stop, argv)
 end
 
 defmodule Mix.Tasks.Extravaganza.Headless.Live.LinearSource do
