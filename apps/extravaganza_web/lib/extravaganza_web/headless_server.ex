@@ -77,6 +77,7 @@ defmodule ExtravaganzaWeb.HeadlessServer do
          "bind_host" => format_host(ip),
          "ephemeral_port_requested?" => port == 0,
          "endpoint_module" => inspect(Endpoint),
+         "service_lifecycle" => service_lifecycle(),
          "start_command" => start_command(port),
          "route_map" => @route_map
        }}
@@ -171,6 +172,17 @@ defmodule ExtravaganzaWeb.HeadlessServer do
 
   defp format_host({127, 0, 0, 1}), do: @default_host
   defp format_host(ip), do: ip |> :inet.ntoa() |> to_string()
+
+  defp service_lifecycle do
+    %{
+      "mode" => "long_running_phoenix_shell",
+      "replacement_for" => "symphony_cli_wait_for_shutdown",
+      "one_shot?" => false,
+      "start_module" => inspect(__MODULE__),
+      "supervisor" => inspect(Endpoint),
+      "waits_for_shutdown?" => true
+    }
+  end
 
   defp start_command(nil), do: "mix extravaganza.headless.web --port PORT --json"
   defp start_command(port), do: "mix extravaganza.headless.web --port #{port} --json"
