@@ -14,15 +14,37 @@ defmodule Extravaganza.Presenters.StatePresenter do
   @running_states ~w[running]
   @claimed_states ~w[running queued in_flight accepted_active]
   @completed_states ~w[completed terminal_success]
+  @state_readback_coverage_kinds ~w[
+    running
+    retrying
+    completed_bookkeeping
+    available_slots
+    poll_state
+    codex_totals
+    rate_limits
+    stale_reasons
+    blocked_reasons
+  ]
+  @blocked_reason_codes ~w[
+    blocked_by_non_terminal
+    non_terminal_dependency
+    pre_dispatch_revalidation
+    source_blocked
+  ]
   @atom_keys %{
     "attempt_ref" => :attempt_ref,
     "available" => :available,
+    "blocked_reason" => :blocked_reason,
+    "blocked_reasons" => :blocked_reasons,
     "cached_input_tokens" => :cached_input_tokens,
     "checking?" => :checking?,
     "claim_state" => :claim_state,
+    "code" => :code,
     "completion_state" => :completion_state,
     "blocker_refs" => :blocker_refs,
+    "diagnostics" => :diagnostics,
     "display_label" => :display_label,
+    "dispatch_eligible?" => :dispatch_eligible?,
     "dispatch_eligibility" => :dispatch_eligibility,
     "delay_ms" => :delay_ms,
     "delay_type" => :delay_type,
@@ -42,6 +64,7 @@ defmodule Extravaganza.Presenters.StatePresenter do
     "limit_id" => :limit_id,
     "max" => :max,
     "metadata" => :metadata,
+    "message" => :message,
     "name" => :name,
     "next_poll_at" => :next_poll_at,
     "orchestrator_state" => :orchestrator_state,
@@ -55,6 +78,7 @@ defmodule Extravaganza.Presenters.StatePresenter do
     "provider_refs" => :provider_refs,
     "rate_limits" => :rate_limits,
     "reason" => :reason,
+    "reason_code" => :reason_code,
     "remaining" => :remaining,
     "reset_at" => :reset_at,
     "retry_ref" => :retry_ref,
@@ -68,6 +92,7 @@ defmodule Extravaganza.Presenters.StatePresenter do
     "seconds_running" => :seconds_running,
     "session_id" => :session_id,
     "session_ref" => :session_ref,
+    "severity" => :severity,
     "source" => :source,
     "source_ref" => :source_ref,
     "source_sync" => :source_sync,
@@ -177,7 +202,13 @@ defmodule Extravaganza.Presenters.StatePresenter do
 
   defp with_future_slots(data) when is_map(data) do
     data = Map.merge(@future_m2_slots, data)
-    Map.put_new(data, "symphony_orchestrator_state", symphony_orchestrator_state(data))
+
+    data = Map.put_new(data, "symphony_orchestrator_state", symphony_orchestrator_state(data))
+    coverage = state_readback_coverage(data)
+
+    data
+    |> Map.put("state_readback_coverage", coverage)
+    |> Map.put("state_readback_coverage_gaps", state_readback_coverage_gaps(coverage))
   end
 
   defp stringify(map), do: Map.new(map, fn {key, value} -> {to_string(key), value} end)
@@ -204,6 +235,183 @@ defmodule Extravaganza.Presenters.StatePresenter do
     }
     |> compact_map()
   end
+
+  defp state_readback_coverage(data) do
+    rows = list_value(data, "rows")
+    orchestrator_state = map_value(data, "symphony_orchestrator_state") || %{}
+
+    %{
+      "running" => running_coverage(orchestrator_state),
+      "retrying" => retrying_coverage(orchestrator_state),
+      "completed_bookkeeping" => completed_bookkeeping_coverage(orchestrator_state),
+      "available_slots" => available_slots_coverage(orchestrator_state),
+      "poll_state" => poll_state_coverage(orchestrator_state),
+      "codex_totals" => codex_totals_coverage(orchestrator_state),
+      "rate_limits" => rate_limits_coverage(orchestrator_state),
+      "stale_reasons" => stale_reasons_coverage(data, orchestrator_state),
+      "blocked_reasons" => blocked_reasons_coverage(rows)
+    }
+    |> compact_map()
+  end
+
+  defp state_readback_coverage_gaps(coverage) do
+    Enum.reject(@state_readback_coverage_kinds, fn kind ->
+      coverage
+      |> Map.get(kind)
+      |> coverage_present?()
+    end)
+  end
+
+  defp coverage_present?(%{} = coverage) do
+    coverage
+    |> Map.drop(["fields"])
+    |> Enum.any?(fn {_key, value} -> value not in [nil, [], %{}] end)
+  end
+
+  defp coverage_present?(_coverage), do: false
+
+  defp running_coverage(orchestrator_state) do
+    running = list_value(orchestrator_state, "running")
+
+    %{
+      "fields" => [
+        "symphony_orchestrator_state.running",
+        "symphony_orchestrator_state.counts.running"
+      ],
+      "subject_refs" => string_values(running, "subject_ref"),
+      "run_refs" => string_values(running, "run_ref"),
+      "session_ids" => string_values(running, "session_id")
+    }
+    |> compact_map()
+  end
+
+  defp retrying_coverage(orchestrator_state) do
+    attempts = list_value(orchestrator_state, "retry_attempts")
+
+    %{
+      "fields" => [
+        "symphony_orchestrator_state.retrying",
+        "symphony_orchestrator_state.retry_attempts",
+        "symphony_orchestrator_state.counts.retrying"
+      ],
+      "attempt_refs" => string_values(attempts, "attempt_ref"),
+      "reasons" => string_values(attempts, "reason")
+    }
+    |> compact_map()
+  end
+
+  defp completed_bookkeeping_coverage(orchestrator_state) do
+    %{
+      "fields" => [
+        "symphony_orchestrator_state.completed",
+        "symphony_orchestrator_state.counts.completed"
+      ],
+      "subject_refs" => list_value(orchestrator_state, "completed")
+    }
+    |> compact_map()
+  end
+
+  defp available_slots_coverage(orchestrator_state) do
+    %{
+      "fields" => ["symphony_orchestrator_state.slots"],
+      "slots" => map_value(orchestrator_state, "slots")
+    }
+    |> compact_map()
+  end
+
+  defp poll_state_coverage(orchestrator_state) do
+    %{
+      "fields" => ["symphony_orchestrator_state.polling"],
+      "polling" => map_value(orchestrator_state, "polling")
+    }
+    |> compact_map()
+  end
+
+  defp codex_totals_coverage(orchestrator_state) do
+    %{
+      "fields" => ["symphony_orchestrator_state.codex_totals"],
+      "totals" => map_value(orchestrator_state, "codex_totals")
+    }
+    |> compact_map()
+  end
+
+  defp rate_limits_coverage(orchestrator_state) do
+    rate_limits = list_value(orchestrator_state, "codex_rate_limits")
+
+    %{
+      "fields" => ["symphony_orchestrator_state.codex_rate_limits"],
+      "limit_refs" => string_values(rate_limits, "limit_id")
+    }
+    |> compact_map()
+  end
+
+  defp stale_reasons_coverage(data, orchestrator_state) do
+    codes =
+      data
+      |> list_value("diagnostics")
+      |> Enum.filter(&String.contains?(to_string(map_value(&1, "code")), "stale"))
+      |> string_values("code")
+
+    warning_codes =
+      orchestrator_state
+      |> list_value("reconciliation_warnings")
+      |> Enum.filter(&String.contains?(to_string(map_value(&1, "code")), "stale"))
+      |> string_values("code")
+
+    %{
+      "fields" => [
+        "diagnostics",
+        "symphony_orchestrator_state.reconciliation_warnings"
+      ],
+      "diagnostic_codes" => Enum.uniq(codes ++ warning_codes)
+    }
+    |> compact_map()
+  end
+
+  defp blocked_reasons_coverage(rows) do
+    blocked_reasons = Enum.flat_map(rows, &blocked_reasons_for_row/1)
+
+    %{
+      "fields" => ["rows.extensions.blocked_reason"],
+      "reason_codes" => blocked_reasons |> string_values("reason_code") |> Enum.uniq(),
+      "subject_refs" => blocked_reasons |> string_values("subject_ref") |> Enum.uniq()
+    }
+    |> compact_map()
+  end
+
+  defp blocked_reasons_for_row(row) do
+    row
+    |> map_value("extensions")
+    |> extension_blocked_reasons()
+    |> Enum.map(fn blocked_reason ->
+      reason_code =
+        map_value(blocked_reason, "reason_code") ||
+          map_value(blocked_reason, "reason")
+
+      %{
+        "subject_ref" => map_value(row, "subject_ref"),
+        "reason_code" => normalize_blocked_reason(reason_code)
+      }
+    end)
+    |> Enum.filter(&(&1["reason_code"] in @blocked_reason_codes))
+  end
+
+  defp extension_blocked_reasons(extensions) do
+    [
+      nested_value(extensions, ["blocked_reason"]),
+      nested_value(extensions, ["blocked_reasons"]),
+      nested_value(extensions, ["dispatch_eligibility"])
+    ]
+    |> Enum.flat_map(fn
+      values when is_list(values) -> values
+      value when is_map(value) -> [value]
+      _value -> []
+    end)
+  end
+
+  defp normalize_blocked_reason(nil), do: nil
+  defp normalize_blocked_reason("blocked_by_non_terminal"), do: "non_terminal_dependency"
+  defp normalize_blocked_reason(value), do: normalize_state(value)
 
   defp counts(rows, data) do
     %{
@@ -465,6 +673,13 @@ defmodule Extravaganza.Presenters.StatePresenter do
     end
   end
 
+  defp string_values(values, key) when is_list(values) do
+    values
+    |> Enum.map(&map_value(&1, key))
+    |> Enum.reject(&is_nil/1)
+    |> Enum.map(&to_string/1)
+  end
+
   defp integer_value(map, key, fallback_key \\ nil) do
     value = map_value(map, key) || (fallback_key && map_value(map, fallback_key))
 
@@ -475,7 +690,13 @@ defmodule Extravaganza.Presenters.StatePresenter do
   defp integer_or_nil(_value), do: nil
 
   defp map_value(map, key) when is_map(map) do
-    Map.get(map, key) || Map.get(map, Map.get(@atom_keys, key))
+    atom_key = Map.get(@atom_keys, key)
+
+    cond do
+      Map.has_key?(map, key) -> Map.get(map, key)
+      atom_key && Map.has_key?(map, atom_key) -> Map.get(map, atom_key)
+      true -> nil
+    end
   end
 
   defp map_value(_map, _key), do: nil

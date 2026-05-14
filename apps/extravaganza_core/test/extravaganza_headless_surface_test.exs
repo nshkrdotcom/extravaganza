@@ -181,8 +181,99 @@ defmodule Extravaganza.HeadlessSurfaceTest do
              "staleness_ms" => 0
            }
 
+    assert rendered["data"]["state_readback_coverage_gaps"] == []
+
+    coverage = rendered["data"]["state_readback_coverage"]
+
+    assert Map.keys(coverage) |> Enum.sort() == [
+             "available_slots",
+             "blocked_reasons",
+             "codex_totals",
+             "completed_bookkeeping",
+             "poll_state",
+             "rate_limits",
+             "retrying",
+             "running",
+             "stale_reasons"
+           ]
+
+    assert coverage["running"] == %{
+             "fields" => [
+               "symphony_orchestrator_state.running",
+               "symphony_orchestrator_state.counts.running"
+             ],
+             "run_refs" => ["run:running"],
+             "session_ids" => ["session:running"],
+             "subject_refs" => ["subject:running"]
+           }
+
+    assert coverage["retrying"] == %{
+             "attempt_refs" => ["attempt:retrying:2", "attempt:retrying:3"],
+             "fields" => [
+               "symphony_orchestrator_state.retrying",
+               "symphony_orchestrator_state.retry_attempts",
+               "symphony_orchestrator_state.counts.retrying"
+             ],
+             "reasons" => ["transient failure", "agent exited"]
+           }
+
+    assert coverage["completed_bookkeeping"] == %{
+             "fields" => [
+               "symphony_orchestrator_state.completed",
+               "symphony_orchestrator_state.counts.completed"
+             ],
+             "subject_refs" => ["subject:terminal-success"]
+           }
+
+    assert coverage["available_slots"] == %{
+             "fields" => ["symphony_orchestrator_state.slots"],
+             "slots" => %{"available" => 2, "max" => 3, "running" => 1}
+           }
+
+    assert coverage["poll_state"] == %{
+             "fields" => ["symphony_orchestrator_state.polling"],
+             "polling" => %{
+               "checking?" => false,
+               "last_refresh_command_ref" => "command:refresh:last",
+               "next_poll_at" => "2026-04-27T00:01:00Z",
+               "poll_interval_ms" => 60_000,
+               "staleness_ms" => 0
+             }
+           }
+
+    assert coverage["codex_totals"] == %{
+             "fields" => ["symphony_orchestrator_state.codex_totals"],
+             "totals" => %{
+               "input_tokens" => 1200,
+               "output_tokens" => 450,
+               "seconds_running" => 0,
+               "source" => "runtime:event:tokens",
+               "total_tokens" => 1650
+             }
+           }
+
+    assert coverage["rate_limits"] == %{
+             "fields" => ["symphony_orchestrator_state.codex_rate_limits"],
+             "limit_refs" => ["rate:codex:minute"]
+           }
+
+    assert coverage["stale_reasons"] == %{
+             "diagnostic_codes" => ["source_state_stale"],
+             "fields" => [
+               "diagnostics",
+               "symphony_orchestrator_state.reconciliation_warnings"
+             ]
+           }
+
+    assert coverage["blocked_reasons"] == %{
+             "fields" => ["rows.extensions.blocked_reason"],
+             "reason_codes" => ["non_terminal_dependency"],
+             "subject_refs" => ["subject:retrying"]
+           }
+
     refute String.contains?(Jason.encode!(rendered), "workspace_path")
     refute String.contains?(Jason.encode!(rendered), "/home/")
+    refute String.contains?(Jason.encode!(rendered), "api_key")
   end
 
   test "subject and run presenters pass through future M2 event slots safely" do
