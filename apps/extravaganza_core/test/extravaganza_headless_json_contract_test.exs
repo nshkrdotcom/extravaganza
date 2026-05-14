@@ -65,6 +65,59 @@ defmodule Extravaganza.HeadlessJSONContractTest do
     refute String.contains?(encoded, "/home/")
   end
 
+  test "success and error envelopes redact caller-supplied live provider secret values" do
+    secrets = %{
+      linear_api_key: "lin_api_phase53_secret",
+      github_token: "ghp_phase53_secret",
+      gh_token: "gh_phase53_secret",
+      openai_api_key: "sk-openai-phase53-secret",
+      codex_api_key: "codex_phase53_secret"
+    }
+
+    success =
+      HeadlessJSON.success(
+        :live_linear_source,
+        %{
+          provider_effect: %{
+            "neutral_detail" => "provider returned #{secrets.openai_api_key}",
+            :linear_api_key => secrets.linear_api_key,
+            :github_token => secrets.github_token,
+            nested: [%{"codex_api_key" => secrets.codex_api_key}]
+          }
+        },
+        Map.merge(secrets, %{generated_at: "2026-05-08T00:00:00Z"})
+      )
+
+    error =
+      HeadlessJSON.error(
+        :live_github_evidence,
+        %AppKit.Core.SurfaceError{
+          code: "provider_failed",
+          message: "provider failed",
+          kind: :provider,
+          retryable: false,
+          details: %{
+            "neutral_detail" => "token #{secrets.gh_token}",
+            openai_api_key: secrets.openai_api_key
+          }
+        },
+        Map.merge(secrets, %{generated_at: "2026-05-08T00:00:00Z"})
+      )
+
+    encoded = Jason.encode!([success, error])
+
+    for secret <- Map.values(secrets) do
+      refute encoded =~ secret
+    end
+
+    refute encoded =~ "linear_api_key"
+    refute encoded =~ "github_token"
+    refute encoded =~ "gh_token"
+    refute encoded =~ "openai_api_key"
+    refute encoded =~ "codex_api_key"
+    assert encoded =~ "[REDACTED]"
+  end
+
   test "success envelopes extract same-run proof refs into the standard refs block" do
     envelope =
       HeadlessJSON.success(

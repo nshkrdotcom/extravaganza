@@ -9,13 +9,20 @@ defmodule Extravaganza.HeadlessJSON do
   @forbidden_keys ~w[
     api_key auth_json authorization_header provider_payload raw_secret raw_token
     target_credentials token_file workspace_path local_path raw_provider_payload secret
-    lease_token attach_token
+    lease_token attach_token linear_api_key github_token gh_token openai_api_key
+    codex_api_key access_token authorization
+  ]
+
+  @secret_value_keys ~w[
+    api_key linear_api_key github_token gh_token openai_api_key codex_api_key
+    access_token authorization secret token raw_secret raw_token
   ]
 
   @spec success(atom() | String.t(), term(), map() | keyword()) :: map()
   def success(operation, data, opts \\ []) do
     opts = opts_map(opts)
-    data = sanitize(data)
+    secret_values = secret_values(opts)
+    data = sanitize(data, secret_values)
     refs = refs(data)
 
     runtime_profile_ref =
@@ -39,7 +46,8 @@ defmodule Extravaganza.HeadlessJSON do
   @spec error(atom() | String.t(), term(), map() | keyword()) :: map()
   def error(operation, reason, opts \\ []) do
     opts = opts_map(opts)
-    error = error_attrs(reason)
+    secret_values = secret_values(opts)
+    error = error_attrs(reason, secret_values)
 
     %{
       "ok" => false,
@@ -87,30 +95,40 @@ defmodule Extravaganza.HeadlessJSON do
     |> put_ref("idempotency_key", first_path(data, idempotency_paths()))
   end
 
-  def sanitize(%DateTime{} = value), do: DateTime.to_iso8601(value)
-  def sanitize(%NaiveDateTime{} = value), do: NaiveDateTime.to_iso8601(value)
-  def sanitize(%Date{} = value), do: Date.to_iso8601(value)
-  def sanitize(%Time{} = value), do: Time.to_iso8601(value)
-  def sanitize(%_{} = value), do: value |> Map.from_struct() |> sanitize()
+  def sanitize(value), do: sanitize(value, [])
 
-  def sanitize(%{} = map) do
+  def sanitize(%DateTime{} = value, _secret_values), do: DateTime.to_iso8601(value)
+  def sanitize(%NaiveDateTime{} = value, _secret_values), do: NaiveDateTime.to_iso8601(value)
+  def sanitize(%Date{} = value, _secret_values), do: Date.to_iso8601(value)
+  def sanitize(%Time{} = value, _secret_values), do: Time.to_iso8601(value)
+
+  def sanitize(%_{} = value, secret_values),
+    do: value |> Map.from_struct() |> sanitize(secret_values)
+
+  def sanitize(%{} = map, secret_values) do
     map
     |> Enum.reject(fn {key, _value} -> forbidden_key?(key) end)
-    |> Map.new(fn {key, value} -> {to_string(key), sanitize(value)} end)
+    |> Map.new(fn {key, value} -> {to_string(key), sanitize(value, secret_values)} end)
   end
 
-  def sanitize(values) when is_list(values), do: Enum.map(values, &sanitize/1)
-  def sanitize(value) when is_tuple(value), do: value |> Tuple.to_list() |> sanitize()
-  def sanitize(nil), do: nil
-  def sanitize(true), do: true
-  def sanitize(false), do: false
+  def sanitize(values, secret_values) when is_list(values),
+    do: Enum.map(values, &sanitize(&1, secret_values))
 
-  def sanitize(value) when is_binary(value) do
+  def sanitize(value, secret_values) when is_tuple(value),
+    do: value |> Tuple.to_list() |> sanitize(secret_values)
+
+  def sanitize(nil, _secret_values), do: nil
+  def sanitize(true, _secret_values), do: true
+  def sanitize(false, _secret_values), do: false
+
+  def sanitize(value, secret_values) when is_binary(value) do
+    value = redact_secret_values(value, secret_values)
+
     if absolute_path?(value), do: "[redacted-path]", else: value
   end
 
-  def sanitize(value) when is_atom(value), do: Atom.to_string(value)
-  def sanitize(value), do: value
+  def sanitize(value, _secret_values) when is_atom(value), do: Atom.to_string(value)
+  def sanitize(value, _secret_values), do: value
 
   defp absolute_path?(value) do
     Path.type(value) == :absolute
@@ -305,7 +323,7 @@ defmodule Extravaganza.HeadlessJSON do
   defp put_ref(refs, key, value) when is_binary(value), do: Map.put(refs, key, value)
   defp put_ref(refs, key, value), do: Map.put(refs, key, to_string(value))
 
-  defp error_attrs(:runtime_projection_not_found) do
+  defp error_attrs(:runtime_projection_not_found, _secret_values) do
     %{
       "code" => "projection_unavailable",
       "message" => "runtime projection is not available for this run",
@@ -315,7 +333,7 @@ defmodule Extravaganza.HeadlessJSON do
     }
   end
 
-  defp error_attrs(:unavailable) do
+  defp error_attrs(:unavailable, _secret_values) do
     %{
       "code" => "unavailable",
       "message" => "headless surface is unavailable",
@@ -325,7 +343,7 @@ defmodule Extravaganza.HeadlessJSON do
     }
   end
 
-  defp error_attrs(:bad_request) do
+  defp error_attrs(:bad_request, _secret_values) do
     %{
       "code" => "bad_request",
       "message" => "request is missing required headless parameters",
@@ -335,7 +353,7 @@ defmodule Extravaganza.HeadlessJSON do
     }
   end
 
-  defp error_attrs(:not_found) do
+  defp error_attrs(:not_found, _secret_values) do
     %{
       "code" => "not_found",
       "message" => "headless resource was not found",
@@ -345,7 +363,7 @@ defmodule Extravaganza.HeadlessJSON do
     }
   end
 
-  defp error_attrs(:method_not_allowed) do
+  defp error_attrs(:method_not_allowed, _secret_values) do
     %{
       "code" => "method_not_allowed",
       "message" => "HTTP method is not allowed for this headless route",
@@ -355,7 +373,7 @@ defmodule Extravaganza.HeadlessJSON do
     }
   end
 
-  defp error_attrs(:invalid_action) do
+  defp error_attrs(:invalid_action, _secret_values) do
     %{
       "code" => "invalid_action",
       "message" => "requested action is not supported by this headless surface",
@@ -365,7 +383,7 @@ defmodule Extravaganza.HeadlessJSON do
     }
   end
 
-  defp error_attrs(:action_denied) do
+  defp error_attrs(:action_denied, _secret_values) do
     %{
       "code" => "action_denied",
       "message" => "headless action was denied by authority",
@@ -375,7 +393,7 @@ defmodule Extravaganza.HeadlessJSON do
     }
   end
 
-  defp error_attrs(:unauthorized_lower_read) do
+  defp error_attrs(:unauthorized_lower_read, _secret_values) do
     %{
       "code" => "unauthorized_lower_read",
       "message" => "lower read is not authorized for this request",
@@ -385,7 +403,7 @@ defmodule Extravaganza.HeadlessJSON do
     }
   end
 
-  defp error_attrs(:snapshot_timeout) do
+  defp error_attrs(:snapshot_timeout, _secret_values) do
     %{
       "code" => "snapshot_timeout",
       "message" => "headless snapshot timed out",
@@ -395,19 +413,19 @@ defmodule Extravaganza.HeadlessJSON do
     }
   end
 
-  defp error_attrs(%AppKit.Core.SurfaceError{} = error) do
+  defp error_attrs(%AppKit.Core.SurfaceError{} = error, secret_values) do
     %{
       "code" => error.code,
       "message" => error.message,
       "class" => error.kind || "surface_error",
       "retryable" => error.retryable == true,
       "missing_refs" => [],
-      "details" => sanitize(error.details || %{})
+      "details" => sanitize(error.details || %{}, secret_values)
     }
     |> compact()
   end
 
-  defp error_attrs(reason) do
+  defp error_attrs(reason, _secret_values) do
     code = reason |> normalize_reason() |> to_string()
 
     %{
@@ -438,7 +456,24 @@ defmodule Extravaganza.HeadlessJSON do
   defp opts_map(opts) when is_map(opts), do: Map.new(opts)
   defp opts_map(opts) when is_list(opts), do: Map.new(opts)
 
-  defp forbidden_key?(key), do: to_string(key) in @forbidden_keys
+  defp secret_values(opts) do
+    opts
+    |> Enum.filter(fn {key, value} -> secret_value_key?(key) and redaction_value?(value) end)
+    |> Enum.map(fn {_key, value} -> value end)
+    |> Enum.uniq()
+  end
+
+  defp secret_value_key?(key), do: (key |> to_string() |> String.downcase()) in @secret_value_keys
+
+  defp redaction_value?(value), do: is_binary(value) and byte_size(String.trim(value)) >= 4
+
+  defp redact_secret_values(value, secret_values) do
+    Enum.reduce(secret_values, value, fn secret, acc ->
+      String.replace(acc, secret, "[REDACTED]")
+    end)
+  end
+
+  defp forbidden_key?(key), do: (key |> to_string() |> String.downcase()) in @forbidden_keys
 
   defp first_present(values) do
     Enum.find(values, fn value -> is_binary(value) and String.trim(value) != "" end)
