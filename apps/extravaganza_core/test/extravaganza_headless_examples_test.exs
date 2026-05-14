@@ -11,7 +11,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     RuntimeRunDetail
   }
 
-  alias AppKit.Core.RuntimeSurface.GitHubPrEvidenceReceipt
+  alias AppKit.Core.RuntimeSurface.{GitHubPrBranchCleanupReceipt, GitHubPrEvidenceReceipt}
 
   alias Extravaganza.{HeadlessCLI, HeadlessFixtureBackend}
   alias Mix.Tasks.Extravaganza.Headless.TaskSupport
@@ -94,6 +94,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
              :live_linear_publication,
              :live_linear_graphql_tool,
              :live_github_evidence,
+             :live_github_pr_cleanup,
              :live_smoke,
              :evidence,
              :events,
@@ -113,6 +114,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
           Mix.Tasks.Extravaganza.Headless.LiveLinearPublication,
           Mix.Tasks.Extravaganza.Headless.LiveLinearGraphqlTool,
           Mix.Tasks.Extravaganza.Headless.LiveGithubEvidence,
+          Mix.Tasks.Extravaganza.Headless.LiveGithubPrCleanup,
           Mix.Tasks.Extravaganza.Headless.LiveSmoke
         ] do
       assert Code.ensure_loaded?(task_module)
@@ -147,6 +149,10 @@ defmodule Extravaganza.HeadlessExamplesTest do
            ["--json", "--trace-id", "trace:examples"]},
           {"extravaganza.headless.live_github_evidence", "live.github-evidence",
            ["--json", "--trace-id", "trace:examples"]},
+          {"extravaganza.headless.live.github_pr_cleanup", "live.github-pr-cleanup",
+           ["--json", "--trace-id", "trace:examples"]},
+          {"extravaganza.headless.live_github_pr_cleanup", "live.github-pr-cleanup",
+           ["--json", "--trace-id", "trace:examples"]},
           {"extravaganza.headless.live.smoke", "live.smoke",
            ["--json", "--trace-id", "trace:examples"]},
           {"extravaganza.headless.live_smoke", "live.smoke",
@@ -170,6 +176,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
           :live_linear_publication,
           :live_linear_graphql_tool,
           :live_github_evidence,
+          :live_github_pr_cleanup,
           :live_smoke
         ] do
       refute TaskSupport.start_app?(
@@ -196,7 +203,9 @@ defmodule Extravaganza.HeadlessExamplesTest do
           {:live_codex_turn, "live.codex-turn", "codex", ["OPENAI_API_KEY", "CODEX_API_KEY"]},
           {:live_linear_publication, "live.linear-publication", "linear", ["LINEAR_API_KEY"]},
           {:live_linear_graphql_tool, "live.linear-graphql-tool", "linear", ["LINEAR_API_KEY"]},
-          {:live_github_evidence, "live.github-evidence", "github", ["GH_TOKEN", "GITHUB_TOKEN"]}
+          {:live_github_evidence, "live.github-evidence", "github", ["GH_TOKEN", "GITHUB_TOKEN"]},
+          {:live_github_pr_cleanup, "live.github-pr-cleanup", "github",
+           ["GH_TOKEN", "GITHUB_TOKEN"]}
         ] do
       output =
         capture_io(fn ->
@@ -274,6 +283,18 @@ defmodule Extravaganza.HeadlessExamplesTest do
              "head-sha",
              "--trace-id",
              "trace:fixture-github"
+           ], false},
+          {:live_github_pr_cleanup, "live.github-pr-cleanup",
+           [
+             "--json",
+             "--credential-available",
+             "--repo",
+             "nshkrdotcom/extravaganza",
+             "--branch",
+             "cleanup-branch",
+             "--confirm-close",
+             "--trace-id",
+             "trace:fixture-github-cleanup"
            ], false}
         ] do
       output =
@@ -311,6 +332,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     refute_received {:execute_linear_graphql_tool, _, _, _}
     refute_received {:start_agent_run, _, _, _}
     refute_received {:fetch_github_pr_evidence, _, _, _}
+    refute_received {:cleanup_github_pr_branch, _, _, _}
   end
 
   @tag :live_provider
@@ -926,6 +948,60 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert Keyword.fetch!(opts, :trace_id) == "trace:live-github-product"
     refute output =~ "env-github"
     refute output =~ "live_provider_effect_deferred"
+  end
+
+  @tag :live_provider
+  test "github cleanup live product path closes matching branch PRs through AppKit with confirmation" do
+    Application.put_env(:app_kit_core, :runtime_backend, __MODULE__.GitHubEvidenceBackend)
+
+    output =
+      capture_io(fn ->
+        assert :ok =
+                 HeadlessCLI.run(:live_github_pr_cleanup, [
+                   "--json",
+                   "--live-product-path",
+                   "--repo",
+                   "nshkrdotcom/extravaganza",
+                   "--branch",
+                   "cleanup-branch",
+                   "--confirm-close",
+                   "--trace-id",
+                   "trace:live-github-cleanup"
+                 ])
+      end)
+
+    decoded = Jason.decode!(output)
+    data = decoded["data"]
+    provider_effect = data["provider_effect"]
+    preflight = data["credential_preflight"]
+
+    assert decoded["ok"] == true
+    assert decoded["operation"] == "live.github-pr-cleanup"
+    assert data["status"] == "completed"
+    assert preflight["status"] == "dispatchable"
+    assert preflight["dispatch_binding"] == "app_config"
+    assert provider_effect["status"] == "receipt_recorded"
+    assert provider_effect["operation"] == "github.pr.branch_cleanup"
+    assert provider_effect["repo"] == "nshkrdotcom/extravaganza"
+    assert provider_effect["branch"] == "cleanup-branch"
+    assert provider_effect["pull_numbers"] == [17]
+    assert provider_effect["closed_pull_numbers"] == [17]
+    assert provider_effect["write_operations"] == ["github.comment.create", "github.pr.update"]
+    assert provider_effect["provider_request_sent?"] == true
+    assert provider_effect["provider_response_received?"] == true
+    assert provider_effect["receipt_recorded?"] == true
+    assert provider_effect["product_readback_confirmed?"] == true
+    assert_authority_proof(provider_effect, "github", "pr-cleanup")
+    assert data["lower_request_ref"] == "lower-request://github/pr-cleanup"
+    assert data["lower_receipt_ref"] == "lower-receipt://github/pr-cleanup/succeeded"
+
+    assert_received {:cleanup_github_pr_branch, tenant_id, request, opts}
+    assert String.starts_with?(tenant_id, "extravaganza-live-")
+    assert request.repo == "nshkrdotcom/extravaganza"
+    assert request.branch == "cleanup-branch"
+    assert request.confirm_close? == true
+    assert Keyword.fetch!(opts, :trace_id) == "trace:live-github-cleanup"
+    refute output =~ "env-github"
   end
 
   @tag :live_provider
@@ -1945,6 +2021,59 @@ defmodule Extravaganza.HeadlessExamplesTest do
             "authorized?" => true,
             "handoff_ref" => "authority-handoff://github/pr-fetch",
             "authority_packet_ref" => "authority-packet://github/pr-fetch",
+            "connector_binding_ref" => "connector-binding://github/primary",
+            "credential_lease_ref" => "credential-lease://github/primary",
+            "raw_material_present?" => false
+          }
+        }
+      })
+    end
+
+    @impl true
+    def cleanup_github_pr_branch(context, request, opts) do
+      if pid = Process.get(:headless_examples_test_pid) do
+        send(pid, {:cleanup_github_pr_branch, context.tenant_ref.id, request, opts})
+      end
+
+      GitHubPrBranchCleanupReceipt.new(%{
+        effect_ref: "live-effect://github/pr-branch-cleanup/test",
+        tenant_ref: context.tenant_ref.id,
+        provider: "github",
+        effect: "github_pr_branch_cleanup",
+        status: :receipt_recorded,
+        capability_ids: ["github.pr.list", "github.comment.create", "github.pr.update"],
+        repo: request.repo,
+        branch: request.branch,
+        pull_numbers: [17],
+        closed_pull_numbers: [17],
+        credential_present?: true,
+        credential_redeemed?: true,
+        provider_request_sent?: true,
+        provider_response_received?: true,
+        receipt_recorded?: true,
+        product_readback_confirmed?: true,
+        write_operations: ["github.comment.create", "github.pr.update"],
+        provider_ids: %{pull_requests: ["17"]},
+        provider_refs: %{pull_requests: ["https://github.com/nshkrdotcom/extravaganza/pull/17"]},
+        counts: %{matched_count: 1, closed_count: 1, comment_count: 1},
+        receipt_refs: %{
+          lower_request_refs: ["lower-request://github/pr-cleanup"],
+          lower_receipt_refs: ["lower-receipt://github/pr-cleanup/succeeded"]
+        },
+        operation_receipts: [
+          %{
+            capability_id: "github.pr.update",
+            capability_negotiation_ref: "cap-neg://github/pr-cleanup",
+            connector_manifest_ref: "manifest://jido/connectors/github@test",
+            lower_request_ref: "lower-request://github/pr-cleanup",
+            lower_receipt_ref: "lower-receipt://github/pr-cleanup/succeeded"
+          }
+        ],
+        metadata: %{
+          "authority_handoff" => %{
+            "authorized?" => true,
+            "handoff_ref" => "authority-handoff://github/pr-cleanup",
+            "authority_packet_ref" => "authority-packet://github/pr-cleanup",
             "connector_binding_ref" => "connector-binding://github/primary",
             "credential_lease_ref" => "credential-lease://github/primary",
             "raw_material_present?" => false

@@ -125,6 +125,10 @@ defmodule Extravaganza.ProductHost do
   def live_github_evidence_example(opts \\ []),
     do: HeadlessLiveExamples.run(:github_evidence, opts)
 
+  @spec live_github_pr_cleanup_example(keyword() | map()) :: {:ok, map()} | {:error, term()}
+  def live_github_pr_cleanup_example(opts \\ []),
+    do: HeadlessLiveExamples.run(:github_pr_cleanup, opts)
+
   @spec live_smoke(keyword() | map()) :: {:ok, map()} | {:error, term()}
   def live_smoke(opts \\ []), do: HeadlessLiveExamples.run(:smoke, opts)
 

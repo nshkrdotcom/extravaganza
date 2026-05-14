@@ -3,7 +3,7 @@ defmodule Extravaganza.HeadlessLiveExamples do
 
   alias AppKit.Core.AgentIntake.RunOutcomeFuture
   alias AppKit.Core.RuntimeReadback.RuntimeRunDetail
-  alias AppKit.Core.RuntimeSurface.GitHubPrEvidenceReceipt
+  alias AppKit.Core.RuntimeSurface.{GitHubPrBranchCleanupReceipt, GitHubPrEvidenceReceipt}
   alias AppKit.HeadlessSurface, as: AppKitHeadlessSurface
 
   alias Extravaganza.{
@@ -81,6 +81,15 @@ defmodule Extravaganza.HeadlessLiveExamples do
         "github.check_runs.list_for_ref"
       ],
       provider_effect: "github_pr_evidence"
+    },
+    github_pr_cleanup: %{
+      operation: "live.github-pr-cleanup",
+      provider: "github",
+      command: "mix extravaganza.headless.live.github_pr_cleanup --json",
+      product_entrypoint: "Extravaganza.ProductHost.live_github_pr_cleanup_example",
+      credential_refs: ["GH_TOKEN", "GITHUB_TOKEN"],
+      capability_ids: ["github.pr.list", "github.comment.create", "github.pr.update"],
+      provider_effect: "github_pr_branch_cleanup"
     }
   }
 
@@ -92,6 +101,8 @@ defmodule Extravaganza.HeadlessLiveExamples do
     :linear_graphql_tool,
     :github_evidence
   ]
+
+  @standalone_examples @example_order ++ [:github_pr_cleanup]
 
   @memory_tracker_callbacks [
     "fetch_candidate_issues",
@@ -156,7 +167,7 @@ defmodule Extravaganza.HeadlessLiveExamples do
     end
   end
 
-  def run(kind, opts) when kind in @example_order do
+  def run(kind, opts) when kind in @standalone_examples do
     opts = opts_map(opts)
     example = example!(kind)
 
@@ -227,6 +238,9 @@ defmodule Extravaganza.HeadlessLiveExamples do
 
   defp dispatch_provider_effect(:github_evidence, example, proof, opts),
     do: github_evidence_effect(example, proof, opts)
+
+  defp dispatch_provider_effect(:github_pr_cleanup, example, proof, opts),
+    do: github_pr_cleanup_effect(example, proof, opts)
 
   defp dispatch_provider_effect(kind, example, _proof, opts),
     do: skipped_effect(kind, example, opts)
@@ -757,6 +771,46 @@ defmodule Extravaganza.HeadlessLiveExamples do
     end
   end
 
+  defp github_pr_cleanup_effect(example, _proof, opts) do
+    case HeadlessSurface.cleanup_github_pr_branch(
+           github_pr_cleanup_request(opts),
+           surface_opts(opts)
+         ) do
+      {:ok, %GitHubPrBranchCleanupReceipt{} = receipt} ->
+        %{
+          "provider" => example.provider,
+          "effect" => example.provider_effect,
+          "capability_ids" => receipt.capability_ids,
+          "status" => Atom.to_string(receipt.status),
+          "operation" => "github.pr.branch_cleanup",
+          "repo" => receipt.repo,
+          "branch" => receipt.branch,
+          "pull_numbers" => receipt.pull_numbers,
+          "closed_pull_numbers" => receipt.closed_pull_numbers,
+          "credential_present?" => receipt.credential_present?,
+          "credential_redeemed?" => receipt.credential_redeemed?,
+          "provider_request_sent?" => receipt.provider_request_sent?,
+          "provider_response_received?" => receipt.provider_response_received?,
+          "receipt_recorded?" => receipt.receipt_recorded?,
+          "product_readback_confirmed?" => receipt.product_readback_confirmed?,
+          "write_operations" => receipt.write_operations,
+          "provider_ids" => receipt.provider_ids,
+          "provider_refs" => receipt.provider_refs,
+          "counts" => receipt.counts,
+          "receipt_refs" => receipt.receipt_refs,
+          "operation_receipts" => receipt.operation_receipts,
+          "appkit_surfaces" => ["AppKit.RuntimeSurface", "AppKit.HeadlessSurface"],
+          "lower_request_ref" => first_ref(receipt.receipt_refs, "lower_request_refs"),
+          "lower_receipt_ref" => first_ref(receipt.receipt_refs, "lower_receipt_refs")
+        }
+        |> Map.merge(authority_effect_fields(receipt))
+        |> compact_map()
+
+      {:error, reason} ->
+        failed_effect(example, reason)
+    end
+  end
+
   defp failed_effect(example, reason) do
     %{
       "provider" => example.provider,
@@ -1201,6 +1255,25 @@ defmodule Extravaganza.HeadlessLiveExamples do
     }
     |> maybe_put(:pull_number, positive_integer_value(opts, :pull_number))
     |> maybe_put(:ref, string_value(opts, :ref))
+  end
+
+  defp github_pr_cleanup_request(opts) do
+    trace_id = string_value(opts, :trace_id) || "trace://extravaganza/live-github-pr-cleanup"
+    suffix = ref_suffix(trace_id)
+
+    %{
+      tenant_id: string_value(opts, :tenant_id) || "extravaganza-live-#{suffix}",
+      installation_id: "installation://extravaganza/live-github-pr-cleanup",
+      subject_id: "subject://extravaganza/live-github-pr-cleanup",
+      execution_id: "execution://extravaganza/live-github-pr-cleanup/#{suffix}",
+      actor_id: "actor://extravaganza/operator",
+      trace_id: trace_id,
+      repo: string_value(opts, :repo) || "nshkrdotcom/extravaganza",
+      branch: string_value(opts, :branch) || "cleanup-branch",
+      confirm_close?: truthy?(Map.get(opts, :confirm_close?))
+    }
+    |> maybe_put(:pull_number, positive_integer_value(opts, :pull_number))
+    |> maybe_put(:closing_comment, string_value(opts, :closing_comment))
   end
 
   defp linear_graphql_tool_request(opts) do
@@ -2093,7 +2166,7 @@ defmodule Extravaganza.HeadlessLiveExamples do
   end
 
   defp app_config_credential?(kind, opts),
-    do: kind in [:codex_turn, :github_evidence] and live_product_path?(opts)
+    do: kind in [:codex_turn, :github_evidence, :github_pr_cleanup] and live_product_path?(opts)
 
   defp credential_dispatch_binding(kind, opts) do
     cond do
@@ -2106,7 +2179,8 @@ defmodule Extravaganza.HeadlessLiveExamples do
       truthy?(Map.get(opts, :credential_available?)) ->
         "external_harness"
 
-      kind in [:codex_turn, :github_evidence] and truthy?(Map.get(opts, :live_product_path?)) ->
+      kind in [:codex_turn, :github_evidence, :github_pr_cleanup] and
+          truthy?(Map.get(opts, :live_product_path?)) ->
         "app_config"
 
       true ->
@@ -2125,7 +2199,8 @@ defmodule Extravaganza.HeadlessLiveExamples do
       truthy?(Map.get(opts, :credential_available?)) ->
         "external_harness"
 
-      kind in [:codex_turn, :github_evidence] and truthy?(Map.get(opts, :live_product_path?)) ->
+      kind in [:codex_turn, :github_evidence, :github_pr_cleanup] and
+          truthy?(Map.get(opts, :live_product_path?)) ->
         "app_config"
 
       present?(string_value(opts, :credential_ref)) ->
@@ -2157,6 +2232,12 @@ defmodule Extravaganza.HeadlessLiveExamples do
         present?(string_value(opts, :connection_id))
 
   defp credential_supplied?(:github_evidence, opts),
+    do:
+      truthy?(Map.get(opts, :credential_available?)) or
+        truthy?(Map.get(opts, :live_product_path?)) or
+        present?(string_value(opts, :connection_id))
+
+  defp credential_supplied?(:github_pr_cleanup, opts),
     do:
       truthy?(Map.get(opts, :credential_available?)) or
         truthy?(Map.get(opts, :live_product_path?)) or

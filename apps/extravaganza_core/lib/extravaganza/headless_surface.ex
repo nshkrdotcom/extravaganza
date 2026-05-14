@@ -218,6 +218,13 @@ defmodule Extravaganza.HeadlessSurface do
     end
   end
 
+  @spec cleanup_github_pr_branch(map(), keyword()) :: {:ok, struct()} | {:error, term()}
+  def cleanup_github_pr_branch(attrs, opts \\ []) when is_map(attrs) and is_list(opts) do
+    with {:ok, %{context: context}} <- context_bundle(opts) do
+      AppKitRuntimeSurface.cleanup_github_pr_branch(context, attrs, opts)
+    end
+  end
+
   @spec apply_runtime_profile(map(), keyword()) :: {:ok, struct()} | {:error, term()}
   def apply_runtime_profile(runtime_profile, opts \\ [])
       when is_map(runtime_profile) and is_list(opts) do

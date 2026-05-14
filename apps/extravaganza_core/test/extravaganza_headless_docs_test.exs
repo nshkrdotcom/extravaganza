@@ -30,6 +30,9 @@ defmodule Extravaganza.HeadlessDocsTest do
     assert live_guide =~ "live product path mode"
     assert live_guide =~ "--live-product-path"
     assert live_guide =~ "~/scripts/with_bash_secrets mix extravaganza.headless.live.smoke"
+    assert live_guide =~ "mix extravaganza.headless.live.github_pr_cleanup"
+    assert live_guide =~ "--confirm-close"
+    assert live_guide =~ "not included in `live.smoke`"
     assert live_guide =~ "## Structured Logs"
     assert live_guide =~ "mix extravaganza.headless.logs --json --logs-root"
     assert live_guide =~ "headless_runtime_logs.v1"
@@ -66,6 +69,9 @@ defmodule Extravaganza.HeadlessDocsTest do
 
     assert credentials_guide =~
              "~/scripts/with_bash_secrets mix extravaganza.headless.live.github_evidence --live-product-path --json"
+
+    assert credentials_guide =~
+             "~/scripts/with_bash_secrets mix extravaganza.headless.live.github_pr_cleanup --live-product-path --json --repo"
   end
 
   test "provider acceptance docs enumerate live commands, side effects, object ids, and evidence" do
@@ -136,6 +142,19 @@ defmodule Extravaganza.HeadlessDocsTest do
           "`provider_refs`",
           "`receipt_refs`",
           "`operation_receipts`",
+          "live.github-pr-cleanup",
+          "~/scripts/with_bash_secrets mix extravaganza.headless.live.github_pr_cleanup --live-product-path --json --repo",
+          "`--branch`",
+          "`--confirm-close`",
+          "`--closing-comment`",
+          "`github.pr.list`",
+          "`github.comment.create`",
+          "`github.pr.update`",
+          "`branch`",
+          "`pull_numbers`",
+          "`closed_pull_numbers`",
+          "`write_operations`",
+          "intentionally excluded from `live.smoke`",
           "live.smoke",
           "~/scripts/with_bash_secrets mix extravaganza.headless.live.smoke --live-product-path --json",
           "`required_operations`",

@@ -62,6 +62,9 @@ defmodule Extravaganza.MixProject do
       "extravaganza.headless.live.github_evidence": [
         "run --no-start scripts/headless/live_github_evidence.exs --"
       ],
+      "extravaganza.headless.live.github_pr_cleanup": [
+        "run --no-start scripts/headless/live_github_pr_cleanup.exs --"
+      ],
       "extravaganza.headless.live.smoke": ["run --no-start scripts/headless/live_smoke.exs --"],
       test: ["cmd --cd #{core_app_path()} env MIX_ENV=test mix ash.setup --quiet", "test"],
       ci: [

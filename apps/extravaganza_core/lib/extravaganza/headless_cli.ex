@@ -47,6 +47,7 @@ defmodule Extravaganza.HeadlessCLI do
     :live_linear_publication,
     :live_linear_graphql_tool,
     :live_github_evidence,
+    :live_github_pr_cleanup,
     :live_smoke,
     :evidence,
     :events,
@@ -60,6 +61,7 @@ defmodule Extravaganza.HeadlessCLI do
     :live_linear_publication,
     :live_linear_graphql_tool,
     :live_github_evidence,
+    :live_github_pr_cleanup,
     :live_smoke
   ]
 
@@ -318,6 +320,14 @@ defmodule Extravaganza.HeadlessCLI do
     dispatch_live("live.github-evidence", &ProductHost.live_github_evidence_example/1, opts)
   end
 
+  defp dispatch(:live_github_pr_cleanup, opts) do
+    dispatch_live(
+      "live.github-pr-cleanup",
+      &ProductHost.live_github_pr_cleanup_example/1,
+      opts
+    )
+  end
+
   defp dispatch(:live_smoke, opts) do
     dispatch_live("live.smoke", &ProductHost.live_smoke/1, opts)
   end
@@ -493,6 +503,8 @@ defmodule Extravaganza.HeadlessCLI do
 
   defp parse(["--repo", repo | rest], opts), do: parse(rest, Map.put(opts, :repo, repo))
 
+  defp parse(["--branch", branch | rest], opts), do: parse(rest, Map.put(opts, :branch, branch))
+
   defp parse(["--pull-number", pull_number | rest], opts),
     do: parse(rest, Map.put(opts, :pull_number, pull_number))
 
@@ -505,6 +517,9 @@ defmodule Extravaganza.HeadlessCLI do
 
   defp parse(["--message", message | rest], opts),
     do: parse(rest, Map.put(opts, :message, message))
+
+  defp parse(["--closing-comment", comment | rest], opts),
+    do: parse(rest, Map.put(opts, :closing_comment, comment))
 
   defp parse(["--effect", effect | rest], opts), do: parse(rest, Map.put(opts, :effect, effect))
 
@@ -544,6 +559,9 @@ defmodule Extravaganza.HeadlessCLI do
 
   defp parse(["--credential-available" | rest], opts),
     do: parse(rest, Map.put(opts, :credential_available?, true))
+
+  defp parse(["--confirm-close" | rest], opts),
+    do: parse(rest, Map.put(opts, :confirm_close?, true))
 
   defp parse([value | rest], opts) do
     parse(rest, Map.update!(opts, :positionals, &(&1 ++ [value])))
@@ -602,6 +620,7 @@ defmodule Extravaganza.HeadlessCLI do
           :fixture,
           :live_product_path?,
           :repo,
+          :branch,
           :pull_number,
           :ref,
           :issue_id,
@@ -614,6 +633,7 @@ defmodule Extravaganza.HeadlessCLI do
           :team_id,
           :assignee,
           :message,
+          :closing_comment,
           :query,
           :variables_json,
           :allow_create_fallback?,
@@ -622,7 +642,8 @@ defmodule Extravaganza.HeadlessCLI do
           :limit,
           :tenant_id,
           :pack_version,
-          :trace_id
+          :trace_id,
+          :confirm_close?
         ])
         |> Map.merge(stdin_credential)
         |> live_product_defaults()

@@ -286,6 +286,14 @@ mix extravaganza.headless.live.github_evidence --live-product-path --json
 mix extravaganza.headless.live.smoke --live-product-path --json
 ```
 
+GitHub PR branch cleanup is a standalone live example because it writes
+provider state by commenting on and closing matching open PRs for a branch. It
+requires explicit confirmation and is not included in `live.smoke`:
+
+```bash
+mix extravaganza.headless.live.github_pr_cleanup --live-product-path --json --repo OWNER/REPO --branch BRANCH --confirm-close
+```
+
 On this workstation, run live provider checks by prepending the local secrets
 wrapper. The wrapper only injects shell credentials for this node; it is not
 product behavior and the command output must not print secret values.
@@ -294,6 +302,7 @@ product behavior and the command output must not print secret values.
 ~/scripts/with_bash_secrets mix extravaganza.headless.live.linear_source --live-product-path --json
 ~/scripts/with_bash_secrets mix extravaganza.headless.live.codex_turn --live-product-path --json
 ~/scripts/with_bash_secrets mix extravaganza.headless.live.github_evidence --live-product-path --json
+~/scripts/with_bash_secrets mix extravaganza.headless.live.github_pr_cleanup --live-product-path --json --repo OWNER/REPO --branch BRANCH --confirm-close
 ~/scripts/with_bash_secrets mix extravaganza.headless.live.smoke --live-product-path --json
 ```
 
@@ -301,6 +310,7 @@ Wrapper script form (same command path):
 
 ```bash
 mix run --no-start scripts/headless/live_linear_source.exs -- --live-product-path --json
+mix run --no-start scripts/headless/live_github_pr_cleanup.exs -- --live-product-path --json --repo OWNER/REPO --branch BRANCH --confirm-close
 mix run --no-start scripts/headless/live_smoke.exs -- --live-product-path --json
 ```
 
@@ -392,6 +402,7 @@ Use these scripts for onboarding and smoke runs:
 - `scripts/headless/live_codex_turn.exs`
 - `scripts/headless/live_linear_publication.exs`
 - `scripts/headless/live_github_evidence.exs`
+- `scripts/headless/live_github_pr_cleanup.exs`
 - `scripts/headless/live_smoke.exs`
 
 ## Current behavior notes

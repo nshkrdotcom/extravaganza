@@ -8,6 +8,7 @@ defmodule Mix.Tasks.Extravaganza.Headless.TaskSupport do
     :live_linear_publication,
     :live_linear_graphql_tool,
     :live_github_evidence,
+    :live_github_pr_cleanup,
     :live_smoke
   ]
   @no_start_operations [
@@ -435,6 +436,28 @@ defmodule Mix.Tasks.Extravaganza.Headless.LiveGithubEvidence do
   @shortdoc "Run the live-gated GitHub evidence example"
   @impl Mix.Task
   def run(argv), do: TaskSupport.run(:live_github_evidence, argv)
+end
+
+defmodule Mix.Tasks.Extravaganza.Headless.Live.GithubPrCleanup do
+  use Mix.Task
+
+  alias Mix.Tasks.Extravaganza.Headless.TaskSupport
+
+  @moduledoc false
+  @shortdoc "Run the live-gated GitHub PR branch cleanup example"
+  @impl Mix.Task
+  def run(argv), do: TaskSupport.run(:live_github_pr_cleanup, argv)
+end
+
+defmodule Mix.Tasks.Extravaganza.Headless.LiveGithubPrCleanup do
+  use Mix.Task
+
+  alias Mix.Tasks.Extravaganza.Headless.TaskSupport
+
+  @moduledoc false
+  @shortdoc "Run the live-gated GitHub PR branch cleanup example"
+  @impl Mix.Task
+  def run(argv), do: TaskSupport.run(:live_github_pr_cleanup, argv)
 end
 
 defmodule Mix.Tasks.Extravaganza.Headless.Live.Smoke do
