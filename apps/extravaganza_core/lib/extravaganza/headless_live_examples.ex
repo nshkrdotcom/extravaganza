@@ -553,6 +553,7 @@ defmodule Extravaganza.HeadlessLiveExamples do
       app_server_protocol = codex_app_server_protocol_readback(run_detail, turn)
       event_stream = codex_event_stream_readback(run_detail)
       token_usage = value(event_stream, :token_usage) || %{}
+      token_totals = codex_token_totals_readback(run_detail)
       last_message = value(event_stream, :last_message) || %{}
       lower_receipt_ref = value(turn, :lower_receipt_ref)
       provider_response_received? = truthy?(value(turn, :provider_response_received?))
@@ -641,6 +642,12 @@ defmodule Extravaganza.HeadlessLiveExamples do
         "token_usage_output_tokens" => value(token_usage, :output_tokens),
         "token_usage_total_tokens" => value(token_usage, :total_tokens),
         "token_usage_source" => value(token_usage, :source),
+        "token_accounting_confirmed?" => codex_token_accounting_confirmed?(token_totals),
+        "token_totals_input_tokens" => value(token_totals, :total_input_tokens),
+        "token_totals_output_tokens" => value(token_totals, :total_output_tokens),
+        "token_totals_total_tokens" => value(token_totals, :total_tokens),
+        "token_totals_cached_input_tokens" => value(token_totals, :cached_input_tokens),
+        "token_totals_source" => value(token_totals, :source),
         "rate_limits_present?" => truthy?(value(event_stream, :rate_limits_present?)),
         "rate_limit_id" => value(event_stream, :rate_limit_id),
         "rate_limit_primary_remaining" => value(event_stream, :rate_limit_primary_remaining),
@@ -1462,6 +1469,20 @@ defmodule Extravaganza.HeadlessLiveExamples do
     truthy?(value(evidence, "confirmed?")) or
       truthy?(value(evidence, :confirmed?)) or
       positive_integer_value(evidence, :event_count) != nil
+  end
+
+  defp codex_token_totals_readback(%RuntimeRunDetail{runtime_row: runtime_row}) do
+    case value(runtime_row, :token_totals) do
+      %{} = totals -> totals
+      _missing -> %{}
+    end
+  end
+
+  defp codex_token_accounting_confirmed?(totals) do
+    value(totals, :total_tokens) != nil or
+      value(totals, :total_input_tokens) != nil or
+      value(totals, :total_output_tokens) != nil or
+      present?(value(totals, :source))
   end
 
   defp runtime_session_ref(%RuntimeRunDetail{runtime_row: runtime_row}) do

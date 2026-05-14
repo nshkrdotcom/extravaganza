@@ -613,6 +613,12 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert provider_effect["token_usage_output_tokens"] == 4
     assert provider_effect["token_usage_total_tokens"] == 14
     assert provider_effect["token_usage_source"] == "thread_token_usage_total"
+    assert provider_effect["token_accounting_confirmed?"] == true
+    assert provider_effect["token_totals_input_tokens"] == 12
+    assert provider_effect["token_totals_output_tokens"] == 5
+    assert provider_effect["token_totals_total_tokens"] == 17
+    assert provider_effect["token_totals_cached_input_tokens"] == 0
+    assert provider_effect["token_totals_source"] == "runtime:event:codex-token-accounting"
     assert provider_effect["rate_limits_present?"] == true
     assert provider_effect["rate_limit_id"] == "codex"
     assert provider_effect["rate_limit_primary_remaining"] == 90
@@ -1366,6 +1372,13 @@ defmodule Extravaganza.HeadlessExamplesTest do
                workflow_ref: @workflow_ref,
                state: "completed",
                updated_at: @observed_at,
+               token_totals: %{
+                 total_input_tokens: 12,
+                 total_output_tokens: 5,
+                 total_tokens: 17,
+                 cached_input_tokens: 0,
+                 source: "runtime:event:codex-token-accounting"
+               },
                provider_refs: %{"codex" => "provider-ref://codex/live-product"},
                extensions: %{
                  "codex_app_server_session_start" => %{
