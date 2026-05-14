@@ -232,6 +232,70 @@ defmodule Extravaganza.HeadlessJSONContractTest do
     assert reconciliation_event["extensions"]["workflow_signal"] == "operator.cancel"
   end
 
+  test "evidence chain indexes every Symphony headless evidence category" do
+    assert {:ok, evidence_chain} = HeadlessSurface.evidence_chain("run:fixture")
+
+    assert evidence_chain["evidence_coverage_gaps"] == []
+
+    coverage = evidence_chain["evidence_coverage"]
+
+    assert Map.keys(coverage) |> Enum.sort() == [
+             "authority_decision",
+             "credential_preflight",
+             "dispatch",
+             "hook",
+             "lower_run",
+             "provider_request_response",
+             "review_decision",
+             "source_publication",
+             "workspace_action"
+           ]
+
+    assert coverage["dispatch"]["refs"] == [
+             "run:fixture",
+             "execution:fixture",
+             "workflow:fixture"
+           ]
+
+    assert coverage["credential_preflight"]["credential_present?"] == true
+    assert coverage["credential_preflight"]["secret_material_present?"] == false
+    assert coverage["credential_preflight"]["secret_material_redacted?"] == true
+
+    assert coverage["authority_decision"]["authority_ref"] == "authority:fixture"
+    assert coverage["authority_decision"]["decision_ref"] == "authority-decision:fixture"
+
+    assert coverage["provider_request_response"]["provider_request_sent?"] == true
+    assert coverage["provider_request_response"]["provider_response_received?"] == true
+
+    assert coverage["provider_request_response"]["provider_request_ref"] ==
+             "provider-request:fixture"
+
+    assert coverage["provider_request_response"]["provider_response_ref"] ==
+             "provider-response:fixture"
+
+    assert coverage["lower_run"]["lower_request_ref"] == "lower-request:fixture"
+    assert coverage["lower_run"]["lower_receipt_ref"] == "lower-receipt:fixture"
+
+    assert coverage["hook"]["event_refs"] == ["event:run:0"]
+    assert coverage["hook"]["hook_refs"] == ["hook:fixture:after_create"]
+
+    assert coverage["workspace_action"]["workspace_ref"]["id"] == "workspace:fixture"
+    assert coverage["workspace_action"]["workspace_ref"]["path_redacted?"] == true
+    assert coverage["workspace_action"]["event_refs"] == ["event:run:0"]
+
+    assert coverage["review_decision"]["review_unit_id"] == "review-unit:fixture"
+    assert coverage["review_decision"]["decision_ref"] == "review-decision:fixture"
+
+    assert coverage["source_publication"]["source_publication_receipt_ref"] ==
+             "source-publication:fixture"
+
+    encoded = Jason.encode!(coverage)
+    refute encoded =~ "workspace_path"
+    refute encoded =~ "/tmp/"
+    refute encoded =~ "api_key"
+    refute encoded =~ "credential_value"
+  end
+
   test "error envelopes classify readback failures and preserve retry guidance" do
     envelope =
       HeadlessJSON.error("run_detail", :runtime_projection_not_found,

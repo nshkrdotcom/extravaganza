@@ -205,7 +205,7 @@ defmodule Extravaganza.HeadlessSurfaceTest do
       )
 
     assert hook_event["message_summary"] == "after_create hook completed"
-    assert hook_event["extensions"]["hook_receipt"]["hook_ref"] == "created"
+    assert hook_event["extensions"]["hook_receipt"]["hook_ref"] == "hook:fixture:after_create"
     assert hook_event["extensions"]["hook_receipt"]["stage"] == "after_create"
     assert hook_event["extensions"]["hook_receipt"]["status"] == "succeeded"
     assert hook_event["extensions"]["hook_receipt"]["path_redacted?"] == true

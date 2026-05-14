@@ -3,12 +3,25 @@ defmodule Extravaganza.HeadlessReadback do
 
   alias AppKit.Core.RuntimeReadback.RuntimeRunDetail
 
+  @evidence_coverage_kinds ~w[
+    dispatch
+    credential_preflight
+    authority_decision
+    provider_request_response
+    lower_run
+    hook
+    workspace_action
+    review_decision
+    source_publication
+  ]
+
   @spec evidence_chain(struct()) :: map()
   def evidence_chain(%RuntimeRunDetail{} = run) do
     run_data = RuntimeRunDetail.dump(run)
     runtime_row = Map.get(run_data, "runtime_row", %{})
     extensions = Map.get(runtime_row, "extensions", %{})
     run_ref = Map.get(run_data, "run_ref")
+    evidence_coverage = evidence_coverage(run_data, runtime_row, extensions)
 
     %{
       "schema_ref" => "headless_evidence_chain.v1",
@@ -24,10 +37,13 @@ defmodule Extravaganza.HeadlessReadback do
       "incident_bundles" => Map.get(extensions, "incident_bundles", []),
       "acceptance" => Map.get(extensions, "acceptance", %{}),
       "source_publication" => Map.get(extensions, "source_publication", %{}),
+      "evidence_coverage" => evidence_coverage,
+      "evidence_coverage_gaps" => evidence_coverage_gaps(evidence_coverage),
       "events" => Map.get(run_data, "events", []),
       "diagnostics" => Map.get(run_data, "diagnostics", [])
     }
     |> compact()
+    |> Map.put("evidence_coverage_gaps", evidence_coverage_gaps(evidence_coverage))
   end
 
   @spec event_page(struct(), map()) :: map()
@@ -50,6 +66,138 @@ defmodule Extravaganza.HeadlessReadback do
   end
 
   defp compact(%{} = map), do: Map.reject(map, fn {_key, value} -> value in [nil, %{}, []] end)
+
+  defp evidence_coverage(run_data, runtime_row, extensions) do
+    %{
+      "dispatch" => dispatch_evidence(run_data, runtime_row),
+      "credential_preflight" => Map.get(extensions, "credential_preflight"),
+      "authority_decision" => authority_decision_evidence(extensions),
+      "provider_request_response" => Map.get(extensions, "provider_request_response"),
+      "lower_run" => lower_run_evidence(extensions),
+      "hook" => hook_evidence(run_data),
+      "workspace_action" => workspace_action_evidence(run_data, runtime_row),
+      "review_decision" => Map.get(extensions, "review_decision"),
+      "source_publication" => Map.get(extensions, "source_publication")
+    }
+    |> compact()
+    |> normalize_coverage_value()
+  end
+
+  defp evidence_coverage_gaps(coverage) when is_map(coverage) do
+    Enum.reject(@evidence_coverage_kinds, &Map.has_key?(coverage, &1))
+  end
+
+  defp dispatch_evidence(run_data, runtime_row) do
+    refs =
+      [
+        Map.get(run_data, "run_ref"),
+        Map.get(runtime_row, "execution_ref"),
+        Map.get(runtime_row, "workflow_ref")
+      ]
+      |> Enum.reject(&is_nil/1)
+
+    %{
+      "refs" => refs,
+      "event_refs" => event_refs(run_data, &(&1 == "run_started")),
+      "state" => Map.get(runtime_row, "state"),
+      "status_reason" => Map.get(runtime_row, "status_reason")
+    }
+    |> compact()
+  end
+
+  defp authority_decision_evidence(extensions) do
+    extensions
+    |> Map.get("governance", %{})
+    |> Map.take([
+      "authority_ref",
+      "decision_ref",
+      "runtime_profile_ref",
+      "runtime_profile_kind",
+      "connector_manifest_ref",
+      "connector_manifest_state",
+      "capability_negotiation_ref"
+    ])
+    |> compact()
+  end
+
+  defp lower_run_evidence(extensions) do
+    lower_envelope = Map.get(extensions, "lower_envelope", %{})
+    lower_receipt = Map.get(extensions, "lower_receipt", %{})
+
+    %{
+      "lower_request_ref" => Map.get(lower_envelope, "lower_request_ref"),
+      "lower_receipt_ref" => Map.get(lower_receipt, "lower_receipt_ref"),
+      "lower_runtime_kind" => Map.get(lower_envelope, "lower_runtime_kind"),
+      "capability_id" => Map.get(lower_envelope, "capability_id"),
+      "attempt_ref" => Map.get(lower_receipt, "attempt_ref"),
+      "status" => Map.get(lower_receipt, "status")
+    }
+    |> compact()
+  end
+
+  defp hook_evidence(run_data) do
+    hook_events = matching_events(run_data, &String.starts_with?(&1, "workspace.hook."))
+
+    %{
+      "event_refs" => Enum.map(hook_events, &Map.get(&1, "event_ref")) |> Enum.reject(&is_nil/1),
+      "hook_refs" =>
+        hook_events
+        |> Enum.map(&get_in(&1, ["extensions", "hook_receipt", "hook_ref"]))
+        |> Enum.reject(&is_nil/1),
+      "stages" =>
+        hook_events
+        |> Enum.map(&get_in(&1, ["extensions", "hook_receipt", "stage"]))
+        |> Enum.reject(&is_nil/1)
+    }
+    |> compact()
+  end
+
+  defp workspace_action_evidence(run_data, runtime_row) do
+    workspace_events = matching_events(run_data, &String.starts_with?(&1, "workspace."))
+
+    %{
+      "workspace_ref" => Map.get(runtime_row, "workspace_ref"),
+      "event_refs" =>
+        workspace_events |> Enum.map(&Map.get(&1, "event_ref")) |> Enum.reject(&is_nil/1)
+    }
+    |> compact()
+  end
+
+  defp event_refs(run_data, predicate) do
+    run_data
+    |> matching_events(predicate)
+    |> Enum.map(&Map.get(&1, "event_ref"))
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp matching_events(run_data, predicate) when is_function(predicate, 1) do
+    run_data
+    |> Map.get("events", [])
+    |> Enum.filter(fn
+      %{} = event -> event |> Map.get("event_kind", "") |> predicate.()
+      _other -> false
+    end)
+    |> Enum.sort_by(&Map.get(&1, "event_seq", 0))
+  end
+
+  defp normalize_coverage_value(%{} = map) do
+    Map.new(map, fn {key, value} -> {key, normalize_coverage_field(key, value)} end)
+  end
+
+  defp normalize_coverage_value(values) when is_list(values),
+    do: Enum.map(values, &normalize_coverage_value/1)
+
+  defp normalize_coverage_value(value), do: value
+
+  defp normalize_coverage_field(key, "true") when is_binary(key) do
+    if String.ends_with?(key, "?"), do: true, else: "true"
+  end
+
+  defp normalize_coverage_field(key, "false") when is_binary(key) do
+    if String.ends_with?(key, "?"), do: false, else: "false"
+  end
+
+  defp normalize_coverage_field(_key, value), do: normalize_coverage_value(value)
 
   defp safe_suffix(nil), do: "unknown"
 
