@@ -143,6 +143,55 @@ defmodule Extravaganza.HeadlessRuntimeSurfaceTest do
     end
   end
 
+  @tag :tmp_dir
+  test "logs command carries logs root and redacts structured operator entries", %{
+    tmp_dir: tmp_dir
+  } do
+    logs_root = Path.join(tmp_dir, "operator-logs")
+
+    output =
+      capture_io(fn ->
+        assert :ok =
+                 HeadlessCLI.run(:logs, [
+                   "--json",
+                   "--logs-root",
+                   logs_root,
+                   "--trace-id",
+                   "trace:runtime"
+                 ])
+      end)
+
+    assert_received {:runtime_logs_request,
+                     %{
+                       "logs_root" => ^logs_root,
+                       "trace_id" => "trace:runtime"
+                     }}
+
+    decoded = Jason.decode!(output)
+    assert decoded["ok"] == true
+    assert decoded["operation"] == "logs"
+    assert decoded["data"]["schema_ref"] == "headless_runtime_logs.v1"
+    assert decoded["data"]["data"]["metadata"]["logs_root"] == "[redacted-path]"
+
+    session_log =
+      Enum.find(
+        decoded["data"]["data"]["entries"],
+        &(&1["event_kind"] == "agent.session.event")
+      )
+
+    assert session_log["payload"]["issue_id"] == "ENG-42"
+    assert session_log["payload"]["issue_identifier"] == "ENG-42"
+    assert session_log["payload"]["session_id"] == "session:fixture"
+    assert session_log["payload"]["trace_id"] == "trace:runtime"
+    assert session_log["occurred_at"] == "2026-05-13T00:30:00Z"
+    assert session_log["payload"]["credential_hint"] == "[redacted]"
+    assert session_log["payload"]["workspace_hint"] == "[redacted-path]"
+    refute Map.has_key?(session_log["payload"], "api_key")
+    refute Map.has_key?(session_log["payload"], "workspace_path")
+    refute output =~ @secret
+    refute output =~ tmp_dir
+  end
+
   test "source_publish command delegates to AppKit source surface" do
     output =
       capture_io(fn ->
@@ -262,7 +311,9 @@ defmodule Extravaganza.HeadlessRuntimeSurfaceTest do
     end
 
     @impl true
-    def runtime_logs(context, _request, _opts) do
+    def runtime_logs(context, request, _opts) do
+      send(self(), {:runtime_logs_request, request})
+
       RuntimeLogPage.new(%{
         entries: [
           %{
@@ -284,10 +335,28 @@ defmodule Extravaganza.HeadlessRuntimeSurfaceTest do
               "failed_count" => 1,
               "retained_workspace_refs" => ["workspace://terminal-failed"]
             }
+          },
+          %{
+            ref: "runtime-log:fixture:3",
+            event_kind: "agent.session.event",
+            occurred_at: ~U[2026-05-13T00:30:00Z],
+            summary: "Agent session emitted structured runtime log",
+            payload: %{
+              "tenant_ref" => context.tenant_ref.id,
+              "issue_id" => "ENG-42",
+              "issue_identifier" => "ENG-42",
+              "session_id" => "session:fixture",
+              "trace_id" => Map.get(request, "trace_id"),
+              "credential_hint" => "linear-secret-value",
+              "api_key" => "linear-secret-value",
+              "workspace_hint" => "/tmp/extravaganza/ENG-42",
+              "workspace_path" => "/tmp/extravaganza/ENG-42"
+            }
           }
         ],
-        total_count: 2,
-        has_more?: false
+        total_count: 3,
+        has_more?: false,
+        metadata: %{"logs_root" => Map.get(request, "logs_root")}
       })
     end
 

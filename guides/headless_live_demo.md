@@ -68,6 +68,36 @@ mix extravaganza.headless.profile_validate --workflow WORKFLOW.md --json
 mix extravaganza.headless.profile_reload --workflow WORKFLOW.md --json
 ```
 
+## Structured Logs
+
+Extravaganza replaces Symphony's direct `LogFile.configure/default_log_file`
+operator path with the product-owned `logs` command and `/api/v1/logs` read
+surface. The command reads structured runtime logs through AppKit and returns
+`headless_runtime_logs.v1` entries with event kind, timestamp, summary, issue
+identity, issue identifier, session id, trace id, page metadata, and runtime
+event payloads such as `runtime_profile_applied` and
+`startup.terminal_cleanup.completed`.
+
+The Symphony `--logs-root` behavior is preserved as a product command flag and
+runtime-log request field. It selects the local/operator log root for the
+readback request, but paths are redacted in command and API output:
+
+```bash
+mix extravaganza.headless.logs --json --logs-root tmp/extravaganza-logs
+```
+
+The same data is available from the API:
+
+```bash
+curl http://localhost:4000/api/v1/logs
+```
+
+Log presenters redact secret-like fields such as credentials, tokens,
+authorization headers, passwords, private keys, and API keys, and they redact
+absolute paths. Durable log storage and sink configuration remain AppKit/
+Mezzanine runtime responsibilities; Extravaganza owns the product command,
+request shape, API envelope, and operator documentation.
+
 ## Deterministic headless proof (recommended first acceptance)
 
 Run one command that exercises most surfaces in one sequence:

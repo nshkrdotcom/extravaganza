@@ -411,6 +411,9 @@ defmodule Extravaganza.HeadlessCLI do
 
   defp parse(["--cwd", cwd | rest], opts), do: parse(rest, Map.put(opts, :cwd, cwd))
 
+  defp parse(["--logs-root", logs_root | rest], opts),
+    do: parse(rest, Map.put(opts, :logs_root, Path.expand(logs_root)))
+
   defp parse(["--profile-cache", profile_cache_path | rest], opts),
     do: parse(rest, Map.put(opts, :profile_cache_path, profile_cache_path))
 
@@ -688,7 +691,7 @@ defmodule Extravaganza.HeadlessCLI do
 
   defp runtime_request(opts) do
     opts
-    |> Map.take([:cursor, :limit, :trace_id])
+    |> Map.take([:cursor, :limit, :logs_root, :trace_id])
     |> Map.new(fn {key, value} -> {Atom.to_string(key), value} end)
   end
 

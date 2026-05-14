@@ -30,6 +30,11 @@ defmodule Extravaganza.HeadlessDocsTest do
     assert live_guide =~ "live product path mode"
     assert live_guide =~ "--live-product-path"
     assert live_guide =~ "~/scripts/with_bash_secrets mix extravaganza.headless.live.smoke"
+    assert live_guide =~ "## Structured Logs"
+    assert live_guide =~ "mix extravaganza.headless.logs --json --logs-root"
+    assert live_guide =~ "headless_runtime_logs.v1"
+    assert live_guide =~ "`startup.terminal_cleanup.completed`"
+    assert live_guide =~ "Log presenters redact secret-like fields"
 
     assert credentials_guide =~
              "~/scripts/with_bash_secrets mix extravaganza.headless.live.linear_source --live-product-path --json"

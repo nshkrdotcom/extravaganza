@@ -321,6 +321,26 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
 
     assert get_in(logs, ["data", "data", "entries", Access.at(0), "event_kind"]) ==
              "runtime_profile_applied"
+
+    session_log =
+      Enum.find(
+        logs["data"]["data"]["entries"],
+        &(&1["event_kind"] == "agent.session.event")
+      )
+
+    assert session_log["payload"]["issue_id"] == "ENG-42"
+    assert session_log["payload"]["issue_identifier"] == "ENG-42"
+    assert session_log["payload"]["session_id"] == "session:fixture"
+    assert session_log["payload"]["trace_id"] == "trace:api"
+    assert session_log["occurred_at"] == "2026-05-13T00:30:00Z"
+    assert session_log["payload"]["credential_hint"] == "[redacted]"
+    assert session_log["payload"]["workspace_hint"] == "[redacted-path]"
+    refute Map.has_key?(session_log["payload"], "api_key")
+    refute Map.has_key?(session_log["payload"], "workspace_path")
+
+    encoded_logs = Jason.encode!(logs)
+    refute encoded_logs =~ @secret
+    refute encoded_logs =~ "/tmp/extravaganza"
   end
 
   @tag :tmp_dir
@@ -681,6 +701,23 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
             occurred_at: "2026-05-11T00:00:00Z",
             summary: "Runtime profile applied",
             payload: %{"tenant_ref" => "extravaganza"}
+          },
+          %{
+            ref: "runtime-log:fixture:2",
+            event_kind: "agent.session.event",
+            occurred_at: ~U[2026-05-13T00:30:00Z],
+            summary: "Agent session emitted structured runtime log",
+            payload: %{
+              "tenant_ref" => "extravaganza",
+              "issue_id" => "ENG-42",
+              "issue_identifier" => "ENG-42",
+              "session_id" => "session:fixture",
+              "trace_id" => "trace:api",
+              "credential_hint" => "linear-api-secret",
+              "api_key" => "linear-api-secret",
+              "workspace_hint" => "/tmp/extravaganza/ENG-42",
+              "workspace_path" => "/tmp/extravaganza/ENG-42"
+            }
           }
         ]
       })
