@@ -127,14 +127,8 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
     assert body["data"]["data"]["runtime_row"]["status_reason"] == "stall_timeout"
     assert body["data"]["data"]["runtime_row"]["extensions"]["stall"]["elapsed_ms"] == 330_000
 
-    assert Enum.map(body["data"]["data"]["events"], & &1["event_ref"]) == [
-             "event:run:0",
-             "event:run:1",
-             "event:run:2",
-             "event:run:3",
-             "event:run:4",
-             "event:run:5"
-           ]
+    assert Enum.map(body["data"]["data"]["events"], & &1["event_ref"]) ==
+             Enum.map(0..15, &"event:run:#{&1}")
 
     hook_event =
       Enum.find(
@@ -237,14 +231,10 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
     assert events["operation"] == "events"
     assert events["data"]["schema_ref"] == "headless_events.v1"
 
-    assert Enum.map(events["data"]["data"]["entries"], & &1["event_ref"]) == [
-             "event:run:0",
-             "event:run:1",
-             "event:run:2",
-             "event:run:3",
-             "event:run:4",
-             "event:run:5"
-           ]
+    assert Enum.map(events["data"]["data"]["entries"], & &1["event_ref"]) ==
+             Enum.map(0..15, &"event:run:#{&1}")
+
+    assert events["data"]["data"]["timeline_coverage_gaps"] == []
 
     assert Enum.any?(
              events["data"]["data"]["entries"],

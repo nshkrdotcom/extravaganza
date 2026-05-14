@@ -193,14 +193,8 @@ defmodule Extravaganza.HeadlessJSONContractTest do
 
     assert events["schema_ref"] == "headless_events.v1"
 
-    assert Enum.map(events["data"]["entries"], & &1["event_ref"]) == [
-             "event:run:0",
-             "event:run:1",
-             "event:run:2",
-             "event:run:3",
-             "event:run:4",
-             "event:run:5"
-           ]
+    assert Enum.map(events["data"]["entries"], & &1["event_ref"]) ==
+             Enum.map(0..15, &"event:run:#{&1}")
 
     hook_event =
       Enum.find(
@@ -276,12 +270,12 @@ defmodule Extravaganza.HeadlessJSONContractTest do
     assert coverage["lower_run"]["lower_request_ref"] == "lower-request:fixture"
     assert coverage["lower_run"]["lower_receipt_ref"] == "lower-receipt:fixture"
 
-    assert coverage["hook"]["event_refs"] == ["event:run:0"]
+    assert coverage["hook"]["event_refs"] == ["event:run:7"]
     assert coverage["hook"]["hook_refs"] == ["hook:fixture:after_create"]
 
     assert coverage["workspace_action"]["workspace_ref"]["id"] == "workspace:fixture"
     assert coverage["workspace_action"]["workspace_ref"]["path_redacted?"] == true
-    assert coverage["workspace_action"]["event_refs"] == ["event:run:0"]
+    assert coverage["workspace_action"]["event_refs"] == ["event:run:7"]
 
     assert coverage["review_decision"]["review_unit_id"] == "review-unit:fixture"
     assert coverage["review_decision"]["decision_ref"] == "review-decision:fixture"
@@ -290,6 +284,56 @@ defmodule Extravaganza.HeadlessJSONContractTest do
              "source-publication:fixture"
 
     encoded = Jason.encode!(coverage)
+    refute encoded =~ "workspace_path"
+    refute encoded =~ "/tmp/"
+    refute encoded =~ "api_key"
+    refute encoded =~ "credential_value"
+  end
+
+  test "event page indexes every Symphony headless timeline category" do
+    assert {:ok, event_page} = HeadlessSurface.events(%{"run_id" => "run:fixture"})
+
+    assert event_page["timeline_coverage_gaps"] == []
+
+    coverage = event_page["timeline_coverage"]
+
+    assert Map.keys(coverage) |> Enum.sort() == [
+             "cancellation",
+             "candidate_admission",
+             "candidate_rejection",
+             "codex_update",
+             "dispatch",
+             "hook",
+             "publication",
+             "reconciliation",
+             "refresh_request",
+             "retry",
+             "scheduler_tick",
+             "source_sync"
+           ]
+
+    assert coverage["scheduler_tick"]["event_kinds"] == ["scheduler.tick.started"]
+    assert coverage["refresh_request"]["event_kinds"] == ["refresh.requested"]
+    assert coverage["source_sync"]["event_kinds"] == ["source.sync.completed"]
+    assert coverage["candidate_admission"]["event_kinds"] == ["candidate.admitted"]
+    assert coverage["candidate_rejection"]["event_kinds"] == ["candidate.rejected"]
+    assert coverage["dispatch"]["event_kinds"] == ["dispatch.started"]
+    assert coverage["codex_update"]["event_kinds"] == ["codex.agent_message.updated"]
+    assert coverage["hook"]["event_kinds"] == ["workspace.hook.after_create"]
+    assert coverage["publication"]["event_kinds"] == ["source.publication.completed"]
+
+    assert coverage["reconciliation"]["event_kinds"] == [
+             "reconciliation.terminal_source_detected"
+           ]
+
+    assert coverage["cancellation"]["event_kinds"] == ["cancel.terminal_source"]
+
+    assert coverage["retry"]["event_kinds"] == [
+             "retry.scheduled",
+             "retry.stale_token_ignored"
+           ]
+
+    encoded = Jason.encode!(event_page)
     refute encoded =~ "workspace_path"
     refute encoded =~ "/tmp/"
     refute encoded =~ "api_key"

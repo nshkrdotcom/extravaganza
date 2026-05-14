@@ -196,7 +196,7 @@ defmodule Extravaganza.HeadlessSurfaceTest do
     assert {:ok, %RuntimeRunDetail{} = run} = HeadlessSurface.run_detail("run:fixture")
     rendered_run = RunPresenter.present(run)
 
-    assert Enum.map(rendered_run["data"]["events"], & &1["event_seq"]) == [0, 1, 2, 3, 4, 5]
+    assert Enum.map(rendered_run["data"]["events"], & &1["event_seq"]) == Enum.to_list(0..15)
 
     hook_event =
       Enum.find(

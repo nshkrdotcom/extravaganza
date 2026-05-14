@@ -15,6 +15,21 @@ defmodule Extravaganza.HeadlessReadback do
     source_publication
   ]
 
+  @timeline_coverage_kinds ~w[
+    scheduler_tick
+    refresh_request
+    source_sync
+    candidate_admission
+    candidate_rejection
+    dispatch
+    retry
+    cancellation
+    codex_update
+    hook
+    publication
+    reconciliation
+  ]
+
   @spec evidence_chain(struct()) :: map()
   def evidence_chain(%RuntimeRunDetail{} = run) do
     run_data = RuntimeRunDetail.dump(run)
@@ -50,6 +65,7 @@ defmodule Extravaganza.HeadlessReadback do
   def event_page(%RuntimeRunDetail{} = run, params \\ %{}) when is_map(params) do
     run_data = RuntimeRunDetail.dump(run)
     entries = Map.get(run_data, "events", [])
+    timeline_coverage = timeline_coverage(entries)
 
     %{
       "schema_ref" => "headless_events.v1",
@@ -57,12 +73,16 @@ defmodule Extravaganza.HeadlessReadback do
       "event_page_ref" => "event-page:#{safe_suffix(Map.get(run_data, "run_ref"))}",
       "run_ref" => Map.get(run_data, "run_ref"),
       "entries" => entries,
+      "timeline_coverage" => timeline_coverage,
+      "timeline_coverage_gaps" => timeline_coverage_gaps(timeline_coverage),
       "page" => %{
         "page_size" => length(entries),
         "cursor" => Map.get(params, "cursor") || Map.get(params, :cursor),
         "total_entries" => length(entries)
       }
     }
+    |> compact()
+    |> Map.put("timeline_coverage_gaps", timeline_coverage_gaps(timeline_coverage))
   end
 
   defp compact(%{} = map), do: Map.reject(map, fn {_key, value} -> value in [nil, %{}, []] end)
@@ -86,6 +106,71 @@ defmodule Extravaganza.HeadlessReadback do
   defp evidence_coverage_gaps(coverage) when is_map(coverage) do
     Enum.reject(@evidence_coverage_kinds, &Map.has_key?(coverage, &1))
   end
+
+  defp timeline_coverage(entries) when is_list(entries) do
+    @timeline_coverage_kinds
+    |> Map.new(fn category ->
+      category_events =
+        entries
+        |> Enum.filter(&timeline_category_event?(&1, category))
+        |> Enum.sort_by(&Map.get(&1, "event_seq", 0))
+
+      {category, timeline_category_evidence(category_events)}
+    end)
+    |> compact()
+  end
+
+  defp timeline_coverage_gaps(coverage) when is_map(coverage) do
+    Enum.reject(@timeline_coverage_kinds, &Map.has_key?(coverage, &1))
+  end
+
+  defp timeline_category_evidence([]), do: %{}
+
+  defp timeline_category_evidence(events) do
+    %{
+      "event_refs" => events |> Enum.map(&Map.get(&1, "event_ref")) |> Enum.reject(&is_nil/1),
+      "event_kinds" =>
+        events
+        |> Enum.map(&Map.get(&1, "event_kind"))
+        |> Enum.reject(&is_nil/1)
+        |> Enum.uniq(),
+      "event_count" => length(events)
+    }
+    |> compact()
+  end
+
+  defp timeline_category_event?(%{} = event, category) do
+    event
+    |> Map.get("event_kind", "")
+    |> timeline_category_kind?(category)
+  end
+
+  defp timeline_category_event?(_event, _category), do: false
+
+  defp timeline_category_kind?("scheduler.tick.started", "scheduler_tick"), do: true
+  defp timeline_category_kind?("refresh.requested", "refresh_request"), do: true
+  defp timeline_category_kind?("source.sync.completed", "source_sync"), do: true
+  defp timeline_category_kind?("candidate.admitted", "candidate_admission"), do: true
+  defp timeline_category_kind?("candidate.rejected", "candidate_rejection"), do: true
+  defp timeline_category_kind?("dispatch.started", "dispatch"), do: true
+  defp timeline_category_kind?("codex.agent_message.updated", "codex_update"), do: true
+
+  defp timeline_category_kind?(event_kind, "retry") when is_binary(event_kind),
+    do: String.starts_with?(event_kind, "retry.")
+
+  defp timeline_category_kind?(event_kind, "cancellation") when is_binary(event_kind),
+    do: String.starts_with?(event_kind, "cancel.")
+
+  defp timeline_category_kind?(event_kind, "hook") when is_binary(event_kind),
+    do: String.starts_with?(event_kind, "workspace.hook.")
+
+  defp timeline_category_kind?(event_kind, "publication") when is_binary(event_kind),
+    do: String.starts_with?(event_kind, "source.publication.")
+
+  defp timeline_category_kind?(event_kind, "reconciliation") when is_binary(event_kind),
+    do: String.starts_with?(event_kind, "reconciliation.")
+
+  defp timeline_category_kind?(_event_kind, _category), do: false
 
   defp dispatch_evidence(run_data, runtime_row) do
     refs =
