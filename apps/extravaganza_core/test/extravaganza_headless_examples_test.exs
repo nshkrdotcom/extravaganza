@@ -275,6 +275,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert decoded["data"]["provider_effect"]["provider_response_received?"] == true
     assert decoded["data"]["provider_effect"]["receipt_recorded?"] == true
     assert decoded["data"]["provider_effect"]["product_readback_confirmed?"] == true
+    assert_authority_proof(decoded["data"]["provider_effect"], "linear", "issues-list")
     assert decoded["data"]["provider_effect"]["operation"] == "linear.issues.list"
     assert decoded["data"]["provider_effect"]["viewer_preflight?"] == true
     assert decoded["data"]["provider_effect"]["viewer_operation"] == "linear.users.get_self"
@@ -554,6 +555,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert provider_effect["provider_request_sent?"] == true
     assert provider_effect["provider_response_received?"] == true
     assert provider_effect["receipt_recorded?"] == true
+    assert_authority_proof(provider_effect, "linear", "issues-list")
     assert provider_effect["requested_issue_ids"] == ["lin-issue-321", "lin-missing"]
     assert provider_effect["missing_issue_ids"] == ["lin-missing"]
     assert provider_effect["current_state_count"] == 1
@@ -616,6 +618,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert provider_effect["provider_response_received?"] == true
     assert provider_effect["receipt_recorded?"] == true
     assert provider_effect["product_readback_confirmed?"] == true
+    assert_authority_proof(provider_effect, "codex", "session-turn")
     assert provider_effect["first_prompt_confirmed?"] == true
     assert provider_effect["prompt_ref"] == "prompt://extravaganza/live-codex-turn"
     assert provider_effect["prompt_hash"] =~ "sha256:"
@@ -805,6 +808,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert provider_effect["provider_response_received?"] == true
     assert provider_effect["receipt_recorded?"] == true
     assert provider_effect["product_readback_confirmed?"] == true
+    assert_authority_proof(provider_effect, "github", "pr-fetch")
     assert provider_effect["repo"] == "nshkrdotcom/extravaganza"
     assert provider_effect["pull_number"] == 17
     assert provider_effect["head_sha"] == "head-sha"
@@ -1016,6 +1020,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert decoded["data"]["provider_effect"]["credential_present?"] == true
     assert decoded["data"]["provider_effect"]["provider_request_sent?"] == true
     assert decoded["data"]["provider_effect"]["provider_response_received?"] == true
+    assert_authority_proof(decoded["data"]["provider_effect"], "linear", "comments-create")
     assert decoded["refs"]["source_publication_ref"] == "source-publication://linear-primary/test"
     refute output =~ secret
     refute output =~ "live_provider_effect_deferred"
@@ -1129,6 +1134,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert decoded["data"]["provider_effect"]["state_id"] == "state-done"
     assert "linear.issues.update" in decoded["data"]["provider_effect"]["capability_ids"]
     assert "linear.workflow_states.list" in decoded["data"]["provider_effect"]["capability_ids"]
+    assert_authority_proof(decoded["data"]["provider_effect"], "linear", "issues-update")
     refute output =~ secret
 
     assert_received {:publish_linear_source, "extravaganza", attrs, opts}
@@ -1213,6 +1219,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert provider_effect["provider_request_sent?"] == true
     assert provider_effect["provider_response_received?"] == true
     assert provider_effect["receipt_recorded?"] == true
+    assert_authority_proof(provider_effect, "linear", "graphql-execute")
     assert dynamic_response["success"] == true
 
     assert Jason.decode!(dynamic_response["output"]) == %{
@@ -1372,6 +1379,20 @@ defmodule Extravaganza.HeadlessExamplesTest do
 
   defp common_args,
     do: ["--json", "--fixture", "headless_m1", "--trace-id", "trace:examples"]
+
+  defp assert_authority_proof(provider_effect, provider, operation_slug) do
+    assert provider_effect["authority_authorized?"] == true
+
+    assert provider_effect["authority_handoff_ref"] ==
+             "authority-handoff://#{provider}/#{operation_slug}"
+
+    assert provider_effect["authority_packet_ref"] ==
+             "authority-packet://#{provider}/#{operation_slug}"
+
+    assert provider_effect["connector_binding_ref"] == "connector-binding://#{provider}/primary"
+    assert provider_effect["credential_lease_ref"] == "credential-lease://#{provider}/primary"
+    assert provider_effect["authority_raw_material_present?"] == false
+  end
 
   defmodule CodexAgentBackend do
     @behaviour AppKit.Core.Backends.AgentIntakeBackend
@@ -1664,6 +1685,12 @@ defmodule Extravaganza.HeadlessExamplesTest do
               "status" => "completed",
               "session_ref" => @session_ref,
               "operation" => "codex.session.turn",
+              "authority_authorized?" => true,
+              "authority_handoff_ref" => "authority-handoff://codex/session-turn",
+              "authority_packet_ref" => "authority-packet://codex/session-turn",
+              "connector_binding_ref" => "connector-binding://codex/primary",
+              "credential_lease_ref" => "credential-lease://codex/primary",
+              "authority_raw_material_present?" => false,
               "credential_redeemed?" => true,
               "provider_request_sent?" => true,
               "provider_response_received?" => true,
@@ -1825,7 +1852,17 @@ defmodule Extravaganza.HeadlessExamplesTest do
             lower_receipt_ref: "lower-receipt://github/pr-fetch/succeeded"
           }
         ],
-        metadata: %{"source" => "test"}
+        metadata: %{
+          "source" => "test",
+          "authority_handoff" => %{
+            "authorized?" => true,
+            "handoff_ref" => "authority-handoff://github/pr-fetch",
+            "authority_packet_ref" => "authority-packet://github/pr-fetch",
+            "connector_binding_ref" => "connector-binding://github/primary",
+            "credential_lease_ref" => "credential-lease://github/primary",
+            "raw_material_present?" => false
+          }
+        }
       })
     end
   end
@@ -1845,33 +1882,34 @@ defmodule Extravaganza.HeadlessExamplesTest do
         )
       end
 
-      {:ok,
-       %{
-         requested_issue_ids: issue_ids,
-         credential_redeemed?: true,
-         provider_request_sent?: true,
-         provider_response_received?: true,
-         lower_request_ref: "lower-request://linear/current-states",
-         lower_receipt_ref: "lower-receipt://linear/current-states/succeeded",
-         source_current_state: %{
-           operation: "linear.issues.list",
-           subject_attrs: [
-             %{
-               source_ref: "linear://installation/issue/ENG-321",
-               provider_external_ref: "lin-issue-321",
-               source_state: "Todo"
-             }
-           ],
-           missing_issue_ids: Enum.reject(issue_ids, &(&1 == "lin-issue-321"))
-         },
-         viewer_resolution: %{
-           output: %{user: %{id: "usr-linear-viewer"}},
-           provider_request_sent?: true,
-           provider_response_received?: true,
-           lower_request_ref: "lower-request://linear/viewer",
-           lower_receipt_ref: "lower-receipt://linear/viewer/succeeded"
-         }
-       }}
+      result = %{
+        requested_issue_ids: issue_ids,
+        credential_redeemed?: true,
+        provider_request_sent?: true,
+        provider_response_received?: true,
+        lower_request_ref: "lower-request://linear/current-states",
+        lower_receipt_ref: "lower-receipt://linear/current-states/succeeded",
+        source_current_state: %{
+          operation: "linear.issues.list",
+          subject_attrs: [
+            %{
+              source_ref: "linear://installation/issue/ENG-321",
+              provider_external_ref: "lin-issue-321",
+              source_state: "Todo"
+            }
+          ],
+          missing_issue_ids: Enum.reject(issue_ids, &(&1 == "lin-issue-321"))
+        },
+        viewer_resolution: %{
+          output: %{user: %{id: "usr-linear-viewer"}},
+          provider_request_sent?: true,
+          provider_response_received?: true,
+          lower_request_ref: "lower-request://linear/viewer",
+          lower_receipt_ref: "lower-receipt://linear/viewer/succeeded"
+        }
+      }
+
+      {:ok, Map.merge(result, authority_handoff("issues-list"))}
     end
 
     @impl true
@@ -1888,32 +1926,33 @@ defmodule Extravaganza.HeadlessExamplesTest do
     end
 
     defp default_fetch_linear_candidates(source_binding) do
-      {:ok,
-       %{
-         source_binding_id: source_binding.source_binding_id,
-         source_intake: %{
-           operation: "linear.issues.list",
-           subject_attrs: [
-             %{
-               source_ref: "linear://installation/issue/ENG-321",
-               provider_external_ref: "lin-issue-321",
-               title: "Investigate rollback"
-             }
-           ]
-         },
-         provider_request_sent?: true,
-         provider_response_received?: true,
-         credential_redeemed?: true,
-         viewer_resolution: %{
-           output: %{user: %{id: "usr-linear-viewer"}},
-           provider_request_sent?: true,
-           provider_response_received?: true,
-           lower_request_ref: "lower-request://linear/viewer",
-           lower_receipt_ref: "lower-receipt://linear/viewer/succeeded"
-         },
-         lower_request_ref: "lower-request://linear/source",
-         lower_receipt_ref: "lower-receipt://linear/source"
-       }}
+      result = %{
+        source_binding_id: source_binding.source_binding_id,
+        source_intake: %{
+          operation: "linear.issues.list",
+          subject_attrs: [
+            %{
+              source_ref: "linear://installation/issue/ENG-321",
+              provider_external_ref: "lin-issue-321",
+              title: "Investigate rollback"
+            }
+          ]
+        },
+        provider_request_sent?: true,
+        provider_response_received?: true,
+        credential_redeemed?: true,
+        viewer_resolution: %{
+          output: %{user: %{id: "usr-linear-viewer"}},
+          provider_request_sent?: true,
+          provider_response_received?: true,
+          lower_request_ref: "lower-request://linear/viewer",
+          lower_receipt_ref: "lower-receipt://linear/viewer/succeeded"
+        },
+        lower_request_ref: "lower-request://linear/source",
+        lower_receipt_ref: "lower-receipt://linear/source"
+      }
+
+      {:ok, Map.merge(result, authority_handoff("issues-list"))}
     end
 
     @impl true
@@ -2007,7 +2046,8 @@ defmodule Extravaganza.HeadlessExamplesTest do
          provider_request_sent?: Keyword.get(opts, :dry_run?) != true,
          provider_response_received?: Keyword.get(opts, :dry_run?) != true,
          lower_denial_ref: Map.get(receipt, :lower_denial_ref)
-       }}
+       }
+       |> Map.merge(publication_authority_handoff(receipt))}
     end
 
     @impl true
@@ -2018,27 +2058,50 @@ defmodule Extravaganza.HeadlessExamplesTest do
 
       output = ~s({"data":{"viewer":{"id":"usr-linear-viewer"}}})
 
-      {:ok,
-       %{
-         operation: "linear.graphql.execute",
-         tool_name: "linear_graphql",
-         success?: true,
-         dynamic_tool_response: %{
-           "success" => true,
-           "output" => output,
-           "contentItems" => [
-             %{
-               "type" => "inputText",
-               "text" => output
-             }
-           ]
-         },
-         lower_request_ref: "lower-request://linear/graphql",
-         lower_receipt_ref: "lower-receipt://linear/graphql/succeeded",
-         provider_request_sent?: true,
-         provider_response_received?: true,
-         credential_redeemed?: true
-       }}
+      result = %{
+        operation: "linear.graphql.execute",
+        tool_name: "linear_graphql",
+        success?: true,
+        dynamic_tool_response: %{
+          "success" => true,
+          "output" => output,
+          "contentItems" => [
+            %{
+              "type" => "inputText",
+              "text" => output
+            }
+          ]
+        },
+        lower_request_ref: "lower-request://linear/graphql",
+        lower_receipt_ref: "lower-receipt://linear/graphql/succeeded",
+        provider_request_sent?: true,
+        provider_response_received?: true,
+        credential_redeemed?: true
+      }
+
+      {:ok, Map.merge(result, authority_handoff("graphql-execute"))}
+    end
+
+    defp publication_authority_handoff(%{capability_id: "linear.issues.update"}),
+      do: authority_handoff("issues-update")
+
+    defp publication_authority_handoff(%{capability_id: "linear.comments.update"}),
+      do: authority_handoff("comments-update")
+
+    defp publication_authority_handoff(%{capability_id: "linear.comments.create"}),
+      do: authority_handoff("comments-create")
+
+    defp publication_authority_handoff(_receipt), do: %{}
+
+    defp authority_handoff(operation_slug) do
+      %{
+        authority_authorized?: true,
+        authority_handoff_ref: "authority-handoff://linear/#{operation_slug}",
+        authority_packet_ref: "authority-packet://linear/#{operation_slug}",
+        connector_binding_ref: "connector-binding://linear/primary",
+        credential_lease_ref: "credential-lease://linear/primary",
+        authority_raw_material_present?: false
+      }
     end
   end
 end

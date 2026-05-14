@@ -101,6 +101,18 @@ defmodule Extravaganza.HeadlessLiveExamples do
     "update_issue_state"
   ]
 
+  @authority_effect_keys [
+    :authority_authorized?,
+    :authority_handoff_ref,
+    :authority_packet_ref,
+    :connector_binding_ref,
+    :credential_lease_ref,
+    :authority_raw_material_present?,
+    :authorized?,
+    :handoff_ref,
+    :raw_material_present?
+  ]
+
   @spec run(atom(), map() | keyword()) :: {:ok, map()} | {:error, term()}
   def run(kind, opts \\ [])
 
@@ -259,6 +271,7 @@ defmodule Extravaganza.HeadlessLiveExamples do
           "lower_request_ref" => value(result, :lower_request_ref),
           "lower_receipt_ref" => value(result, :lower_receipt_ref)
         }
+        |> Map.merge(authority_effect_fields(result))
         |> compact_map()
 
       {:error, reason} ->
@@ -306,6 +319,7 @@ defmodule Extravaganza.HeadlessLiveExamples do
         "lower_request_ref" => value(result, :lower_request_ref),
         "lower_receipt_ref" => value(result, :lower_receipt_ref)
       }
+      |> Map.merge(authority_effect_fields([current_state, result]))
       |> compact_map()
     else
       {:error, reason} ->
@@ -353,6 +367,7 @@ defmodule Extravaganza.HeadlessLiveExamples do
               "state_lookup_lower_receipt_ref" => value(receipt, :state_lookup_lower_receipt_ref),
               "state_update?" => value(receipt, :capability_id) == "linear.issues.update"
             }
+            |> Map.merge(authority_effect_fields([receipt, result]))
             |> compact_map()
 
           {:error, reason} ->
@@ -391,6 +406,7 @@ defmodule Extravaganza.HeadlessLiveExamples do
               "lower_request_ref" => value(result, :lower_request_ref),
               "lower_receipt_ref" => lower_receipt_ref
             }
+            |> Map.merge(authority_effect_fields(result))
             |> compact_map()
 
           {:error, reason} ->
@@ -679,6 +695,7 @@ defmodule Extravaganza.HeadlessLiveExamples do
         "lower_request_ref" => value(turn, :lower_request_ref),
         "lower_receipt_ref" => lower_receipt_ref
       }
+      |> Map.merge(authority_effect_fields(turn))
       |> compact_map()
     else
       {:error, reason} ->
@@ -719,6 +736,7 @@ defmodule Extravaganza.HeadlessLiveExamples do
           "lower_request_ref" => first_ref(receipt.receipt_refs, "lower_request_refs"),
           "lower_receipt_ref" => first_ref(receipt.receipt_refs, "lower_receipt_refs")
         }
+        |> Map.merge(authority_effect_fields(receipt))
         |> compact_map()
         |> Map.put("write_operations", receipt.write_operations || [])
 
@@ -1676,13 +1694,89 @@ defmodule Extravaganza.HeadlessLiveExamples do
 
   defp first_ref(_receipt_refs, _key), do: nil
 
+  defp authority_effect_fields(values) when is_list(values) do
+    Enum.reduce(values, %{}, fn value, acc -> Map.merge(acc, authority_effect_fields(value)) end)
+  end
+
+  defp authority_effect_fields(source) do
+    source = authority_handoff_source(source)
+
+    if authority_proof_present?(source) do
+      %{
+        "authority_authorized?" =>
+          first_non_nil([
+            boolean_value_or_nil(source, :authority_authorized?),
+            boolean_value_or_nil(source, :authorized?)
+          ]),
+        "authority_handoff_ref" =>
+          first_non_nil([value(source, :authority_handoff_ref), value(source, :handoff_ref)]),
+        "authority_packet_ref" => value(source, :authority_packet_ref),
+        "connector_binding_ref" => value(source, :connector_binding_ref),
+        "credential_lease_ref" => value(source, :credential_lease_ref),
+        "authority_raw_material_present?" =>
+          first_non_nil([
+            boolean_value_or_nil(source, :authority_raw_material_present?),
+            boolean_value_or_nil(source, :raw_material_present?)
+          ])
+      }
+      |> compact_map()
+    else
+      %{}
+    end
+  end
+
+  defp authority_handoff_source(source) do
+    metadata = value(source, :metadata)
+
+    cond do
+      authority_proof_present?(source) ->
+        source
+
+      is_map(value(source, :authority_handoff)) ->
+        value(source, :authority_handoff)
+
+      is_map(value(metadata, :authority_handoff)) ->
+        value(metadata, :authority_handoff)
+
+      true ->
+        %{}
+    end
+  end
+
+  defp authority_proof_present?(source) do
+    Enum.any?(@authority_effect_keys, &(not is_nil(value(source, &1))))
+  end
+
+  defp boolean_value_or_nil(source, key) do
+    case value(source, key) do
+      value when is_boolean(value) -> value
+      _other -> nil
+    end
+  end
+
+  defp first_non_nil(values), do: Enum.find(values, &(not is_nil(&1)))
+
   defp value(%_{} = struct, key), do: struct |> Map.from_struct() |> value(key)
 
-  defp value(%{} = map, key) when is_atom(key),
-    do: Map.get(map, key) || Map.get(map, Atom.to_string(key))
+  defp value(%{} = map, key) when is_atom(key) do
+    string_key = Atom.to_string(key)
 
-  defp value(%{} = map, key) when is_binary(key),
-    do: Map.get(map, key) || Map.get(map, String.to_atom(key))
+    cond do
+      Map.has_key?(map, key) -> Map.get(map, key)
+      Map.has_key?(map, string_key) -> Map.get(map, string_key)
+      true -> nil
+    end
+  end
+
+  defp value(%{} = map, key) when is_binary(key) do
+    atom_key = String.to_atom(key)
+
+    cond do
+      Map.has_key?(map, key) -> Map.get(map, key)
+      Map.has_key?(map, atom_key) -> Map.get(map, atom_key)
+      true -> nil
+    end
+  end
 
   defp value(_value, _key), do: nil
 
