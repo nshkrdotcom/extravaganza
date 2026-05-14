@@ -70,6 +70,8 @@ defmodule Extravaganza.Operators do
   def apply_action(subject_id, action_kind, attrs \\ %{}, opts \\ [])
       when is_binary(subject_id) and is_map(attrs) and is_list(opts) do
     with_bootstrapped_subject(subject_id, opts, fn config, context, subject_ref ->
+      context = action_context(context, subject_ref, action_kind, attrs)
+
       with {:ok, action_request} <- action_request(subject_ref, action_kind, attrs) do
         OperatorSurface.apply_action(
           context,
@@ -170,6 +172,28 @@ defmodule Extravaganza.Operators do
     do: Atom.to_string(action_kind)
 
   defp normalize_action_kind(action_kind) when is_binary(action_kind), do: action_kind
+
+  defp action_context(
+         %RequestContext{} = context,
+         %SubjectRef{} = subject_ref,
+         action_kind,
+         attrs
+       ) do
+    action_kind = normalize_action_kind(action_kind)
+
+    %{
+      context
+      | idempotency_key:
+          map_value(attrs, :idempotency_key) ||
+            context.idempotency_key ||
+            "extravaganza:operator:#{subject_ref.id}:#{action_kind}",
+        causation_id:
+          map_value(attrs, :correlation_id) ||
+            map_value(attrs, :causation_id) ||
+            context.causation_id,
+        request_id: map_value(attrs, :request_id) || context.request_id
+    }
+  end
 
   defp map_value(map, key) when is_map(map),
     do: Map.get(map, key) || Map.get(map, Atom.to_string(key))

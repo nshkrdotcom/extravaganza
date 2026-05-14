@@ -193,18 +193,26 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
     assert refresh["data"]["data"]["command_kind"] == "refresh"
     assert refresh["data"]["data"]["workflow_effect_state"] == "pending_signal"
 
-    accepted =
-      post(conn, ~p"/api/v1/subjects/subject:fixture/control/retry", %{
-        "idempotency_key" => "idem:api-retry"
-      })
-      |> json_response(202)
+    for action <- ~w[pause resume cancel retry] do
+      accepted =
+        conn
+        |> recycle()
+        |> post(~p"/api/v1/subjects/subject:fixture/control/#{action}", %{
+          "idempotency_key" => "idem:api-#{action}"
+        })
+        |> json_response(202)
 
-    assert accepted["operation"] == "control"
-    assert accepted["data"]["data"]["accepted?"] == true
-    assert accepted["data"]["data"]["workflow_effect_state"] == "pending_signal"
+      assert accepted["operation"] == "control"
+      assert accepted["data"]["data"]["command_kind"] == action
+      assert accepted["data"]["data"]["accepted?"] == true
+      assert accepted["data"]["data"]["idempotency_key"] == "idem:api-#{action}"
+      assert accepted["data"]["data"]["workflow_effect_state"] == "pending_signal"
+    end
 
     denied =
-      post(conn, ~p"/api/v1/subjects/subject:fixture/actions/cancel", %{
+      conn
+      |> recycle()
+      |> post(~p"/api/v1/subjects/subject:fixture/actions/cancel", %{
         "idempotency_key" => "idem:api-cancel",
         "deny" => "true"
       })

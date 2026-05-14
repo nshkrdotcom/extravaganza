@@ -271,6 +271,73 @@ defmodule ExtravaganzaProductCoreTest do
     end
   end
 
+  defmodule FakeControlOperatorBackend do
+    @behaviour AppKit.Core.Backends.OperatorBackend
+
+    def apply_action(
+          %RequestContext{} = context,
+          %SubjectRef{} = subject_ref,
+          action_request,
+          _opts
+        ) do
+      action_kind = action_request.action_ref.action_kind
+
+      send(
+        self(),
+        {:operator_surface_control, action_kind, subject_ref.id, action_request.reason,
+         action_request.params, context.idempotency_key}
+      )
+
+      ActionResult.new(%{
+        status: :completed,
+        action_ref: action_request.action_ref,
+        message: "#{action_kind} completed",
+        metadata: %{
+          "control_owner" => "operator_surface",
+          "operator_action_service" => "Mezzanine.AppKitBridge.OperatorActionService",
+          "operator_signal_contract" => "Mezzanine.OperatorWorkflowSignal.v1",
+          "workflow_signal" => "operator.#{action_kind}",
+          "workflow_effect_state" => "pending_signal",
+          "idempotency_key" => context.idempotency_key,
+          "correlation_id" => context.causation_id
+        }
+      })
+    end
+  end
+
+  defmodule FakeControlWorkBackend do
+    @behaviour AppKit.Core.Backends.WorkBackend
+
+    def retry_run(%RequestContext{} = context, %RunRef{} = run_ref, _opts) do
+      subject_id =
+        Map.get(run_ref.metadata, :subject_id) ||
+          Map.get(run_ref.metadata, "subject_id") ||
+          Map.get(run_ref.metadata, :work_object_id) ||
+          Map.get(run_ref.metadata, "work_object_id")
+
+      send(self(), {:work_control_retry, run_ref, context.idempotency_key})
+
+      ActionResult.new(%{
+        status: :accepted,
+        action_ref: %{
+          id: "#{run_ref.run_id}:retry",
+          action_kind: "retry",
+          subject_ref: %{id: subject_id, subject_kind: "work_object"}
+        },
+        message: "retry queued",
+        metadata: %{
+          "control_owner" => "work_control",
+          "work_control_surface" => "AppKit.WorkControl",
+          "workflow_effect_state" => "pending_signal",
+          "idempotency_key" => context.idempotency_key,
+          "correlation_id" => context.causation_id,
+          "run_ref" => run_ref.run_id,
+          "subject_ref" => subject_id
+        }
+      })
+    end
+  end
+
   setup do
     base_config = Application.fetch_env!(:extravaganza_core, Config)
 
@@ -1580,6 +1647,98 @@ defmodule ExtravaganzaProductCoreTest do
              )
 
     assert cancel_result.status == :completed
+  end
+
+  test "product headless control delegates public actions through AppKit operator and work surfaces",
+       %{
+         tenant_id: tenant_id,
+         pack_version: pack_version
+       } do
+    activate_fixture_registration!(tenant_id: tenant_id, pack_version: pack_version)
+
+    opts = [
+      tenant_id: tenant_id,
+      pack_version: pack_version,
+      operator_backend: FakeControlOperatorBackend,
+      work_backend: FakeControlWorkBackend
+    ]
+
+    for action <- ~w[pause resume cancel] do
+      reason = "#{action} from product request_control"
+      idempotency_key = "idem:#{action}"
+      correlation_id = "corr:#{action}"
+
+      assert {:ok, result} =
+               ProductHost.request_control(
+                 "subject:operator-control",
+                 action,
+                 %{
+                   reason: reason,
+                   idempotency_key: idempotency_key,
+                   correlation_id: correlation_id
+                 },
+                 opts
+               )
+
+      assert result.action_ref.action_kind == action
+      assert result.metadata["control_owner"] == "operator_surface"
+
+      assert result.metadata["operator_action_service"] ==
+               "Mezzanine.AppKitBridge.OperatorActionService"
+
+      assert result.metadata["operator_signal_contract"] == "Mezzanine.OperatorWorkflowSignal.v1"
+      assert result.metadata["workflow_signal"] == "operator.#{action}"
+      assert result.metadata["idempotency_key"] == idempotency_key
+      assert result.metadata["correlation_id"] == correlation_id
+
+      rendered = CommandResultPresenter.present(result, correlation_id: correlation_id)
+      assert rendered["schema_ref"] == "headless_command_result.v1"
+      assert rendered["data"]["command_kind"] == action
+      assert rendered["data"]["workflow_effect_state"] == "pending_signal"
+
+      assert_receive {:operator_surface_control, ^action, "subject:operator-control", ^reason,
+                      params, ^idempotency_key}
+
+      assert (params[:correlation_id] || params["correlation_id"]) == correlation_id
+    end
+
+    assert {:ok, retry_result} =
+             ProductHost.request_control(
+               "subject:operator-control",
+               :retry,
+               %{
+                 run_ref: "run:operator-control",
+                 idempotency_key: "idem:retry",
+                 correlation_id: "corr:retry"
+               },
+               opts
+             )
+
+    assert retry_result.action_ref.action_kind == "retry"
+    assert retry_result.metadata["control_owner"] == "work_control"
+    assert retry_result.metadata["work_control_surface"] == "AppKit.WorkControl"
+    assert retry_result.metadata["subject_ref"] == "subject:operator-control"
+
+    assert_receive {:work_control_retry,
+                    %RunRef{
+                      run_id: "run:operator-control",
+                      metadata: %{subject_id: "subject:operator-control"}
+                    }, "idem:retry"}
+
+    rendered_retry = CommandResultPresenter.present(retry_result, correlation_id: "corr:retry")
+    assert rendered_retry["data"]["command_kind"] == "retry"
+    assert rendered_retry["data"]["workflow_effect_state"] == "pending_signal"
+
+    assert {:error, :invalid_action} =
+             ProductHost.request_control(
+               "subject:operator-control",
+               :force_delete,
+               %{idempotency_key: "idem:force-delete"},
+               opts
+             )
+
+    refute_received {:operator_surface_control, "force_delete", _, _, _, _}
+    refute_received {:work_control_retry, _, "idem:force-delete"}
   end
 
   test "product-local review facade routes run review through the app kit path", %{

@@ -3,6 +3,7 @@ defmodule Extravaganza.HeadlessSameRunSmoke do
 
   alias AppKit.Core.RuntimeReadback.RuntimeRunDetail
   alias Extravaganza.{HeadlessJSON, ProductHost}
+  alias Extravaganza.Presenters.CommandResultPresenter
 
   @readback_names ~w[
     state
@@ -259,10 +260,16 @@ defmodule Extravaganza.HeadlessSameRunSmoke do
   defp compact_smoke_data("source_publication", publication), do: publication
 
   defp compact_smoke_data(name, result) when name in ["refresh", "control"] do
+    data =
+      result
+      |> CommandResultPresenter.present()
+      |> Map.fetch!("data")
+
     %{
-      "status" => to_string(result.status),
-      "command_kind" => to_string(result.command_kind),
-      "projection_state" => to_string(result.projection_state)
+      "status" => to_string(Map.get(data, "status")),
+      "command_kind" => to_string(Map.get(data, "command_kind")),
+      "projection_state" =>
+        to_string(Map.get(data, "projection_state") || Map.get(data, "workflow_effect_state"))
     }
   end
 

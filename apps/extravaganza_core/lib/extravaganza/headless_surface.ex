@@ -7,10 +7,12 @@ defmodule Extravaganza.HeadlessSurface do
   surfaces only.
   """
 
+  alias AppKit.Core.RunRef
   alias AppKit.Core.RuntimeReadback.{CommandResult, ControlRequest, RuntimeStateSnapshot}
   alias AppKit.HeadlessSurface, as: AppKitHeadlessSurface
   alias AppKit.RuntimeSurface, as: AppKitRuntimeSurface
   alias AppKit.SourceSurface, as: AppKitSourceSurface
+  alias AppKit.WorkControl
 
   alias Extravaganza.{
     AppKitContext,
@@ -113,7 +115,7 @@ defmodule Extravaganza.HeadlessSurface do
           {:ok, struct()} | {:error, term()}
   def request_control(subject_id, action, attrs \\ %{}, opts \\ [])
       when is_binary(subject_id) and is_map(attrs) and is_list(opts) do
-    with {:ok, %{context: context}} <- context_bundle(opts),
+    with {:ok, %{config: config, context: context}} <- context_bundle(opts),
          {:ok, action} <- normalize_control_action(action) do
       request = %{
         idempotency_key: idempotency_key(attrs, action),
@@ -124,7 +126,11 @@ defmodule Extravaganza.HeadlessSurface do
           Map.drop(Map.new(attrs), [:idempotency_key, "idempotency_key", :actor_ref, "actor_ref"])
       }
 
-      AppKitHeadlessSurface.request_control(context, request, opts)
+      if headless_control_backend_path?(opts) do
+        AppKitHeadlessSurface.request_control(context, request, opts)
+      else
+        dispatch_product_control(config, context, subject_id, action, attrs, opts)
+      end
     end
   end
 
@@ -270,6 +276,57 @@ defmodule Extravaganza.HeadlessSurface do
 
   defp fixture_context?,
     do: Application.get_env(:extravaganza_core, :headless_fixture_context?, false)
+
+  defp headless_control_backend_path?(opts),
+    do: Keyword.get(opts, :skip_bootstrap?) || fixture_context?()
+
+  defp dispatch_product_control(config, context, subject_id, action, attrs, opts) do
+    case to_string(action) do
+      "retry" -> request_retry_control(config, context, subject_id, attrs, opts)
+      _other -> Operators.apply_action(subject_id, action, attrs, opts)
+    end
+  end
+
+  defp request_retry_control(config, context, subject_id, attrs, opts) do
+    with {:ok, run_ref} <- control_run_ref(config, subject_id, attrs) do
+      context
+      |> control_context(attrs, "retry")
+      |> WorkControl.retry_run(run_ref, ProductSurface.work_control_opts(config, opts))
+    end
+  end
+
+  defp control_run_ref(config, subject_id, attrs) do
+    attrs = Map.new(attrs)
+    run_id = map_value(attrs, :run_ref) || map_value(attrs, :run_id) || "run/#{subject_id}"
+
+    scope_id =
+      map_value(attrs, :scope_id) || map_value(attrs, :scope_ref) ||
+        AppKitContext.scope_id(config)
+
+    metadata =
+      attrs
+      |> map_value(:run_metadata)
+      |> case do
+        %{} = value -> Map.new(value)
+        _other -> %{}
+      end
+      |> Map.put_new(:subject_id, subject_id)
+      |> Map.put_new(:work_object_id, subject_id)
+      |> Map.put_new(:tenant_id, config.tenant_id)
+
+    RunRef.new(%{run_id: run_id, scope_id: scope_id, metadata: metadata})
+  end
+
+  defp control_context(context, attrs, action) do
+    %{
+      context
+      | idempotency_key: idempotency_key(attrs, action),
+        causation_id:
+          map_value(attrs, :correlation_id) || map_value(attrs, :causation_id) ||
+            context.causation_id,
+        request_id: map_value(attrs, :request_id) || context.request_id
+    }
+  end
 
   defp fixture_reviews do
     %{
