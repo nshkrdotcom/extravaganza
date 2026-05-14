@@ -40,6 +40,7 @@ defmodule ExtravaganzaProductCoreTest do
     ProductHost,
     ProductInstallTemplate,
     ProductPack,
+    ProductSurface,
     Queries,
     Reviews,
     RunProfiles.DefaultCodexProfile,
@@ -645,6 +646,57 @@ defmodule ExtravaganzaProductCoreTest do
     refute Map.has_key?(companion, "secret_metadata")
 
     assert install_template.metadata["companion_connectors"] == [companion]
+  end
+
+  test "product surface normalizes product boundary options into AppKit-ready opts", %{
+    tenant_id: tenant_id,
+    pack_version: pack_version
+  } do
+    config = Config.load(tenant_id: tenant_id, pack_version: pack_version)
+
+    opts =
+      ProductSurface.normalized_options(config, %{
+        "tenant_id" => tenant_id,
+        "installation_id" => "installation:explicit",
+        "program_id" => "program:explicit",
+        "profile_ref" => "profile:explicit",
+        "source_binding_ref" => "source-binding:explicit",
+        "credential_ref" => "credential:explicit",
+        "live" => "true",
+        "trace_id" => "11111111111111111111111111111111",
+        "correlation_id" => "corr:explicit",
+        :backend => FakeRuntimeProjectionBackend,
+        :pack_version => pack_version
+      })
+
+    assert Keyword.fetch!(opts, :tenant_id) == tenant_id
+    assert Keyword.fetch!(opts, :pack_version) == pack_version
+    assert Keyword.fetch!(opts, :installation_id) == "installation:explicit"
+    assert Keyword.fetch!(opts, :program_id) == "program:explicit"
+    assert Keyword.fetch!(opts, :profile_ref) == "profile:explicit"
+    assert Keyword.fetch!(opts, :source_binding_ref) == "source-binding:explicit"
+    assert Keyword.fetch!(opts, :credential_ref) == "credential:explicit"
+    assert Keyword.fetch!(opts, :live?) == true
+    assert Keyword.fetch!(opts, :trace_id) == "11111111111111111111111111111111"
+    assert Keyword.fetch!(opts, :correlation_id) == "corr:explicit"
+    assert Keyword.fetch!(opts, :backend) == FakeRuntimeProjectionBackend
+  end
+
+  test "bootstrapped product context applies normalized trace and correlation options", %{
+    tenant_id: tenant_id,
+    pack_version: pack_version
+  } do
+    assert {:ok, %{context: context}} =
+             ProductSurface.bootstrapped_context(
+               tenant_id: tenant_id,
+               pack_version: pack_version,
+               trace_id: "22222222222222222222222222222222",
+               correlation_id: "corr:product-options"
+             )
+
+    assert context.tenant_ref.id == tenant_id
+    assert context.trace_id == "22222222222222222222222222222222"
+    assert context.causation_id == "corr:product-options"
   end
 
   test "unknown ProductPack names reject before refs are built" do
