@@ -52,6 +52,11 @@ defmodule Extravaganza.HeadlessDocsTest do
     assert live_guide =~ "mix extravaganza.headless.web --port 4001 --json"
     assert live_guide =~ "`server.port`"
     assert live_guide =~ "`GET /operator-console`"
+    assert live_guide =~ "## Static Asset Replacement"
+    assert live_guide =~ "`SymphonyElixirWeb.StaticAssets`"
+    assert live_guide =~ "`/dashboard.css`"
+    assert live_guide =~ "`/operator-console/updates`"
+    assert live_guide =~ "ExtravaganzaWeb.static_paths() == []"
 
     assert credentials_guide =~
              "~/scripts/with_bash_secrets mix extravaganza.headless.live.linear_source --live-product-path --json"

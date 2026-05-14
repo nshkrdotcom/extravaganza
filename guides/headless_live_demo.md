@@ -157,6 +157,33 @@ The envelope includes only safe metadata, refresh targets such as
 layer still reads dashboard data from AppKit presenters instead of lower stores
 or provider SDKs.
 
+## Static Asset Replacement
+
+Symphony's optional Phoenix dashboard embedded static assets through
+`SymphonyElixirWeb.StaticAssets` and served `/dashboard.css`,
+`/vendor/phoenix_html/phoenix_html.js`, `/vendor/phoenix/phoenix.js`, and
+`/vendor/phoenix_live_view/phoenix_live_view.js`. Those routes supported
+Symphony's chosen dashboard implementation; they are not part of the required
+headless runtime behavior.
+
+Extravaganza does not port those asset routes. The product web shell keeps
+`ExtravaganzaWeb.static_paths() == []` and renders the operator surface through
+server-rendered Phoenix templates plus the explicit `/operator-console/updates`
+SSE stream. The observability proof surface is the product route set:
+
+- `GET /operator-console`
+- `GET /operator-console/updates`
+- `GET /api/v1/state`
+- `GET /api/v1/status`
+- `GET /api/v1/events`
+- `GET /api/v1/logs`
+- `POST /api/v1/refresh`
+
+This preserves the headless dashboard/API behavior without requiring
+Symphony-specific CSS or Phoenix vendor asset compatibility. If Extravaganza
+adds bundled assets later, they should be product web assets only and should not
+be treated as a lower runtime or provider dependency.
+
 ## Optional HTTP Port
 
 Symphony's optional HTTP extension used CLI `--port` or workflow
