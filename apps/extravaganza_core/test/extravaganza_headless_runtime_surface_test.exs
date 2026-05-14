@@ -78,6 +78,110 @@ defmodule Extravaganza.HeadlessRuntimeSurfaceTest do
     assert remote_semantics["direct_product_ssh"] == false
     assert remote_semantics["ssh_hosts"] == ["worker-a"]
     refute output =~ @secret
+
+    status_output =
+      capture_io(fn ->
+        assert :ok =
+                 HeadlessCLI.run(:status, [
+                   "--json",
+                   "--profile-cache",
+                   cache_path,
+                   "--trace-id",
+                   "trace:profile-status"
+                 ])
+      end)
+
+    status = Jason.decode!(status_output)
+    workflow_reload = get_in(status, ["data", "data", "metadata", "workflow_reload"])
+
+    assert status["ok"] == true
+    assert status["operation"] == "status"
+    assert workflow_reload["status"] == "reloaded"
+    assert workflow_reload["workflow_path"] == "[redacted-path]"
+    assert workflow_reload["prompt_hash"] == decoded["data"]["profile"]["workflow"]["prompt_hash"]
+    assert workflow_reload["runtime_profile_ref"] == "runtime-profile://symphony-workflow"
+    assert workflow_reload["runtime_profile_apply"]["status"] == "updated"
+    refute status_output =~ @secret
+  end
+
+  @tag :tmp_dir
+  test "status exposes failed profile reload while keeping the last known good profile", %{
+    tmp_dir: tmp_dir
+  } do
+    workflow_path = write_workflow!(tmp_dir)
+    cache_path = Path.join(tmp_dir, "last-good-profile.json")
+
+    initial_output =
+      capture_io(fn ->
+        assert :ok =
+                 HeadlessCLI.run(:profile_reload, [
+                   "--json",
+                   @guardrails_ack,
+                   "--workflow",
+                   workflow_path,
+                   "--env",
+                   "LINEAR_API_KEY=#{@secret}",
+                   "--profile-cache",
+                   cache_path,
+                   "--trace-id",
+                   "trace:profile-apply"
+                 ])
+      end)
+
+    initial = Jason.decode!(initial_output)
+
+    File.write!(workflow_path, "---\ntracker: [unterminated\n---\nBroken prompt\n")
+
+    failed_output =
+      capture_io(fn ->
+        assert :ok =
+                 HeadlessCLI.run(:profile_reload, [
+                   "--json",
+                   @guardrails_ack,
+                   "--workflow",
+                   workflow_path,
+                   "--env",
+                   "LINEAR_API_KEY=#{@secret}",
+                   "--profile-cache",
+                   cache_path,
+                   "--trace-id",
+                   "trace:profile-reload-failed"
+                 ])
+      end)
+
+    failed = Jason.decode!(failed_output)
+
+    assert failed["ok"] == true
+    assert failed["data"]["status"] == "reload_failed"
+    assert failed["data"]["error"]["code"] == "workflow_parse_error"
+    assert failed["data"]["last_known_good"]["workflow"]["path"] == "[redacted-path]"
+
+    status_output =
+      capture_io(fn ->
+        assert :ok =
+                 HeadlessCLI.run(:status, [
+                   "--json",
+                   "--profile-cache",
+                   cache_path,
+                   "--trace-id",
+                   "trace:profile-status"
+                 ])
+      end)
+
+    status = Jason.decode!(status_output)
+    workflow_reload = get_in(status, ["data", "data", "metadata", "workflow_reload"])
+
+    assert workflow_reload["status"] == "reload_failed"
+    assert workflow_reload["error"]["code"] == "workflow_parse_error"
+    assert workflow_reload["last_known_good"]["status"] == "available"
+    assert workflow_reload["last_known_good"]["workflow_path"] == "[redacted-path]"
+
+    assert workflow_reload["last_known_good"]["prompt_hash"] ==
+             initial["data"]["profile"]["workflow"]["prompt_hash"]
+
+    refute initial_output =~ @secret
+    refute failed_output =~ @secret
+    refute status_output =~ @secret
   end
 
   test "status and logs commands read through AppKit runtime surface" do

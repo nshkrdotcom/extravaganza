@@ -80,10 +80,15 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
   def status(conn, params) do
     case HeadlessSurface.runtime_status(params) do
       {:ok, status} ->
+        presenter_opts =
+          conn
+          |> presenter_opts()
+          |> Keyword.put(:workflow_reload, SymphonyWorkflowImport.reload_status(params))
+
         render_success(
           conn,
           :status,
-          RuntimePresenter.present_status(status, presenter_opts(conn))
+          RuntimePresenter.present_status(status, presenter_opts)
         )
 
       {:error, reason} ->
@@ -128,7 +133,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
   def profile_reload(conn, params) do
     result =
       with {:ok, reload} <- SymphonyWorkflowImport.reload(params) do
-        apply_runtime_profile_to_reload(reload)
+        apply_runtime_profile_to_reload(reload, params)
       end
 
     case result do
@@ -647,19 +652,24 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
 
   defp apply_runtime_profile_to_reload(
          %{"status" => "reloaded", "profile" => %{"app_kit_runtime_profile" => runtime_profile}} =
-           reload
+           reload,
+         params
        ) do
     with {:ok, apply_result} <- HeadlessSurface.apply_runtime_profile(runtime_profile) do
       apply_readback = RuntimePresenter.present_profile_apply(apply_result)
 
-      {:ok,
-       reload
-       |> Map.put("runtime_profile_apply", apply_readback)
-       |> Map.put("runtime_profile_ref", apply_readback["profile_ref"])}
+      reload =
+        reload
+        |> Map.put("runtime_profile_apply", apply_readback)
+        |> Map.put("runtime_profile_ref", apply_readback["profile_ref"])
+
+      with :ok <- SymphonyWorkflowImport.record_runtime_profile_apply(reload, params) do
+        {:ok, reload}
+      end
     end
   end
 
-  defp apply_runtime_profile_to_reload(reload), do: {:ok, reload}
+  defp apply_runtime_profile_to_reload(reload, _params), do: {:ok, reload}
 
   defp source_publish_attrs(%{"subject_id" => subject_id} = params),
     do:

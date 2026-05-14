@@ -470,6 +470,21 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
     assert reload["data"]["runtime_profile_apply"]["status"] == "updated"
     assert reload["runtime_profile_ref"] == "runtime-profile://symphony-workflow"
     refute Jason.encode!(reload) =~ @secret
+
+    status =
+      conn
+      |> recycle()
+      |> get(~p"/api/v1/status", %{"profile_cache_path" => cache_path})
+      |> json_response(200)
+
+    workflow_reload = get_in(status, ["data", "data", "metadata", "workflow_reload"])
+
+    assert status["operation"] == "status"
+    assert workflow_reload["status"] == "reloaded"
+    assert workflow_reload["workflow_path"] == "[redacted-path]"
+    assert workflow_reload["runtime_profile_ref"] == "runtime-profile://symphony-workflow"
+    assert workflow_reload["runtime_profile_apply"]["status"] == "updated"
+    refute Jason.encode!(status) =~ @secret
   end
 
   test "POST source-publication delegates to AppKit source publication surface", %{conn: conn} do

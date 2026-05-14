@@ -309,7 +309,7 @@ defmodule Extravaganza.HeadlessCLI do
   defp dispatch(:profile_reload, opts) do
     result =
       with {:ok, reload} <- SymphonyWorkflowImport.reload(import_opts(opts)) do
-        apply_runtime_profile_to_reload(reload, surface_opts(opts))
+        apply_runtime_profile_to_reload(reload, opts)
       end
 
     HeadlessJSON.wrap(
@@ -321,10 +321,12 @@ defmodule Extravaganza.HeadlessCLI do
   end
 
   defp dispatch(:status, opts) do
+    workflow_reload = SymphonyWorkflowImport.reload_status(import_opts(opts))
+
     HeadlessJSON.wrap(
       :status,
       HeadlessSurface.runtime_status(runtime_request(opts), surface_opts(opts)),
-      &RuntimePresenter.present_status/1,
+      fn status -> RuntimePresenter.present_status(status, workflow_reload: workflow_reload) end,
       opts
     )
   end
@@ -803,13 +805,18 @@ defmodule Extravaganza.HeadlessCLI do
            reload,
          opts
        ) do
-    with {:ok, apply_result} <- HeadlessSurface.apply_runtime_profile(runtime_profile, opts) do
+    with {:ok, apply_result} <-
+           HeadlessSurface.apply_runtime_profile(runtime_profile, surface_opts(opts)) do
       apply_readback = RuntimePresenter.present_profile_apply(apply_result)
 
-      {:ok,
-       reload
-       |> Map.put("runtime_profile_apply", apply_readback)
-       |> Map.put("runtime_profile_ref", apply_readback["profile_ref"])}
+      reload =
+        reload
+        |> Map.put("runtime_profile_apply", apply_readback)
+        |> Map.put("runtime_profile_ref", apply_readback["profile_ref"])
+
+      with :ok <- SymphonyWorkflowImport.record_runtime_profile_apply(reload, import_opts(opts)) do
+        {:ok, reload}
+      end
     end
   end
 

@@ -114,28 +114,82 @@ defmodule Extravaganza.SymphonyWorkflowImport do
 
     case profile(opts) do
       {:ok, profile} ->
-        case validate_profile(profile) do
-          :ok ->
-            write_last_known_good(cache_path, profile)
-
-            {:ok,
-             %{
-               "status" => "reloaded",
-               "profile" => profile,
-               "last_known_good" => %{
-                 "status" => "updated",
-                 "workflow_path" => profile["workflow"]["path"],
-                 "prompt_hash" => profile["workflow"]["prompt_hash"]
-               }
-             }}
-
-          {:error, reason} ->
-            reload_failure(reason, cache_path)
-        end
+        validate_reload_profile(profile, cache_path)
 
       {:error, reason} ->
         reload_failure(reason, cache_path)
     end
+  end
+
+  @spec reload_status(keyword() | map()) :: map()
+  def reload_status(opts \\ []) do
+    opts
+    |> profile_cache_path()
+    |> read_reload_cache()
+    |> case do
+      {:ok, %{"reload_state" => state}} when is_map(state) ->
+        state
+
+      {:ok, %{"profile" => profile}} when is_map(profile) ->
+        successful_reload_state(profile)
+
+      {:error, :missing_last_known_good} ->
+        %{
+          "status" => "not_loaded",
+          "last_known_good" => %{"status" => "missing"}
+        }
+
+      {:error, reason} ->
+        %{
+          "status" => "unavailable",
+          "error" => sanitize_reload_reason(reason),
+          "last_known_good" => %{"status" => "unavailable"}
+        }
+    end
+  end
+
+  @spec record_runtime_profile_apply(map(), keyword() | map()) :: :ok | {:error, term()}
+  def record_runtime_profile_apply(reload, opts \\ [])
+
+  def record_runtime_profile_apply(
+        %{"status" => "reloaded", "profile" => profile} = reload,
+        opts
+      )
+      when is_map(profile) do
+    state =
+      profile
+      |> successful_reload_state()
+      |> put_runtime_profile_apply(Map.get(reload, "runtime_profile_apply"))
+
+    write_reload_cache(profile_cache_path(opts), %{"profile" => profile, "reload_state" => state})
+  end
+
+  def record_runtime_profile_apply(_reload, _opts), do: :ok
+
+  defp validate_reload_profile(profile, cache_path) do
+    case validate_profile(profile) do
+      :ok -> reload_success(profile, cache_path)
+      {:error, reason} -> reload_failure(reason, cache_path)
+    end
+  end
+
+  defp reload_success(profile, cache_path) do
+    case write_last_known_good(cache_path, profile) do
+      :ok -> {:ok, successful_reload_response(profile)}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp successful_reload_response(profile) do
+    %{
+      "status" => "reloaded",
+      "profile" => profile,
+      "last_known_good" => %{
+        "status" => "updated",
+        "workflow_path" => profile["workflow"]["path"],
+        "prompt_hash" => profile["workflow"]["prompt_hash"]
+      }
+    }
   end
 
   defp workflow_path(opts) do
@@ -684,22 +738,32 @@ defmodule Extravaganza.SymphonyWorkflowImport do
   end
 
   defp write_last_known_good(cache_path, profile) do
-    cache_path
-    |> Path.dirname()
-    |> File.mkdir_p()
-
-    File.write(cache_path, Jason.encode!(%{"profile" => profile}))
+    write_reload_cache(cache_path, %{
+      "profile" => profile,
+      "reload_state" => successful_reload_state(profile)
+    })
   end
 
   defp reload_failure(reason, cache_path) do
     case read_last_known_good(cache_path) do
       {:ok, profile} ->
-        {:ok,
-         %{
-           "status" => "reload_failed",
-           "error" => sanitize_reason(reason),
-           "last_known_good" => profile
-         }}
+        reload_state = failed_reload_state(reason, profile)
+
+        case write_reload_cache(cache_path, %{
+               "profile" => profile,
+               "reload_state" => reload_state
+             }) do
+          :ok ->
+            {:ok,
+             %{
+               "status" => "reload_failed",
+               "error" => sanitize_reason(reason),
+               "last_known_good" => profile
+             }}
+
+          {:error, write_reason} ->
+            {:error, write_reason}
+        end
 
       {:error, :missing_last_known_good} ->
         {:error, reason}
@@ -710,15 +774,66 @@ defmodule Extravaganza.SymphonyWorkflowImport do
   end
 
   defp read_last_known_good(cache_path) do
+    case read_reload_cache(cache_path) do
+      {:ok, %{"profile" => profile}} -> {:ok, profile}
+      {:ok, _other} -> {:error, :invalid_last_known_good}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp read_reload_cache(cache_path) do
     with {:ok, body} <- File.read(cache_path),
-         {:ok, %{"profile" => profile}} <- Jason.decode(body) do
-      {:ok, profile}
+         {:ok, decoded} when is_map(decoded) <- Jason.decode(body) do
+      {:ok, decoded}
     else
       {:error, :enoent} -> {:error, :missing_last_known_good}
       {:ok, _other} -> {:error, :invalid_last_known_good}
       {:error, reason} -> {:error, reason}
     end
   end
+
+  defp write_reload_cache(cache_path, payload) do
+    with :ok <- cache_path |> Path.dirname() |> File.mkdir_p(),
+         :ok <- File.write(cache_path, Jason.encode!(payload)) do
+      :ok
+    else
+      {:error, reason} -> {:error, {:profile_cache_write_failed, reason}}
+    end
+  end
+
+  defp successful_reload_state(profile) do
+    summary = reload_profile_summary(profile)
+
+    %{
+      "status" => "reloaded",
+      "workflow_path" => summary["workflow_path"],
+      "prompt_hash" => summary["prompt_hash"],
+      "last_known_good" => Map.put(summary, "status", "updated")
+    }
+  end
+
+  defp failed_reload_state(reason, profile) do
+    %{
+      "status" => "reload_failed",
+      "error" => sanitize_reload_reason(reason),
+      "last_known_good" => profile |> reload_profile_summary() |> Map.put("status", "available")
+    }
+  end
+
+  defp reload_profile_summary(profile) do
+    %{
+      "workflow_path" => profile |> get_in(["workflow", "path"]) |> redact_path(),
+      "prompt_hash" => get_in(profile, ["workflow", "prompt_hash"])
+    }
+  end
+
+  defp put_runtime_profile_apply(state, apply_readback) when is_map(apply_readback) do
+    state
+    |> Map.put("runtime_profile_apply", apply_readback)
+    |> Map.put("runtime_profile_ref", Map.get(apply_readback, "profile_ref"))
+  end
+
+  defp put_runtime_profile_apply(state, _apply_readback), do: state
 
   defp credential_ref(nil, env, default_env_name, _field) do
     case env_value(env, default_env_name) do
@@ -917,8 +1032,24 @@ defmodule Extravaganza.SymphonyWorkflowImport do
   defp sanitize_reason(reason) when is_atom(reason) or is_binary(reason), do: to_string(reason)
   defp sanitize_reason(reason), do: inspect(reason)
 
+  defp sanitize_reload_reason({:missing_workflow_file, path, raw_reason}) do
+    %{
+      "code" => "missing_workflow_file",
+      "value" => redact_path(path),
+      "reason" => printable_reason_value(raw_reason)
+    }
+  end
+
+  defp sanitize_reload_reason(reason), do: sanitize_reason(reason)
+
   defp printable_reason_value(value) when is_binary(value), do: value
   defp printable_reason_value(value), do: inspect(value)
+
+  defp redact_path(path) when is_binary(path) do
+    if Path.type(path) == :absolute, do: "[redacted-path]", else: path
+  end
+
+  defp redact_path(path), do: printable_reason_value(path)
 
   defp blank?(value), do: is_nil(value) or value == ""
 

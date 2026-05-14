@@ -1,9 +1,14 @@
 defmodule Extravaganza.Presenters.RuntimePresenter do
   @moduledoc "Shared presenter for product runtime status, logs, and profile apply readbacks."
 
+  @workflow_reload_missing :__workflow_reload_missing__
+
   @spec present_status(map() | struct(), keyword()) :: map()
-  def present_status(status, opts \\ []),
-    do: envelope("headless_runtime_status.v1", status, opts)
+  def present_status(status, opts \\ []) do
+    workflow_reload = Keyword.get(opts, :workflow_reload, @workflow_reload_missing)
+
+    envelope("headless_runtime_status.v1", put_workflow_reload(status, workflow_reload), opts)
+  end
 
   @spec present_logs(map() | struct(), keyword()) :: map()
   def present_logs(logs, opts \\ []),
@@ -21,6 +26,21 @@ defmodule Extravaganza.Presenters.RuntimePresenter do
       "data" => dump(data)
     }
   end
+
+  defp put_workflow_reload(status, @workflow_reload_missing), do: status
+  defp put_workflow_reload(status, nil), do: status
+
+  defp put_workflow_reload(%_{} = status, workflow_reload) when is_map(workflow_reload) do
+    metadata = Map.get(status, :metadata) || %{}
+    %{status | metadata: Map.put(metadata, "workflow_reload", workflow_reload)}
+  end
+
+  defp put_workflow_reload(%{} = status, workflow_reload) when is_map(workflow_reload) do
+    metadata = Map.get(status, :metadata) || Map.get(status, "metadata") || %{}
+    Map.put(status, "metadata", Map.put(metadata, "workflow_reload", workflow_reload))
+  end
+
+  defp put_workflow_reload(status, _workflow_reload), do: status
 
   defp dump(%_{} = value), do: value |> Map.from_struct() |> dump()
 
