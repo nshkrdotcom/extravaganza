@@ -131,6 +131,58 @@ curl http://localhost:4000/api/v1/events
 curl http://localhost:4000/api/v1/logs
 ```
 
+## Optional HTTP Port
+
+Symphony's optional HTTP extension used CLI `--port` or workflow
+`server.port` to start dashboard/API observability. Extravaganza replaces that
+with the product-owned web shell command. CLI `--port` takes precedence over
+workflow `server.port`, `0` requests an ephemeral OS-assigned port, and the
+default bind host is loopback.
+
+Print the resolved plan without starting Phoenix:
+
+```bash
+mix extravaganza.headless.web --port 4001 --json --once
+```
+
+Start the product web shell on an explicit port:
+
+```bash
+mix extravaganza.headless.web --port 4001 --json
+```
+
+Or let a Symphony-style workflow profile provide the port:
+
+```yaml
+---
+server:
+  port: 4001
+  host: 127.0.0.1
+---
+```
+
+```bash
+mix extravaganza.headless.web --workflow WORKFLOW.md --json
+```
+
+Use port `0` for local ephemeral-port checks:
+
+```bash
+mix extravaganza.headless.web --port 0 --json
+```
+
+The web shell exposes the existing product routes rather than a separate lower
+runtime server. The route plan maps Symphony's dashboard/API entrypoints to the
+Extravaganza command and API surfaces:
+
+- `GET /operator-console`
+- `GET /api/v1/state`
+- `GET /api/v1/status`
+- `GET /api/v1/logs`
+- `GET /api/v1/events`
+- `GET /api/v1/:issue_identifier`
+- `POST /api/v1/refresh`
+
 ## Deterministic headless proof (recommended first acceptance)
 
 Run one command that exercises most surfaces in one sequence:

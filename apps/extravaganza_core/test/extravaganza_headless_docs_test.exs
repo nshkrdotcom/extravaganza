@@ -44,6 +44,10 @@ defmodule Extravaganza.HeadlessDocsTest do
     assert live_guide =~ "`GET /api/v1/:issue_identifier`"
     assert live_guide =~ "`observability_issue`"
     assert live_guide =~ "`observability_refresh`"
+    assert live_guide =~ "## Optional HTTP Port"
+    assert live_guide =~ "mix extravaganza.headless.web --port 4001 --json"
+    assert live_guide =~ "`server.port`"
+    assert live_guide =~ "`GET /operator-console`"
 
     assert credentials_guide =~
              "~/scripts/with_bash_secrets mix extravaganza.headless.live.linear_source --live-product-path --json"
