@@ -253,6 +253,44 @@ Product-host run
        └─ Mezzanine.AppKitBridge  (owned by app_kit, not this repo)
 ```
 
+## Product Flow Diagrams
+
+```mermaid
+flowchart TD
+  Profile["Product<br/>profile"] --> Pack["Product<br/>pack"]
+  Pack --> Bundle["Authoring<br/>bundle"]
+  Bundle --> Bootstrap["Product<br/>bootstrap"]
+  Bootstrap --> Install["AppKit<br/>installation"]
+  Install --> Registry["Config<br/>registry"]
+  Registry --> Revision["Active<br/>revision"]
+  Revision --> Host["ProductHost<br/>runtime"]
+```
+
+```mermaid
+flowchart LR
+  CLI["Mix<br/>tasks"] --> Host["ProductHost"]
+  API["Phoenix<br/>API"] --> Host
+  Host --> Work["Work<br/>surface"]
+  Host --> Source["Source<br/>surface"]
+  Host --> Review["Review<br/>surface"]
+  Work --> Readback["Runtime<br/>readback"]
+  Source --> Publication["Source<br/>publication"]
+  Review --> Decision["Operator<br/>decision"]
+```
+
+```mermaid
+flowchart TD
+  Linear["Linear<br/>source"] --> Subject["Coding<br/>subject"]
+  Subject --> AppKit["AppKit<br/>boundary"]
+  AppKit --> Mezzanine["Mezzanine<br/>workflow"]
+  Mezzanine --> Citadel["Citadel<br/>authority"]
+  Mezzanine --> Jido["Jido<br/>runtime"]
+  Jido --> Codex["Codex<br/>session"]
+  Codex --> GitHub["GitHub<br/>evidence"]
+  GitHub --> Review["Review<br/>gate"]
+  Review --> Publish["Linear<br/>workpad"]
+```
+
 Real Linear source events enter below the product boundary through Jido
 Integration and Mezzanine source admission. Extravaganza owns source defaults
 and credential-free test fixtures only.
