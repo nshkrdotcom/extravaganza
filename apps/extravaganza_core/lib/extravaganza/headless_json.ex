@@ -420,16 +420,59 @@ defmodule Extravaganza.HeadlessJSON do
     }
   end
 
-  defp error_attrs(%AppKit.Core.SurfaceError{} = error, secret_values) do
+  defp error_attrs(:archived, _secret_values) do
     %{
-      "code" => error.code,
-      "message" => error.message,
-      "class" => error.kind || "surface_error",
-      "retryable" => error.retryable == true,
-      "missing_refs" => [],
-      "details" => sanitize(error.details || %{}, secret_values)
+      "code" => "archived",
+      "message" => "headless resource is archived",
+      "class" => "archived",
+      "retryable" => false,
+      "missing_refs" => []
     }
-    |> compact()
+  end
+
+  defp error_attrs(:internal_error, _secret_values) do
+    %{
+      "code" => "internal_error",
+      "message" => "internal headless error",
+      "class" => "internal_error",
+      "retryable" => false,
+      "missing_refs" => []
+    }
+  end
+
+  defp error_attrs(%AppKit.Core.SurfaceError{} = error, secret_values) do
+    code = reason_code(error.code)
+    {class, retryable?, missing_refs} = surface_error_contract(error, code)
+
+    %{
+      "code" => code,
+      "message" => error.message,
+      "class" => class,
+      "retryable" => retryable?,
+      "missing_refs" => missing_refs,
+      "details" =>
+        error.details
+        |> Map.new()
+        |> put_optional_detail("cause_ref", error.cause_ref)
+        |> sanitize(secret_values)
+    }
+    |> compact_error()
+  end
+
+  defp error_attrs({:live_surface_dependency_failed, app, reason}, secret_values) do
+    classified_error(
+      "live_surface_dependency_failed",
+      %{"app" => app, "reason" => inspect(reason)},
+      secret_values
+    )
+  end
+
+  defp error_attrs({:missing_workflow_file, path, reason}, secret_values) do
+    classified_error(
+      "missing_workflow_file",
+      %{"path" => path, "reason" => reason},
+      secret_values
+    )
   end
 
   defp error_attrs({:operator_ack_required, details}, secret_values) do
@@ -444,20 +487,218 @@ defmodule Extravaganza.HeadlessJSON do
     }
   end
 
-  defp error_attrs(reason, _secret_values) do
-    code = reason |> normalize_reason() |> to_string()
+  defp error_attrs({reason, detail}, secret_values) do
+    reason
+    |> reason_code()
+    |> classified_error(error_details(detail), secret_values)
+  end
+
+  defp error_attrs(%{} = reason, secret_values) do
+    code = map_value(reason, "code") || "internal_error"
+    details = Map.drop(reason, ["code", :code, "message", :message])
+    message = map_value(reason, "message")
+
+    code
+    |> classified_error(details, secret_values)
+    |> maybe_replace_message(message)
+  end
+
+  defp error_attrs(reason, secret_values) do
+    reason
+    |> reason_code()
+    |> classified_error(%{}, secret_values)
+  end
+
+  defp classified_error(code, details, secret_values) do
+    {message, class, retryable?, missing_refs} = classified_attrs(code)
 
     %{
       "code" => code,
-      "message" => String.replace(code, "_", " "),
-      "class" => "headless_error",
-      "retryable" => false,
-      "missing_refs" => []
+      "message" => message,
+      "class" => class,
+      "retryable" => retryable?,
+      "missing_refs" => missing_refs,
+      "details" => details |> Map.new() |> sanitize(secret_values)
     }
+    |> compact_error()
   end
 
-  defp normalize_reason({reason, _detail}), do: reason
-  defp normalize_reason(reason), do: reason
+  defp classified_attrs("live_product_path_required") do
+    {"live provider dispatch requires --live-product-path", "missing_live_prerequisite", false,
+     ["live_product_path"]}
+  end
+
+  defp classified_attrs("requires_live_product_path") do
+    {"live provider dispatch requires --live-product-path", "missing_live_prerequisite", false,
+     ["live_product_path"]}
+  end
+
+  defp classified_attrs("missing_live_linear_publication_issue") do
+    {"live Linear publication requires a provider issue ref", "missing_live_prerequisite", false,
+     ["linear_issue_ref"]}
+  end
+
+  defp classified_attrs("credential_stdin_empty") do
+    {"credential input on stdin was empty", "missing_credential", false, ["provider_credential"]}
+  end
+
+  defp classified_attrs("credential_not_supplied_to_product_command") do
+    {"provider credential was not supplied to the product command", "missing_credential", false,
+     ["provider_credential"]}
+  end
+
+  defp classified_attrs("missing_linear_api_token") do
+    {"Linear provider credential was not supplied", "missing_credential", false,
+     ["provider_credential"]}
+  end
+
+  defp classified_attrs("missing_provider_credential") do
+    {"provider credential was not supplied", "missing_credential", false, ["provider_credential"]}
+  end
+
+  defp classified_attrs("invalid_workflow_config") do
+    {"workflow profile is invalid", "invalid_profile", false, ["workflow_profile"]}
+  end
+
+  defp classified_attrs("workflow_front_matter_not_a_map") do
+    {"workflow front matter is invalid", "invalid_profile", false, ["workflow_profile"]}
+  end
+
+  defp classified_attrs("workflow_parse_error") do
+    {"workflow profile could not be parsed", "invalid_profile", false, ["workflow_profile"]}
+  end
+
+  defp classified_attrs("missing_workflow_file") do
+    {"workflow profile file is missing", "invalid_profile", false, ["workflow_file"]}
+  end
+
+  defp classified_attrs("unsupported_tracker_kind") do
+    {"workflow tracker kind is not supported", "invalid_profile", false, ["workflow_profile"]}
+  end
+
+  defp classified_attrs("incompatible_product_runtime_profile") do
+    {"runtime profile is not compatible with this product", "invalid_profile", false,
+     ["runtime_profile_ref"]}
+  end
+
+  defp classified_attrs("unsupported_runtime_profile_change") do
+    {"runtime profile change is not supported by this product", "invalid_profile", false,
+     ["runtime_profile_ref"]}
+  end
+
+  defp classified_attrs("linear_graphql_variables_json_must_decode_to_object") do
+    {"Linear GraphQL variables JSON must decode to an object", "invalid_request", false,
+     ["variables_json"]}
+  end
+
+  defp classified_attrs("invalid_linear_graphql_variables_json") do
+    {"Linear GraphQL variables JSON is invalid", "invalid_request", false, ["variables_json"]}
+  end
+
+  defp classified_attrs("provider_denied") do
+    {"provider request was denied before completion", "provider_denial", false, []}
+  end
+
+  defp classified_attrs("provider_authority_denied") do
+    {"provider request was denied by authority", "provider_denial", false, []}
+  end
+
+  defp classified_attrs("policy_denied") do
+    {"provider request was denied by policy", "provider_denial", false, []}
+  end
+
+  defp classified_attrs("provider_failed") do
+    {"provider request failed after dispatch", "provider_error", true, []}
+  end
+
+  defp classified_attrs("provider_error") do
+    {"provider request failed", "provider_error", true, []}
+  end
+
+  defp classified_attrs("provider_timeout") do
+    {"provider request timed out", "provider_error", true, []}
+  end
+
+  defp classified_attrs("live_surface_dependency_failed") do
+    {"live provider dependency could not be started", "app_not_started", true,
+     ["live_surface_dependency"]}
+  end
+
+  defp classified_attrs("startup_failed") do
+    {"headless application startup failed", "app_not_started", true, ["application"]}
+  end
+
+  defp classified_attrs("app_not_started") do
+    {"required application is not started", "app_not_started", true, ["application"]}
+  end
+
+  defp classified_attrs("temporal_substrate_unavailable") do
+    {"Temporal substrate is unavailable", "app_not_started", true, ["temporal_substrate"]}
+  end
+
+  defp classified_attrs("runtime_installation_not_provisioned") do
+    {"runtime installation is not provisioned", "product_host_unavailable", true,
+     ["runtime_installation_ref"]}
+  end
+
+  defp classified_attrs(code) do
+    {String.replace(code, "_", " "), "headless_error", false, []}
+  end
+
+  defp surface_error_contract(%AppKit.Core.SurfaceError{} = error, code) do
+    cond do
+      code in ["provider_denied", "provider_authority_denied", "policy_denied"] or
+          error.kind == :authorization ->
+        {"provider_denial", false, []}
+
+      String.starts_with?(code, "provider_") ->
+        {"provider_error", surface_retryable?(error), []}
+
+      code in [
+        "invalid_workflow_config",
+        "incompatible_product_runtime_profile",
+        "unsupported_runtime_profile_change"
+      ] ->
+        {"invalid_profile", error.retryable == true, elem(classified_attrs(code), 3)}
+
+      true ->
+        {surface_kind(error.kind), error.retryable == true, []}
+    end
+  end
+
+  defp surface_retryable?(%AppKit.Core.SurfaceError{retryable: retryable, kind: kind}) do
+    retryable == true or kind == :transient
+  end
+
+  defp surface_kind(nil), do: "surface_error"
+  defp surface_kind(kind) when is_atom(kind), do: Atom.to_string(kind)
+  defp surface_kind(kind) when is_binary(kind), do: kind
+  defp surface_kind(_kind), do: "surface_error"
+
+  defp error_details(%{} = detail), do: detail
+  defp error_details(detail), do: %{"detail" => detail}
+
+  defp maybe_replace_message(error, message) when is_binary(message) and message != "",
+    do: Map.put(error, "message", message)
+
+  defp maybe_replace_message(error, _message), do: error
+
+  defp reason_code(reason) when is_binary(reason), do: reason
+  defp reason_code(reason) when is_atom(reason), do: Atom.to_string(reason)
+  defp reason_code(_reason), do: "internal_error"
+
+  defp map_value(%{} = map, key), do: Map.get(map, key) || Map.get(map, String.to_atom(key))
+
+  defp put_optional_detail(details, _key, nil), do: details
+  defp put_optional_detail(details, _key, ""), do: details
+  defp put_optional_detail(details, key, value), do: Map.put(details, key, value)
+
+  defp compact_error(%{} = map) do
+    Map.reject(map, fn
+      {"details", value} -> value in [nil, %{}, []]
+      {_key, value} -> is_nil(value)
+    end)
+  end
 
   defp trace_id(opts, refs) do
     Map.get(opts, :trace_id) ||

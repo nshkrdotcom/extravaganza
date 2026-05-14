@@ -4,6 +4,7 @@ defmodule Extravaganza.HeadlessJSONContractTest do
   alias Extravaganza.{HeadlessJSON, HeadlessSurface}
   alias Extravaganza.Presenters.{EventPresenter, EvidencePresenter, RunPresenter}
   alias Extravaganza.TestSupport.FakeHeadlessBackend
+  alias Mix.Tasks.Extravaganza.Headless.TaskSupport
 
   setup do
     previous_backend = Application.get_env(:app_kit_core, :headless_backend)
@@ -354,5 +355,71 @@ defmodule Extravaganza.HeadlessJSONContractTest do
     assert envelope["error"]["class"] == "readback_unavailable"
     assert envelope["error"]["retryable"] == true
     assert envelope["error"]["missing_refs"] == ["projection_ref"]
+  end
+
+  test "error envelopes classify every live/profile/provider/startup failure family" do
+    cases = [
+      {:live_product_path_required, "live_product_path_required", "missing_live_prerequisite",
+       false, ["live_product_path"]},
+      {{:invalid_workflow_config, "runtime profile mismatch"}, "invalid_workflow_config",
+       "invalid_profile", false, ["workflow_profile"]},
+      {%{
+         "code" => "credential_not_supplied_to_product_command",
+         "credential_refs" => ["LINEAR_API_KEY"]
+       }, "credential_not_supplied_to_product_command", "missing_credential", false,
+       ["provider_credential"]},
+      {%AppKit.Core.SurfaceError{
+         code: "provider_denied",
+         message: "provider authority denied the request",
+         kind: :authorization,
+         retryable: false,
+         details: %{lower_denial_ref: "lower-denial://provider/1"}
+       }, "provider_denied", "provider_denial", false, []},
+      {%AppKit.Core.SurfaceError{
+         code: "provider_failed",
+         message: "provider failed after dispatch",
+         kind: :transient,
+         retryable: true,
+         details: %{provider_request_ref: "provider-request://1"}
+       }, "provider_failed", "provider_error", true, []},
+      {{:live_surface_dependency_failed, :req, {:not_started, :ssl}},
+       "live_surface_dependency_failed", "app_not_started", true, ["live_surface_dependency"]},
+      {:runtime_installation_not_provisioned, "runtime_installation_not_provisioned",
+       "product_host_unavailable", true, ["runtime_installation_ref"]}
+    ]
+
+    for {reason, code, class, retryable?, missing_refs} <- cases do
+      envelope =
+        HeadlessJSON.error("failure_matrix", reason,
+          trace_id: "trace:failure-matrix",
+          generated_at: "2026-05-08T00:00:00Z"
+        )
+
+      assert envelope["ok"] == false
+      assert envelope["schema"] == "extravaganza.headless.error.v1"
+      assert envelope["operation"] == "failure_matrix"
+      assert envelope["error"]["code"] == code
+      assert envelope["error"]["class"] == class
+      assert envelope["error"]["retryable"] == retryable?
+      assert envelope["error"]["missing_refs"] == missing_refs
+      assert is_binary(envelope["error"]["message"])
+    end
+  end
+
+  test "Mix task startup errors use the same standard JSON error envelope" do
+    envelope =
+      TaskSupport.startup_error_envelope(
+        {:live_surface_dependency_failed, :req, {:not_started, :ssl}},
+        ["--json", "--trace-id", "trace:startup"]
+      )
+
+    assert envelope["ok"] == false
+    assert envelope["schema"] == "extravaganza.headless.error.v1"
+    assert envelope["operation"] == "startup"
+    assert envelope["trace_id"] == "trace:startup"
+    assert envelope["error"]["code"] == "live_surface_dependency_failed"
+    assert envelope["error"]["class"] == "app_not_started"
+    assert envelope["error"]["retryable"] == true
+    assert envelope["error"]["missing_refs"] == ["live_surface_dependency"]
   end
 end

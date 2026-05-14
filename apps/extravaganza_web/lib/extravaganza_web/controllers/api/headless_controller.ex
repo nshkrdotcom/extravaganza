@@ -20,15 +20,40 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
 
   @status_by_code %{
     "not_found" => :not_found,
-    "runtime_projection_not_found" => :not_found,
+    "projection_unavailable" => :not_found,
     "bad_request" => :bad_request,
+    "live_product_path_required" => :bad_request,
+    "requires_live_product_path" => :bad_request,
     "invalid_action" => :unprocessable_entity,
+    "invalid_workflow_config" => :unprocessable_entity,
+    "workflow_front_matter_not_a_map" => :unprocessable_entity,
+    "workflow_parse_error" => :unprocessable_entity,
+    "missing_workflow_file" => :bad_request,
+    "unsupported_tracker_kind" => :unprocessable_entity,
+    "incompatible_product_runtime_profile" => :unprocessable_entity,
+    "unsupported_runtime_profile_change" => :unprocessable_entity,
+    "credential_stdin_empty" => :unauthorized,
+    "credential_not_supplied_to_product_command" => :unauthorized,
+    "missing_linear_api_token" => :unauthorized,
+    "missing_provider_credential" => :unauthorized,
     "action_denied" => :forbidden,
     "unauthorized_lower_read" => :forbidden,
+    "provider_denied" => :forbidden,
+    "provider_authority_denied" => :forbidden,
+    "policy_denied" => :forbidden,
+    "provider_failed" => :bad_gateway,
+    "provider_error" => :bad_gateway,
+    "provider_timeout" => :service_unavailable,
     "archived" => :gone,
     "snapshot_timeout" => :service_unavailable,
     "unavailable" => :service_unavailable,
+    "live_surface_dependency_failed" => :service_unavailable,
+    "startup_failed" => :service_unavailable,
+    "app_not_started" => :service_unavailable,
+    "temporal_substrate_unavailable" => :service_unavailable,
+    "runtime_installation_not_provisioned" => :service_unavailable,
     "method_not_allowed" => :method_not_allowed,
+    "operator_ack_required" => :bad_request,
     "internal_error" => :internal_server_error
   }
 
@@ -325,30 +350,13 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
   end
 
   defp render_error(conn, reason) do
-    {code, _message} = error_code(reason)
+    envelope = HeadlessJSON.error(:headless_api, reason, presenter_opts(conn))
+    code = get_in(envelope, ["error", "code"])
 
     conn
-    |> put_status(Map.fetch!(@status_by_code, code))
-    |> json(HeadlessJSON.error(:headless_api, reason, presenter_opts(conn)))
+    |> put_status(Map.get(@status_by_code, code, :internal_server_error))
+    |> json(envelope)
   end
-
-  defp error_code(:not_found), do: {"not_found", "Subject not found"}
-
-  defp error_code(:runtime_projection_not_found),
-    do: {"runtime_projection_not_found", "Runtime projection not found"}
-
-  defp error_code(:invalid_action), do: {"invalid_action", "Invalid action"}
-  defp error_code(:action_denied), do: {"action_denied", "Action denied"}
-
-  defp error_code(:unauthorized_lower_read),
-    do: {"unauthorized_lower_read", "Unauthorized lower read"}
-
-  defp error_code(:archived), do: {"archived", "Archived"}
-  defp error_code(:snapshot_timeout), do: {"snapshot_timeout", "Snapshot timeout"}
-  defp error_code(:unavailable), do: {"unavailable", "Unavailable"}
-  defp error_code(:method_not_allowed), do: {"method_not_allowed", "Method not allowed"}
-  defp error_code(:bad_request), do: {"bad_request", "Bad request"}
-  defp error_code(_reason), do: {"internal_error", "Internal error"}
 
   defp success_status(operation, data) when operation in [:refresh, :review, :control] do
     if accepted_command?(data), do: :accepted, else: :ok

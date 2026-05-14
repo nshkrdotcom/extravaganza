@@ -67,35 +67,19 @@ defmodule Mix.Tasks.Extravaganza.Headless.TaskSupport do
     end)
   end
 
-  defp render_startup_error({:live_surface_dependency_failed, app, reason}) do
-    %{
-      ok: false,
-      schema: "extravaganza.headless.response.v1",
-      operation: "startup",
-      error: %{
-        code: "live_surface_dependency_failed",
-        app: app,
-        reason: inspect(reason)
-      }
-    }
-  end
-
-  defp render_startup_error(reason) do
-    %{
-      ok: false,
-      schema: "extravaganza.headless.response.v1",
-      operation: "startup",
-      error: %{code: "startup_failed", reason: inspect(reason)}
-    }
+  @doc false
+  @spec startup_error_envelope(term(), [String.t()]) :: map()
+  def startup_error_envelope(reason, argv) when is_list(argv) do
+    Extravaganza.HeadlessJSON.error(:startup, reason, startup_error_opts(argv))
   end
 
   defp emit_startup_error(reason, argv) do
-    payload = render_startup_error(reason)
+    payload = startup_error_envelope(reason, argv)
 
     if "--json" in argv do
       IO.puts(Jason.encode!(payload))
     else
-      Mix.shell().error(payload.error.reason)
+      Mix.shell().error(get_in(payload, ["error", "message"]))
     end
   end
 
@@ -118,6 +102,14 @@ defmodule Mix.Tasks.Extravaganza.Headless.TaskSupport do
       Logger.configure(level: :error)
     end
   end
+
+  defp startup_error_opts(argv), do: startup_error_opts(argv, %{})
+  defp startup_error_opts([], opts), do: opts
+
+  defp startup_error_opts(["--trace-id", trace_id | rest], opts),
+    do: startup_error_opts(rest, Map.put(opts, :trace_id, trace_id))
+
+  defp startup_error_opts([_arg | rest], opts), do: startup_error_opts(rest, opts)
 end
 
 defmodule Mix.Tasks.Extravaganza.Headless.State do

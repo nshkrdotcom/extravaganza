@@ -873,6 +873,28 @@ defmodule Extravaganza.HeadlessSameRunSmoke do
       :runtime_projection_not_found,
       :unavailable,
       :archived,
+      :live_product_path_required,
+      {:invalid_workflow_config, "runtime profile mismatch"},
+      %{
+        "code" => "credential_not_supplied_to_product_command",
+        "credential_refs" => ["LINEAR_API_KEY"]
+      },
+      %AppKit.Core.SurfaceError{
+        code: "provider_denied",
+        message: "provider authority denied the request",
+        kind: :authorization,
+        retryable: false,
+        details: %{lower_denial_ref: "lower-denial://same-run/provider"}
+      },
+      %AppKit.Core.SurfaceError{
+        code: "provider_failed",
+        message: "provider failed after dispatch",
+        kind: :transient,
+        retryable: true,
+        details: %{provider_request_ref: "provider-request://same-run/provider"}
+      },
+      {:live_surface_dependency_failed, :req, {:not_started, :ssl}},
+      :runtime_installation_not_provisioned,
       :internal_error
     ]
 
