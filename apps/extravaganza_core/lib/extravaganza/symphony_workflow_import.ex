@@ -545,7 +545,7 @@ defmodule Extravaganza.SymphonyWorkflowImport do
       "policy_bundle" => %{
         "name" => "symphony_workflow_policy",
         "version" => "1",
-        "policy_kind" => "runtime",
+        "policy_kind" => "workflow_md",
         "body" => "symphony_workflow_prompt_hash=#{prompt_hash}",
         "source_ref" => "workflow://#{loaded.path}",
         "metadata" => %{
