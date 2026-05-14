@@ -49,7 +49,23 @@ defmodule ExtravaganzaWeb.OperatorConsoleControllerTest do
     assert String.contains?(body, "rate:codex:minute")
     assert String.contains?(body, "session:running")
     assert String.contains?(body, "fixture turn completed")
+    assert String.contains?(body, ~s(data-observability-stream="/operator-console/updates"))
+    assert String.contains?(body, "EventSource")
+    assert String.contains?(body, "headless-observability-updated")
     refute String.contains?(body, "provider_account_id")
+    refute String.contains?(body, "authorization_header")
+    refute String.contains?(body, "workspace_path")
+    refute String.contains?(body, "/home/")
+  end
+
+  test "GET /operator-console/updates streams a safe ready event", %{conn: conn} do
+    conn = get(conn, ~p"/operator-console/updates?once=true")
+    body = response(conn, 200)
+
+    assert get_resp_header(conn, "content-type") == ["text/event-stream; charset=utf-8"]
+    assert String.contains?(body, "event: ready")
+    assert String.contains?(body, "headless_observability_ready")
+    assert String.contains?(body, "headless_observability_update.v1")
     refute String.contains?(body, "authorization_header")
     refute String.contains?(body, "workspace_path")
     refute String.contains?(body, "/home/")

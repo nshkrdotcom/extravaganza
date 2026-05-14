@@ -16,6 +16,8 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
     SubjectPresenter
   }
 
+  alias ExtravaganzaWeb.ObservabilityUpdates
+
   @status_by_code %{
     "not_found" => :not_found,
     "runtime_projection_not_found" => :not_found,
@@ -129,11 +131,15 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
   def refresh(conn, params) do
     case HeadlessSurface.request_refresh(params) do
       {:ok, result} ->
-        render_success(
-          conn,
-          :refresh,
-          CommandResultPresenter.present(result, presenter_opts(conn))
-        )
+        presented = CommandResultPresenter.present(result, presenter_opts(conn))
+
+        broadcast_command_update(:refresh_requested, presented, %{
+          "surface" => "api",
+          "command_kind" => "refresh",
+          "idempotency_key" => Map.get(params, "idempotency_key")
+        })
+
+        render_success(conn, :refresh, presented)
 
       {:error, reason} ->
         render_error(conn, reason)
@@ -143,11 +149,18 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
   def control(conn, %{"subject_id" => subject_id, "action" => action} = params) do
     case HeadlessSurface.request_control(subject_id, action, params) do
       {:ok, result} ->
-        render_success(
-          conn,
-          :control,
-          CommandResultPresenter.present(result, presenter_opts(conn))
-        )
+        presented = CommandResultPresenter.present(result, presenter_opts(conn))
+
+        if accepted_command?(presented) do
+          broadcast_command_update(:run_status_change, presented, %{
+            "surface" => "api",
+            "subject_ref" => subject_id,
+            "action" => action,
+            "idempotency_key" => Map.get(params, "idempotency_key")
+          })
+        end
+
+        render_success(conn, :control, presented)
 
       {:error, reason} ->
         render_error(conn, reason)
@@ -195,11 +208,20 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
   def source_publish(conn, params) do
     case HeadlessSurface.publish_linear_source(source_publish_attrs(params)) do
       {:ok, result} ->
-        render_success(
-          conn,
-          :source_publish,
-          SourcePresenter.present_publication_preview(result, presenter_opts(conn))
-        )
+        presented = SourcePresenter.present_publication_preview(result, presenter_opts(conn))
+
+        ObservabilityUpdates.broadcast_update(:live_provider_receipt, %{
+          "surface" => "api",
+          "trigger" => "source_sync",
+          "subject_ref" => source_publish_subject_ref(params),
+          "effect" => source_publish_effect(params),
+          "provider" => get_in(presented, ["data", "provider"]),
+          "source_publication_ref" =>
+            get_in(presented, ["data", "source_publication_receipt_ref"]),
+          "status" => get_in(presented, ["data", "status"])
+        })
+
+        render_success(conn, :source_publish, presented)
 
       {:error, reason} ->
         render_error(conn, reason)
@@ -233,11 +255,18 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
            reason: Map.get(params, "reason")
          }) do
       {:ok, result} ->
-        render_success(
-          conn,
-          :review,
-          CommandResultPresenter.present(result, presenter_opts(conn))
-        )
+        presented = CommandResultPresenter.present(result, presenter_opts(conn))
+
+        if accepted_command?(presented) do
+          broadcast_command_update(:review_decision, presented, %{
+            "surface" => "api",
+            "decision_ref" => decision_id,
+            "decision" => decision,
+            "subject_ref" => Map.get(params, "subject_id")
+          })
+        end
+
+        render_success(conn, :review, presented)
 
       {:error, reason} ->
         render_error(conn, reason)
@@ -343,6 +372,28 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
       "message" => Map.get(params, "message", "Headless source publication"),
       "idempotency_key" => Map.get(params, "idempotency_key", "idem:headless-source-publish")
     }
+  end
+
+  defp source_publish_subject_ref(%{"subject_id" => subject_id}), do: subject_id
+  defp source_publish_subject_ref(params), do: Map.get(params, "subject_ref", "subject:fixture")
+
+  defp source_publish_effect(params), do: Map.get(params, "effect", "comment")
+
+  defp broadcast_command_update(reason, presented, metadata) do
+    presented_data = Map.get(presented, "data", %{})
+
+    metadata =
+      Map.merge(
+        %{
+          "command_ref" => Map.get(presented_data, "command_ref"),
+          "command_kind" => Map.get(presented_data, "command_kind"),
+          "workflow_effect_state" => Map.get(presented_data, "workflow_effect_state"),
+          "correlation_id" => Map.get(presented_data, "correlation_id")
+        },
+        metadata
+      )
+
+    ObservabilityUpdates.broadcast_update(reason, metadata)
   end
 
   defp presenter_opts(conn) do

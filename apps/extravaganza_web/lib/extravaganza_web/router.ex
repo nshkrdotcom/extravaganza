@@ -15,6 +15,11 @@ defmodule ExtravaganzaWeb.Router do
     plug(ExtravaganzaWeb.Plugs.AssignCorrelationId)
   end
 
+  pipeline :event_stream do
+    plug(:fetch_session)
+    plug(:put_secure_browser_headers)
+  end
+
   scope "/", ExtravaganzaWeb do
     pipe_through(:browser)
 
@@ -27,6 +32,12 @@ defmodule ExtravaganzaWeb.Router do
     post("/subjects/:subject_id/stream-attach-lease", PageController, :issue_stream_attach_lease)
     get("/reviews", PageController, :reviews)
     post("/reviews/:decision_id/decisions/:decision", PageController, :record_review_decision)
+  end
+
+  scope "/", ExtravaganzaWeb do
+    pipe_through(:event_stream)
+
+    get("/operator-console/updates", PageController, :operator_console_updates)
   end
 
   scope "/api/v1", ExtravaganzaWeb.Api do

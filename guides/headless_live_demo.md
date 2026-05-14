@@ -131,6 +131,32 @@ curl http://localhost:4000/api/v1/events
 curl http://localhost:4000/api/v1/logs
 ```
 
+## Live Dashboard Updates
+
+Extravaganza replaces Symphony's `ObservabilityPubSub` and LiveView dashboard
+refresh loop with a product-owned Phoenix PubSub fanout in the web shell. The
+operator console opens `/operator-console/updates` as a server-sent event stream
+and reloads its AppKit DTO dashboard when it receives
+`headless_observability_update.v1`.
+
+The update stream is emitted after product-owned command paths that can change
+operator state:
+
+- `POST /api/v1/refresh` emits `refresh_requested`.
+- `POST /api/v1/subjects/:subject_id/control/:action` emits
+  `run_status_change` when the command is accepted.
+- `POST /api/v1/reviews/:decision_id/decisions/:decision` emits
+  `review_decision` when the command is accepted.
+- `POST /api/v1/source-publication` emits `live_provider_receipt` with
+  `trigger: source_sync` after the AppKit source-publication surface records a
+  provider receipt.
+
+The envelope includes only safe metadata, refresh targets such as
+`/operator-console`, `/api/v1/state`, `/api/v1/status`, `/api/v1/events`, and
+`/api/v1/logs`, and no provider credentials or local workspace paths. The web
+layer still reads dashboard data from AppKit presenters instead of lower stores
+or provider SDKs.
+
 ## Optional HTTP Port
 
 Symphony's optional HTTP extension used CLI `--port` or workflow

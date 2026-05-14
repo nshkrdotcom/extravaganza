@@ -23,6 +23,26 @@
     </div>
   </header>
 
+  <div
+    id="headless-observability-stream"
+    data-observability-stream={~p"/operator-console/updates"}
+    data-refresh-reasons="refresh_requested source_sync run_status_change review_decision live_provider_receipt"
+    hidden
+  >
+  </div>
+  <script>
+    (() => {
+      const marker = document.getElementById("headless-observability-stream");
+      if (!marker || !window.EventSource) return;
+
+      const source = new EventSource(marker.dataset.observabilityStream);
+      source.addEventListener("headless-observability-updated", () => {
+        marker.dataset.lastUpdateReceived = "true";
+        window.location.reload();
+      });
+    })();
+  </script>
+
   <%= if @console_error do %>
     <div style="padding:1rem 1.1rem; border-radius:1rem; border:1px solid rgba(184,76,42,0.28); background:rgba(184,76,42,0.08);">
       <strong style="display:block; margin-bottom:0.35rem;">Console unavailable</strong>

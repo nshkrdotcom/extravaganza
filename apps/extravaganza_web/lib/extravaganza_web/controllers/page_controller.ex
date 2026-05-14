@@ -4,6 +4,9 @@ defmodule ExtravaganzaWeb.PageController do
   alias AppKit.OperatorConsole
   alias Extravaganza.Presenters.{ReviewPresenter, StatePresenter, SubjectPresenter}
   alias Extravaganza.ProductHost
+  alias ExtravaganzaWeb.ObservabilityUpdates
+
+  @observability_stream_timeout_ms 30_000
 
   def home(conn, _params) do
     render(conn, :home,
@@ -92,6 +95,26 @@ defmodule ExtravaganzaWeb.PageController do
     end
   end
 
+  def operator_console_updates(conn, params) do
+    conn =
+      conn
+      |> put_resp_content_type("text/event-stream")
+      |> put_resp_header("cache-control", "no-cache")
+      |> put_resp_header("x-accel-buffering", "no")
+      |> send_chunked(200)
+
+    with :ok <- ObservabilityUpdates.subscribe(),
+         {:ok, conn} <- stream_update(conn, "ready", ObservabilityUpdates.ready_payload()) do
+      if Map.get(params, "once") == "true" do
+        conn
+      else
+        await_observability_update(conn)
+      end
+    else
+      {:error, _reason} -> conn
+    end
+  end
+
   def subject(conn, %{"subject_id" => subject_id}) do
     render_subject(conn, subject_id, %{})
   end
@@ -99,6 +122,12 @@ defmodule ExtravaganzaWeb.PageController do
   def apply_subject_action(conn, %{"subject_id" => subject_id, "action" => action} = params) do
     case ProductHost.apply_subject_action(subject_id, action, subject_action_params(params)) do
       {:ok, result} ->
+        ObservabilityUpdates.broadcast_update(:run_status_change, %{
+          "surface" => "browser",
+          "subject_ref" => subject_id,
+          "action" => action
+        })
+
         conn
         |> put_flash(:info, result.message || "Action completed")
         |> redirect(to: ~p"/subjects/#{subject_id}")
@@ -151,6 +180,13 @@ defmodule ExtravaganzaWeb.PageController do
            }
          ) do
       {:ok, result} ->
+        ObservabilityUpdates.broadcast_update(:review_decision, %{
+          "surface" => "browser",
+          "decision_ref" => decision_id,
+          "decision" => decision,
+          "subject_ref" => Map.get(params, "subject_id")
+        })
+
         conn
         |> put_flash(:info, result.message || "Review decision recorded")
         |> redirect(to: ~p"/reviews")
@@ -204,6 +240,26 @@ defmodule ExtravaganzaWeb.PageController do
       {:error, reason} ->
         {%{}, inspect(reason)}
     end
+  end
+
+  defp await_observability_update(conn) do
+    receive do
+      {:headless_observability_updated, update} ->
+        case stream_update(conn, "headless-observability-updated", update) do
+          {:ok, conn} -> await_observability_update(conn)
+          {:error, _reason} -> conn
+        end
+    after
+      @observability_stream_timeout_ms ->
+        case stream_update(conn, "keep-alive", ObservabilityUpdates.keepalive_payload()) do
+          {:ok, conn} -> conn
+          {:error, _reason} -> conn
+        end
+    end
+  end
+
+  defp stream_update(conn, event, payload) do
+    chunk(conn, ObservabilityUpdates.encode_sse(event, payload))
   end
 
   defp operator_console_session do

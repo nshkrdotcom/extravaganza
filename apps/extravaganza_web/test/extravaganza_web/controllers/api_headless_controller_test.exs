@@ -9,6 +9,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
 
   alias Extravaganza.{ProductBootstrap, ProductHost, ProductPack}
   alias Extravaganza.TestSupport.{ExecutionTraceFixture, FakeHeadlessBackend}
+  alias ExtravaganzaWeb.ObservabilityUpdates
   alias Mezzanine.ConfigRegistry.PackRegistration
   alias Mezzanine.Pack.Compiler
 
@@ -239,6 +240,8 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
   end
 
   test "POST refresh and control return command result envelopes", %{conn: conn} do
+    assert :ok = ObservabilityUpdates.subscribe()
+
     refresh =
       post(conn, ~p"/api/v1/refresh", %{"idempotency_key" => "idem:api-refresh"})
       |> json_response(202)
@@ -256,6 +259,11 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
     assert observability_refresh["requested_at"] == refresh["data"]["generated_at"]
     assert is_binary(observability_refresh["correlation_id"])
 
+    assert_observability_update("refresh_requested", %{
+      "command_kind" => "refresh",
+      "idempotency_key" => "idem:api-refresh"
+    })
+
     for action <- ~w[pause resume cancel retry] do
       accepted =
         conn
@@ -270,6 +278,11 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
       assert accepted["data"]["data"]["accepted?"] == true
       assert accepted["data"]["data"]["idempotency_key"] == "idem:api-#{action}"
       assert accepted["data"]["data"]["workflow_effect_state"] == "pending_signal"
+
+      assert_observability_update("run_status_change", %{
+        "action" => action,
+        "subject_ref" => "subject:fixture"
+      })
     end
 
     denied =
@@ -287,6 +300,8 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
   end
 
   test "POST review decision returns the shared command result presenter", %{conn: conn} do
+    assert :ok = ObservabilityUpdates.subscribe()
+
     reviews = get(conn, ~p"/api/v1/reviews") |> json_response(200)
 
     assert reviews["operation"] == "reviews"
@@ -322,6 +337,11 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
     assert body["data"]["schema_ref"] == "headless_command_result.v1"
     assert body["data"]["data"]["command_kind"] == "review_decision"
     assert body["data"]["data"]["workflow_effect_state"] == "pending_signal"
+
+    assert_observability_update("review_decision", %{
+      "decision" => "accept",
+      "decision_ref" => "decision:fixture"
+    })
   end
 
   test "GET evidence and events use the same standard envelope", %{conn: conn} do
@@ -443,6 +463,8 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
   end
 
   test "POST source-publication delegates to AppKit source publication surface", %{conn: conn} do
+    assert :ok = ObservabilityUpdates.subscribe()
+
     body =
       post(conn, ~p"/api/v1/source-publication", %{
         "subject_ref" => "subject:fixture",
@@ -454,6 +476,24 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
     assert body["data"]["schema_ref"] == "headless_source_publication.v1"
     assert body["data"]["data"]["status"] == "receipt_recorded"
     assert body["refs"]["source_publication_ref"] == "source-publication:fixture"
+
+    assert_observability_update("live_provider_receipt", %{
+      "effect" => "comment",
+      "source_publication_ref" => "source-publication:fixture"
+    })
+  end
+
+  defp assert_observability_update(reason, expected_metadata) when is_map(expected_metadata) do
+    assert_receive {:headless_observability_updated, update}, 500
+
+    assert update["schema_ref"] == "headless_observability_update.v1"
+    assert update["reason"] == reason
+
+    for {key, value} <- expected_metadata do
+      assert update["metadata"][key] == value
+    end
+
+    update
   end
 
   test "POST read and stream attach leases return shared lease envelopes", %{
