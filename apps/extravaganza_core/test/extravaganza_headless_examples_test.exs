@@ -595,6 +595,31 @@ defmodule Extravaganza.HeadlessExamplesTest do
 
     assert provider_effect["provider_session_id"] == "codex-provider-thread-live-product"
     assert provider_effect["provider_turn_id"] == "codex-provider-turn-live-product"
+    assert provider_effect["event_stream_confirmed?"] == true
+    assert provider_effect["event_count"] == 12
+    assert provider_effect["event_terminal_status"] == "completed"
+    assert provider_effect["completed_event_count"] == 1
+    assert provider_effect["failed_event_count"] == 1
+    assert provider_effect["cancelled_event_count"] == 1
+    assert provider_effect["malformed_event_count"] == 1
+    assert provider_effect["timeout_event_count"] == 1
+    assert provider_effect["approval_event_count"] == 2
+    assert provider_effect["approval_required_count"] == 1
+    assert provider_effect["approval_auto_approved_count"] == 1
+    assert provider_effect["user_input_event_count"] == 2
+    assert provider_effect["user_input_required_count"] == 1
+    assert provider_effect["user_input_auto_answered_count"] == 1
+    assert provider_effect["token_usage_input_tokens"] == 10
+    assert provider_effect["token_usage_output_tokens"] == 4
+    assert provider_effect["token_usage_total_tokens"] == 14
+    assert provider_effect["token_usage_source"] == "thread_token_usage_total"
+    assert provider_effect["rate_limits_present?"] == true
+    assert provider_effect["rate_limit_id"] == "codex"
+    assert provider_effect["rate_limit_primary_remaining"] == 90
+    assert provider_effect["rate_limit_primary_limit"] == 100
+    assert provider_effect["last_codex_message_event_kind"] == "codex.agent_message.updated"
+    assert provider_effect["last_codex_message_summary"] == "codex agent message updated"
+    assert provider_effect["last_codex_message_body_included?"] == false
 
     assert provider_effect["turn_ref"] == "turn://codex/live-product/1"
     assert provider_effect["lower_request_ref"] == "lower-request://codex/session-turn"
@@ -633,6 +658,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     refute output =~ "SECRET_PROMPT_BODY_DO_NOT_EXPOSE"
     refute output =~ "Preserve unrelated user work"
     refute output =~ "FIRST_PROMPT_SECRET_BODY"
+    refute output =~ "STREAM_BODY_DO_NOT_EXPOSE"
     refute output =~ "env-codex"
     refute output =~ "live_provider_effect_deferred"
   end
@@ -1367,6 +1393,38 @@ defmodule Extravaganza.HeadlessExamplesTest do
                    "runtime_control_session_ref" => @runtime_control_session_ref,
                    "lower_request_ref" => @lower_request_ref,
                    "lower_receipt_ref" => @lower_receipt_ref
+                 },
+                 "codex_event_stream" => %{
+                   "confirmed?" => true,
+                   "event_count" => 12,
+                   "terminal_status" => "completed",
+                   "completed_event_count" => 1,
+                   "failed_event_count" => 1,
+                   "cancelled_event_count" => 1,
+                   "malformed_event_count" => 1,
+                   "timeout_event_count" => 1,
+                   "approval_event_count" => 2,
+                   "approval_required_count" => 1,
+                   "approval_auto_approved_count" => 1,
+                   "user_input_event_count" => 2,
+                   "user_input_required_count" => 1,
+                   "user_input_auto_answered_count" => 1,
+                   "token_usage" => %{
+                     "input_tokens" => 10,
+                     "output_tokens" => 4,
+                     "total_tokens" => 14,
+                     "source" => "thread_token_usage_total"
+                   },
+                   "rate_limits_present?" => true,
+                   "rate_limit_id" => "codex",
+                   "rate_limit_primary_remaining" => 90,
+                   "rate_limit_primary_limit" => 100,
+                   "last_message" => %{
+                     "event_kind" => "codex.agent_message.updated",
+                     "summary" => "codex agent message updated",
+                     "body_redacted?" => true,
+                     "body_included?" => false
+                   }
                  },
                  "source_publication" => %{
                    "status" => "not_applicable",

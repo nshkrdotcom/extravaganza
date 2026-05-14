@@ -551,6 +551,9 @@ defmodule Extravaganza.HeadlessLiveExamples do
       continuation = codex_continuation_readback(run_detail)
       session_start = codex_session_start_readback(run_detail, turn)
       app_server_protocol = codex_app_server_protocol_readback(run_detail, turn)
+      event_stream = codex_event_stream_readback(run_detail)
+      token_usage = value(event_stream, :token_usage) || %{}
+      last_message = value(event_stream, :last_message) || %{}
       lower_receipt_ref = value(turn, :lower_receipt_ref)
       provider_response_received? = truthy?(value(turn, :provider_response_received?))
 
@@ -620,6 +623,31 @@ defmodule Extravaganza.HeadlessLiveExamples do
           value(app_server_protocol, :app_server_lower_receipt_ref),
         "provider_session_id" => value(app_server_protocol, :provider_session_id),
         "provider_turn_id" => value(app_server_protocol, :provider_turn_id),
+        "event_stream_confirmed?" => codex_event_stream_confirmed?(event_stream),
+        "event_count" => value(event_stream, :event_count),
+        "event_terminal_status" => value(event_stream, :terminal_status),
+        "completed_event_count" => value(event_stream, :completed_event_count),
+        "failed_event_count" => value(event_stream, :failed_event_count),
+        "cancelled_event_count" => value(event_stream, :cancelled_event_count),
+        "malformed_event_count" => value(event_stream, :malformed_event_count),
+        "timeout_event_count" => value(event_stream, :timeout_event_count),
+        "approval_event_count" => value(event_stream, :approval_event_count),
+        "approval_required_count" => value(event_stream, :approval_required_count),
+        "approval_auto_approved_count" => value(event_stream, :approval_auto_approved_count),
+        "user_input_event_count" => value(event_stream, :user_input_event_count),
+        "user_input_required_count" => value(event_stream, :user_input_required_count),
+        "user_input_auto_answered_count" => value(event_stream, :user_input_auto_answered_count),
+        "token_usage_input_tokens" => value(token_usage, :input_tokens),
+        "token_usage_output_tokens" => value(token_usage, :output_tokens),
+        "token_usage_total_tokens" => value(token_usage, :total_tokens),
+        "token_usage_source" => value(token_usage, :source),
+        "rate_limits_present?" => truthy?(value(event_stream, :rate_limits_present?)),
+        "rate_limit_id" => value(event_stream, :rate_limit_id),
+        "rate_limit_primary_remaining" => value(event_stream, :rate_limit_primary_remaining),
+        "rate_limit_primary_limit" => value(event_stream, :rate_limit_primary_limit),
+        "last_codex_message_event_kind" => value(last_message, :event_kind),
+        "last_codex_message_summary" => value(last_message, :summary),
+        "last_codex_message_body_included?" => truthy?(value(last_message, :body_included?)),
         "turn_ref" => value(turn, :turn_ref),
         "lower_request_ref" => value(turn, :lower_request_ref),
         "lower_receipt_ref" => lower_receipt_ref
@@ -1418,6 +1446,22 @@ defmodule Extravaganza.HeadlessLiveExamples do
     truthy?(value(evidence, "confirmed?")) or
       truthy?(value(evidence, :app_server_initialization_confirmed?)) or
       present?(value(evidence, :app_server_transport))
+  end
+
+  defp codex_event_stream_readback(%RuntimeRunDetail{runtime_row: runtime_row}) do
+    runtime_row
+    |> value(:extensions)
+    |> value("codex_event_stream")
+    |> case do
+      %{} = evidence -> evidence
+      _missing -> %{}
+    end
+  end
+
+  defp codex_event_stream_confirmed?(evidence) do
+    truthy?(value(evidence, "confirmed?")) or
+      truthy?(value(evidence, :confirmed?)) or
+      positive_integer_value(evidence, :event_count) != nil
   end
 
   defp runtime_session_ref(%RuntimeRunDetail{runtime_row: runtime_row}) do
