@@ -32,6 +32,7 @@ defmodule ExtravaganzaProductCoreTest do
     CodingOpsTemplates,
     Config,
     DefaultAuthoringBundle,
+    HeadlessCLI,
     HeadlessSameRunSmoke,
     HeadlessSurface,
     PolicyPresets,
@@ -2124,12 +2125,66 @@ defmodule ExtravaganzaProductCoreTest do
              "reviews",
              "review_decision",
              "source_preview",
+             "source_publish",
              "source_publication",
              "refresh",
              "control",
              "read_lease",
-             "stream_attach_lease"
+             "stream_attach_lease",
+             "profile",
+             "profile_validate",
+             "profile_reload",
+             "status",
+             "logs",
+             "live_preflight_denial",
+             "command_coverage",
+             "route_coverage",
+             "error_classes"
            ]
+
+    readbacks_by_name = Map.new(proof["readbacks"], &{&1["name"], &1["data"]})
+
+    assert get_in(readbacks_by_name, ["source_publish", "status"]) == "published"
+    assert get_in(readbacks_by_name, ["profile_validate", "status"]) == "valid"
+    assert get_in(readbacks_by_name, ["profile_reload", "status"]) == "reloaded"
+    assert get_in(readbacks_by_name, ["status", "schema_ref"]) == "headless_runtime_status.v1"
+    assert get_in(readbacks_by_name, ["logs", "schema_ref"]) == "headless_runtime_logs.v1"
+
+    assert readbacks_by_name["command_coverage"]["operations"] ==
+             Enum.map(HeadlessCLI.operations(), &Atom.to_string/1)
+
+    assert Enum.all?(
+             readbacks_by_name["live_preflight_denial"]["examples"],
+             &(&1["skip_reason_code"] == "live_product_path_required")
+           )
+
+    route_keys =
+      Enum.map(readbacks_by_name["route_coverage"]["routes"], &{&1["method"], &1["path"]})
+
+    assert {"GET", "/api/v1/status"} in route_keys
+    assert {"GET", "/api/v1/logs"} in route_keys
+    assert {"POST", "/api/v1/profile/reload"} in route_keys
+    assert {"POST", "/api/v1/source-publication"} in route_keys
+    refute {"GET", "/api/v1/queue"} in route_keys
+    refute {"POST", "/api/v1/start"} in route_keys
+
+    error_codes = Enum.map(readbacks_by_name["error_classes"]["errors"], & &1["code"])
+
+    for code <- [
+          "bad_request",
+          "not_found",
+          "method_not_allowed",
+          "invalid_action",
+          "action_denied",
+          "unauthorized_lower_read",
+          "snapshot_timeout",
+          "projection_unavailable",
+          "unavailable",
+          "archived",
+          "internal_error"
+        ] do
+      assert code in error_codes
+    end
 
     assert :ok = HeadlessSameRunSmoke.assert_same_run!(proof)
 
