@@ -57,6 +57,9 @@ defmodule ExtravaganzaWeb.HeadlessServerTest do
 
     assert plan["route_map"]["GET /operator-console"] ==
              "open http://127.0.0.1:PORT/operator-console"
+
+    assert plan["route_map"]["POST /api/v1/source-publication"] ==
+             "mix extravaganza.headless.source_publish SUBJECT_ID --json"
   end
 
   @tag :tmp_dir
@@ -138,6 +141,67 @@ defmodule ExtravaganzaWeb.HeadlessServerTest do
              })
 
     assert Process.alive?(pid)
+  end
+
+  test "plan maps every Symphony supervised child to its product replacement" do
+    assert {:ok, plan} = HeadlessServer.plan(port: 0)
+
+    equivalence = plan["supervision_equivalence"]
+
+    assert Enum.map(equivalence, & &1["symphony_child"]) == [
+             "Phoenix.PubSub",
+             "Task.Supervisor",
+             "SymphonyElixir.WorkflowStore",
+             "SymphonyElixir.Orchestrator",
+             "SymphonyElixir.HttpServer",
+             "SymphonyElixir.StatusDashboard"
+           ]
+
+    assert Enum.all?(equivalence, fn row ->
+             is_binary(row["symphony_role"]) and
+               row["classification"] in [
+                 "product_owned",
+                 "delegated_and_product_exposed",
+                 "product_owned_with_follow_up"
+               ] and
+               is_binary(row["replacement_owner"]) and
+               populated_list?(row["replacement_surfaces"]) and
+               populated_list?(row["product_exposure"]) and
+               is_binary(row["evidence"]) and
+               is_binary(row["status"])
+           end)
+
+    assert row_for(equivalence, "Phoenix.PubSub")["replacement_surfaces"] == [
+             "ExtravaganzaWeb.PubSub"
+           ]
+
+    assert row_for(equivalence, "Task.Supervisor")["classification"] ==
+             "delegated_and_product_exposed"
+
+    assert row_for(equivalence, "SymphonyElixir.WorkflowStore")["replacement_surfaces"] == [
+             "Extravaganza.SymphonyWorkflowImport",
+             "profile_cache_path",
+             "mix extravaganza.headless.reload"
+           ]
+
+    assert row_for(equivalence, "SymphonyElixir.Orchestrator")["product_exposure"] == [
+             "mix extravaganza.headless.start",
+             "mix extravaganza.headless.status",
+             "mix extravaganza.headless.refresh",
+             "mix extravaganza.headless.stop",
+             "/api/v1/status",
+             "/api/v1/refresh"
+           ]
+
+    assert row_for(equivalence, "SymphonyElixir.HttpServer")["replacement_surfaces"] == [
+             "ExtravaganzaWeb.HeadlessServer",
+             "ExtravaganzaWeb.Endpoint",
+             "mix extravaganza.headless.web"
+           ]
+
+    assert row_for(equivalence, "SymphonyElixir.StatusDashboard")["remaining_gap_refs"] == [
+             "META-SVC-004"
+           ]
   end
 
   defp write_workflow!(tmp_dir, opts) do
@@ -225,6 +289,16 @@ defmodule ExtravaganzaWeb.HeadlessServerTest do
     else
       :ok
     end
+  end
+
+  defp populated_list?(values) when is_list(values),
+    do: values != [] and Enum.all?(values, &is_binary/1)
+
+  defp populated_list?(_values), do: false
+
+  defp row_for(rows, child) do
+    Enum.find(rows, fn row -> row["symphony_child"] == child end) ||
+      flunk("missing supervision equivalence row for #{child}")
   end
 
   defp restore_env(app, key, nil), do: Application.delete_env(app, key)

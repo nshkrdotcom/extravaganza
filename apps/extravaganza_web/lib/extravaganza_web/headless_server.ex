@@ -19,7 +19,9 @@ defmodule ExtravaganzaWeb.HeadlessServer do
     "GET /api/v1/logs" => "mix extravaganza.headless.logs --json",
     "GET /api/v1/events" => "mix extravaganza.headless.events --json --run run:fixture",
     "GET /api/v1/:issue_identifier" => "curl http://127.0.0.1:PORT/api/v1/:issue_identifier",
-    "POST /api/v1/refresh" => "mix extravaganza.headless.refresh --json"
+    "POST /api/v1/refresh" => "mix extravaganza.headless.refresh --json",
+    "POST /api/v1/source-publication" =>
+      "mix extravaganza.headless.source_publish SUBJECT_ID --json"
   }
 
   @type plan :: map()
@@ -78,6 +80,7 @@ defmodule ExtravaganzaWeb.HeadlessServer do
          "ephemeral_port_requested?" => port == 0,
          "endpoint_module" => inspect(Endpoint),
          "service_lifecycle" => service_lifecycle(),
+         "supervision_equivalence" => supervision_equivalence(),
          "start_command" => start_command(port),
          "route_map" => @route_map
        }}
@@ -182,6 +185,136 @@ defmodule ExtravaganzaWeb.HeadlessServer do
       "supervisor" => inspect(Endpoint),
       "waits_for_shutdown?" => true
     }
+  end
+
+  defp supervision_equivalence do
+    [
+      %{
+        "symphony_child" => "Phoenix.PubSub",
+        "symphony_role" => "broadcast dashboard and observability updates",
+        "classification" => "product_owned",
+        "replacement_owner" => "ExtravaganzaWeb",
+        "replacement_surfaces" => ["ExtravaganzaWeb.PubSub"],
+        "product_exposure" => ["/operator-console", "/api/v1/events", "/api/v1/status"],
+        "evidence" =>
+          "ExtravaganzaWeb.Application supervises Phoenix.PubSub as ExtravaganzaWeb.PubSub.",
+        "status" => "closed",
+        "remaining_gap_refs" => []
+      },
+      %{
+        "symphony_child" => "Task.Supervisor",
+        "symphony_role" => "supervise per-issue asynchronous worker tasks",
+        "classification" => "delegated_and_product_exposed",
+        "replacement_owner" => "AppKit and Mezzanine runtime surfaces",
+        "replacement_surfaces" => [
+          "AppKit runtime surface",
+          "AppKit work surface",
+          "Mezzanine workflow runtime"
+        ],
+        "product_exposure" => [
+          "mix extravaganza.headless.start",
+          "mix extravaganza.headless.status",
+          "mix extravaganza.headless.logs",
+          "mix extravaganza.headless.stop",
+          "/api/v1/status",
+          "/api/v1/logs"
+        ],
+        "evidence" =>
+          "Extravaganza observes and controls worker execution through AppKit/ProductHost DTOs.",
+        "status" => "delegated_and_exposed",
+        "remaining_gap_refs" => []
+      },
+      %{
+        "symphony_child" => "SymphonyElixir.WorkflowStore",
+        "symphony_role" => "cache and reload the active workflow configuration",
+        "classification" => "product_owned",
+        "replacement_owner" => "ExtravaganzaCore",
+        "replacement_surfaces" => [
+          "Extravaganza.SymphonyWorkflowImport",
+          "profile_cache_path",
+          "mix extravaganza.headless.reload"
+        ],
+        "product_exposure" => [
+          "mix extravaganza.headless.profile",
+          "mix extravaganza.headless.reload",
+          "mix extravaganza.headless.status",
+          "/api/v1/profile/reload",
+          "/api/v1/status"
+        ],
+        "evidence" =>
+          "Workflow profile parsing, cache reload, reload status, and future starts are product-owned.",
+        "status" => "closed",
+        "remaining_gap_refs" => []
+      },
+      %{
+        "symphony_child" => "SymphonyElixir.Orchestrator",
+        "symphony_role" => "own polling, dispatch, retries, runtime state, and refresh",
+        "classification" => "delegated_and_product_exposed",
+        "replacement_owner" => "AppKit and Mezzanine runtime surfaces",
+        "replacement_surfaces" => [
+          "AppKit runtime surface",
+          "AppKit work surface",
+          "Mezzanine workflow runtime"
+        ],
+        "product_exposure" => [
+          "mix extravaganza.headless.start",
+          "mix extravaganza.headless.status",
+          "mix extravaganza.headless.refresh",
+          "mix extravaganza.headless.stop",
+          "/api/v1/status",
+          "/api/v1/refresh"
+        ],
+        "evidence" =>
+          "Extravaganza uses AppKit/ProductHost commands and readbacks for runtime lifecycle control.",
+        "status" => "delegated_and_exposed",
+        "remaining_gap_refs" => []
+      },
+      %{
+        "symphony_child" => "SymphonyElixir.HttpServer",
+        "symphony_role" => "start the optional HTTP observability endpoint",
+        "classification" => "product_owned",
+        "replacement_owner" => "ExtravaganzaWeb",
+        "replacement_surfaces" => [
+          "ExtravaganzaWeb.HeadlessServer",
+          "ExtravaganzaWeb.Endpoint",
+          "mix extravaganza.headless.web"
+        ],
+        "product_exposure" => [
+          "mix extravaganza.headless.web",
+          "/operator-console",
+          "/api/v1/state",
+          "/api/v1/status",
+          "/api/v1/refresh",
+          "/api/v1/source-publication"
+        ],
+        "evidence" =>
+          "HeadlessServer configures and starts ExtravaganzaWeb.Endpoint for the headless shell.",
+        "status" => "closed",
+        "remaining_gap_refs" => []
+      },
+      %{
+        "symphony_child" => "SymphonyElixir.StatusDashboard",
+        "symphony_role" => "render terminal and browser status from orchestrator snapshots",
+        "classification" => "product_owned_with_follow_up",
+        "replacement_owner" => "ExtravaganzaWeb and AppKit operator surfaces",
+        "replacement_surfaces" => [
+          "ExtravaganzaWeb operator console",
+          "ExtravaganzaWeb API readbacks",
+          "AppKit operator surface"
+        ],
+        "product_exposure" => [
+          "/operator-console",
+          "/api/v1/state",
+          "/api/v1/status",
+          "/api/v1/events",
+          "/api/v1/logs"
+        ],
+        "evidence" =>
+          "Operator console and API readbacks expose status; offline shutdown rendering remains separate.",
+        "status" => "mapped_with_shutdown_offline_follow_up",
+        "remaining_gap_refs" => ["META-SVC-004"]
+      }
+    ]
   end
 
   defp start_command(nil), do: "mix extravaganza.headless.web --port PORT --json"
