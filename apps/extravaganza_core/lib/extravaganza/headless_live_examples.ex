@@ -554,6 +554,8 @@ defmodule Extravaganza.HeadlessLiveExamples do
       event_stream = codex_event_stream_readback(run_detail)
       token_usage = value(event_stream, :token_usage) || %{}
       token_totals = codex_token_totals_readback(run_detail)
+      timeout_policy = request |> value(:params) |> value(:timeout_policy) || %{}
+      stall = codex_stall_readback(run_detail)
       last_message = value(event_stream, :last_message) || %{}
       lower_receipt_ref = value(turn, :lower_receipt_ref)
       provider_response_received? = truthy?(value(turn, :provider_response_received?))
@@ -648,6 +650,16 @@ defmodule Extravaganza.HeadlessLiveExamples do
         "token_totals_total_tokens" => value(token_totals, :total_tokens),
         "token_totals_cached_input_tokens" => value(token_totals, :cached_input_tokens),
         "token_totals_source" => value(token_totals, :source),
+        "runtime_state" => value(run_detail.runtime_row, :state),
+        "runtime_status_reason" => value(run_detail.runtime_row, :status_reason),
+        "configured_stall_timeout_ms" => value(timeout_policy, :stall_timeout_ms),
+        "stall_decision_present?" => codex_stall_decision_present?(stall),
+        "stall_elapsed_ms" => value(stall, :elapsed_ms),
+        "stall_timeout_ms" => value(stall, :stall_timeout_ms),
+        "stall_activity_source" => value(stall, :activity_source),
+        "stall_safe_action" => value(stall, :safe_action),
+        "stall_workflow_signal" => value(stall, :workflow_signal),
+        "stall_cancel_lower_run?" => value(stall, :cancel_lower_run?),
         "rate_limits_present?" => truthy?(value(event_stream, :rate_limits_present?)),
         "rate_limit_id" => value(event_stream, :rate_limit_id),
         "rate_limit_primary_remaining" => value(event_stream, :rate_limit_primary_remaining),
@@ -1016,6 +1028,7 @@ defmodule Extravaganza.HeadlessLiveExamples do
           mode: "until_max_turns",
           active_state?: true
         },
+        timeout_policy: codex_timeout_policy(config, opts),
         continuation_input: continuation_input,
         fixture_script: "success_first_try",
         release_manifest_ref: "release-manifest://extravaganza/live-codex-turn/v1"
@@ -1050,6 +1063,13 @@ defmodule Extravaganza.HeadlessLiveExamples do
       body_redacted?: true,
       redaction_policy_ref: "redaction://prompt/excerpt-only",
       template_ref: "continuation-template://extravaganza/live-codex-turn/default"
+    }
+  end
+
+  defp codex_timeout_policy(%Config{} = _config, _opts) do
+    %{
+      turn_timeout_ms: 3_600_000,
+      stall_timeout_ms: 300_000
     }
   end
 
@@ -1484,6 +1504,18 @@ defmodule Extravaganza.HeadlessLiveExamples do
       value(totals, :total_output_tokens) != nil or
       present?(value(totals, :source))
   end
+
+  defp codex_stall_readback(%RuntimeRunDetail{runtime_row: runtime_row}) do
+    runtime_row
+    |> value(:extensions)
+    |> value("stall")
+    |> case do
+      %{} = stall -> stall
+      _missing -> %{}
+    end
+  end
+
+  defp codex_stall_decision_present?(stall), do: map_size(stall) > 0
 
   defp runtime_session_ref(%RuntimeRunDetail{runtime_row: runtime_row}) do
     runtime_row

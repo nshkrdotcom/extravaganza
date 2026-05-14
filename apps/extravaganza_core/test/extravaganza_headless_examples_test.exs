@@ -619,6 +619,11 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert provider_effect["token_totals_total_tokens"] == 17
     assert provider_effect["token_totals_cached_input_tokens"] == 0
     assert provider_effect["token_totals_source"] == "runtime:event:codex-token-accounting"
+    assert provider_effect["runtime_state"] == "completed"
+    assert provider_effect["configured_stall_timeout_ms"] == 300_000
+    assert provider_effect["stall_decision_present?"] == false
+    refute Map.has_key?(provider_effect, "stall_elapsed_ms")
+    refute Map.has_key?(provider_effect, "stall_safe_action")
     assert provider_effect["rate_limits_present?"] == true
     assert provider_effect["rate_limit_id"] == "codex"
     assert provider_effect["rate_limit_primary_remaining"] == 90
@@ -646,6 +651,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert request.params.initial_input.body =~ "Issue: LIVE-CODEX-001"
     assert request.params.initial_input.body =~ "Confirm the live Codex product path"
     assert request.params.max_turns == 2
+    assert request.params.timeout_policy.stall_timeout_ms == 300_000
     assert request.params.continuation_policy.mode == "until_max_turns"
     assert request.params.continuation_policy.active_state? == true
 
