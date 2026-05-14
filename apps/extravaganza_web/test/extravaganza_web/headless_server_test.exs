@@ -52,6 +52,9 @@ defmodule ExtravaganzaWeb.HeadlessServerTest do
     assert plan["route_map"]["GET /api/v1/state"] ==
              "mix extravaganza.headless.state --json"
 
+    assert plan["route_map"]["GET /api/v1/preflight"] ==
+             "mix extravaganza.headless.preflight --json"
+
     assert plan["route_map"]["GET /api/v1/:issue_identifier"] ==
              "curl http://127.0.0.1:PORT/api/v1/:issue_identifier"
 

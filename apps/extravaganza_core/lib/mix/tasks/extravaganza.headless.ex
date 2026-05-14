@@ -12,6 +12,7 @@ defmodule Mix.Tasks.Extravaganza.Headless.TaskSupport do
     :live_smoke
   ]
   @no_start_operations [
+    :preflight,
     :profile,
     :profile_validate
   ]
@@ -308,6 +309,17 @@ defmodule Mix.Tasks.Extravaganza.Headless.Logs do
   @shortdoc "Print headless runtime logs JSON"
   @impl Mix.Task
   def run(argv), do: TaskSupport.run(:logs, argv)
+end
+
+defmodule Mix.Tasks.Extravaganza.Headless.Preflight do
+  use Mix.Task
+
+  alias Mix.Tasks.Extravaganza.Headless.TaskSupport
+
+  @moduledoc false
+  @shortdoc "Print headless dependency preflight JSON"
+  @impl Mix.Task
+  def run(argv), do: TaskSupport.run(:preflight, argv)
 end
 
 defmodule Mix.Tasks.Extravaganza.Headless.Live.LinearSource do

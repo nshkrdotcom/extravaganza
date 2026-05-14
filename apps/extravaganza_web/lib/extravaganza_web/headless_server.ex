@@ -16,6 +16,7 @@ defmodule ExtravaganzaWeb.HeadlessServer do
     "GET /operator-console" => "open http://127.0.0.1:PORT/operator-console",
     "GET /api/v1/state" => "mix extravaganza.headless.state --json",
     "GET /api/v1/status" => "mix extravaganza.headless.status --json",
+    "GET /api/v1/preflight" => "mix extravaganza.headless.preflight --json",
     "GET /api/v1/logs" => "mix extravaganza.headless.logs --json",
     "GET /api/v1/events" => "mix extravaganza.headless.events --json --run run:fixture",
     "GET /api/v1/:issue_identifier" => "curl http://127.0.0.1:PORT/api/v1/:issue_identifier",

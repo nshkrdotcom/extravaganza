@@ -91,6 +91,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
              :profile_validate,
              :status,
              :logs,
+             :preflight,
              :live_linear_source,
              :live_linear_current_states,
              :live_codex_turn,
@@ -111,6 +112,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
           Mix.Tasks.Extravaganza.Headless.SourcePublish,
           Mix.Tasks.Extravaganza.Headless.Status,
           Mix.Tasks.Extravaganza.Headless.Logs,
+          Mix.Tasks.Extravaganza.Headless.Preflight,
           Mix.Tasks.Extravaganza.Headless.LiveLinearSource,
           Mix.Tasks.Extravaganza.Headless.LiveLinearCurrentStates,
           Mix.Tasks.Extravaganza.Headless.LiveCodexTurn,
@@ -128,6 +130,17 @@ defmodule Extravaganza.HeadlessExamplesTest do
     for {task, operation, argv} <- [
           {"extravaganza.headless.source.sync", "source_sync", common_args()},
           {"extravaganza.headless.source_sync", "source_sync", common_args()},
+          {"extravaganza.headless.preflight", "preflight",
+           [
+             "--json",
+             "--skip-app-start",
+             "--temporal-status",
+             "reachable",
+             "--source-binding-ref",
+             "linear_primary",
+             "--credential-refs",
+             "LINEAR_API_KEY,GH_TOKEN"
+           ]},
           {"extravaganza.headless.live.linear_source", "live.linear-source",
            ["--json", "--trace-id", "trace:examples"]},
           {"extravaganza.headless.live_linear_source", "live.linear-source",
@@ -189,6 +202,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     end
 
     assert TaskSupport.start_app?(:state, ["--json"])
+    refute TaskSupport.start_app?(:preflight, ["--json"])
     refute TaskSupport.start_app?(:profile, ["--json"])
     assert TaskSupport.guardrails_acknowledgement_pending?(:refresh, ["--json"])
     refute TaskSupport.start_app?(:refresh, ["--json"])
@@ -1698,6 +1712,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
           "scripts/headless/source_publish.exs",
           "scripts/headless/status.exs",
           "scripts/headless/logs.exs",
+          "scripts/headless/preflight.exs",
           "scripts/headless/profile_validate.exs",
           "scripts/headless/profile_reload.exs",
           "scripts/headless/live_linear_source.exs",

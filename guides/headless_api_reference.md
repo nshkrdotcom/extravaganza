@@ -58,6 +58,7 @@ Common options accepted by most commands:
 | `mix extravaganza.headless.profile_reload --ack-headless-guardrails --json` | Optional workflow import flags and profile cache path. | deterministic-only | None. | Reload result and product profile apply proof. |
 | `mix extravaganza.headless.status --json` | Optional `--logs-root` and workflow import flags. | deterministic-only | None. | Runtime status, cleanup posture, persisted runtime metadata. |
 | `mix extravaganza.headless.logs --json` | Optional `--logs-root`, `--run-id`, `--cursor`, `--limit`. | deterministic-only | None. | Runtime log page using `headless_runtime_logs.v1`; secret-like values are redacted. |
+| `mix extravaganza.headless.preflight --json --temporal-status reachable` | Optional `--temporal-status reachable|unavailable|not_checked`, `--source-binding-ref REF`, `--source-binding-refs REF,REF`, `--credential-refs REF,REF`, and `--skip-app-start` for fixture-only checks. | deterministic-only | For full live stack readiness, run the Mezzanine substrate commands from `/home/home/p/g/n/mezzanine`: `just dev-up`, `just dev-status`, `just dev-logs`, and `just temporal-ui` as needed. | Product dependency preflight using `headless_dependency_preflight.v1`: app start, DB repo posture, Temporal substrate status, AppKit backend resolution, source binding refs, and credential refs. |
 | `mix extravaganza.headless.evidence RUN_ID --json` | Optional `RUN_ID`. | deterministic-only | None. | Evidence chain, authority refs, lower request/receipt refs, provider evidence refs. |
 | `mix extravaganza.headless.events RUN_ID --json` | Optional `RUN_ID`; optional `--cursor`, `--limit`. | deterministic-only | None. | Event page, event refs, event kinds, and run/subject refs. |
 | `mix extravaganza.headless.smoke --deterministic --same-run --json` | None. | deterministic-only | None. | Same-run proof over state, run, evidence, events, leases, routes, and readbacks. |
@@ -95,6 +96,7 @@ the request body/query params. Raw credential parameters such as
 | --- | --- | --- | --- |
 | `GET /api/v1/state` | None. | deterministic-only | State snapshot and operator dashboard projection. |
 | `GET /api/v1/status` | None. | deterministic-only | Runtime status readback. |
+| `GET /api/v1/preflight` | Optional `temporal_status`, `source_binding_refs`, `credential_refs`, and `skip_app_start` query params. | deterministic-only | Product dependency preflight. Runtime mechanics stay behind AppKit and the Mezzanine `just` substrate. |
 | `GET /api/v1/logs` | Optional `logs_root`, `run_id`, `cursor`, `limit`. | deterministic-only | Runtime logs page. |
 | `GET /api/v1/profile` | Optional workflow query params. | deterministic-only | Imported workflow profile. |
 | `POST /api/v1/profile/validate` | Optional workflow params in JSON body. | deterministic-only | Profile validation result. |

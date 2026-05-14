@@ -18,6 +18,7 @@ defmodule Extravaganza.HeadlessCLI do
   alias Extravaganza.{
     HeadlessFixtureBackend,
     HeadlessJSON,
+    HeadlessPreflight,
     HeadlessSurface,
     ProductHost,
     SymphonyWorkflowImport
@@ -41,6 +42,7 @@ defmodule Extravaganza.HeadlessCLI do
     :profile_validate,
     :status,
     :logs,
+    :preflight,
     :live_linear_source,
     :live_linear_current_states,
     :live_codex_turn,
@@ -340,6 +342,15 @@ defmodule Extravaganza.HeadlessCLI do
     )
   end
 
+  defp dispatch(:preflight, opts) do
+    HeadlessJSON.wrap(
+      :preflight,
+      HeadlessPreflight.run(preflight_opts(opts)),
+      fn value -> value end,
+      opts
+    )
+  end
+
   defp dispatch(:live_linear_source, opts) do
     dispatch_live("live.linear-source", &ProductHost.live_linear_source_example/1, opts)
   end
@@ -475,6 +486,48 @@ defmodule Extravaganza.HeadlessCLI do
 
   defp parse(["--logs-root", logs_root | rest], opts),
     do: parse(rest, Map.put(opts, :logs_root, Path.expand(logs_root)))
+
+  defp parse(["--skip-app-start" | rest], opts),
+    do: parse(rest, Map.put(opts, :skip_app_start?, true))
+
+  defp parse(["--temporal-status", temporal_status | rest], opts),
+    do: parse(rest, Map.put(opts, :temporal_status, temporal_status))
+
+  defp parse(["--source-binding-ref", source_binding_ref | rest], opts),
+    do:
+      parse(
+        rest,
+        Map.update(
+          opts,
+          :source_binding_refs,
+          [source_binding_ref],
+          &(&1 ++ [source_binding_ref])
+        )
+      )
+
+  defp parse(["--source-binding-refs", source_binding_refs | rest], opts),
+    do:
+      parse(
+        rest,
+        Map.update(
+          opts,
+          :source_binding_refs,
+          split_csv(source_binding_refs),
+          &(split_csv(source_binding_refs) ++ &1)
+        )
+      )
+
+  defp parse(["--credential-refs", credential_refs | rest], opts),
+    do:
+      parse(
+        rest,
+        Map.update(
+          opts,
+          :credential_refs,
+          split_csv(credential_refs),
+          &(split_csv(credential_refs) ++ &1)
+        )
+      )
 
   defp parse(["--profile-cache", profile_cache_path | rest], opts),
     do: parse(rest, Map.put(opts, :profile_cache_path, profile_cache_path))
@@ -826,6 +879,18 @@ defmodule Extravaganza.HeadlessCLI do
     opts
     |> Map.take([:cursor, :limit, :logs_root, :trace_id])
     |> Map.new(fn {key, value} -> {Atom.to_string(key), value} end)
+  end
+
+  defp preflight_opts(opts) do
+    opts
+    |> Map.take([
+      :skip_app_start?,
+      :temporal_status,
+      :source_binding_refs,
+      :credential_refs,
+      :credential_ref
+    ])
+    |> Map.put(:backend_opts, surface_opts(opts))
   end
 
   defp parse_env_assignment(assignment) when is_binary(assignment) do

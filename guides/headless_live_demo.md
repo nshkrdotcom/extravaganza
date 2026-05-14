@@ -38,6 +38,20 @@ just dev-up
 just dev-status
 ```
 
+Then return to Extravaganza and run the product preflight through the headless
+surface:
+
+```bash
+cd /home/home/p/g/n/extravaganza
+mix extravaganza.headless.preflight --json --temporal-status reachable
+```
+
+The preflight emits `headless_dependency_preflight.v1` and covers app start, DB
+repo posture, Temporal substrate status, AppKit backend resolution, source
+binding refs, and credential refs. It does not read raw provider secrets from
+ambient OS env; on this workstation use `~/scripts/with_bash_secrets` for the
+live commands themselves.
+
 Set provider credentials in your shell before live runs:
 
 - Linear example paths: `LINEAR_API_KEY`  
@@ -63,6 +77,7 @@ mix extravaganza.headless.run run:fixture --json
 mix extravaganza.headless.evidence run:fixture --json
 mix extravaganza.headless.status --json
 mix extravaganza.headless.logs --json
+mix extravaganza.headless.preflight --json --skip-app-start --temporal-status reachable
 mix extravaganza.headless.source_publish subject:fixture --ack-headless-guardrails --json
 mix extravaganza.headless.profile_validate --workflow WORKFLOW.md --json
 mix extravaganza.headless.profile_reload --workflow WORKFLOW.md --ack-headless-guardrails --json

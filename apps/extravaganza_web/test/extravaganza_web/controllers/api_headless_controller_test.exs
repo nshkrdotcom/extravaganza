@@ -116,6 +116,20 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
     refute String.contains?(encoded, "/home/")
   end
 
+  test "GET /api/v1/preflight returns dependency readiness through product JSON", %{conn: conn} do
+    body =
+      conn
+      |> get(~p"/api/v1/preflight?skip_app_start=true&temporal_status=reachable")
+      |> json_response(200)
+
+    assert body["ok"] == true
+    assert body["operation"] == "preflight"
+    assert body["data"]["schema_ref"] == "headless_dependency_preflight.v1"
+    assert get_in(body, ["data", "checks", "application", "status"]) == "skipped"
+    assert get_in(body, ["data", "checks", "temporal_substrate", "status"]) == "reachable"
+    assert get_in(body, ["data", "credential_policy", "ambient_os_env_read?"]) == false
+  end
+
   test "GET /api/v1/subjects/:subject_id and compatibility issue route share subject presenter",
        %{
          conn: conn

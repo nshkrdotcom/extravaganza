@@ -1,7 +1,13 @@
 defmodule ExtravaganzaWeb.Api.HeadlessController do
   use ExtravaganzaWeb, :controller
 
-  alias Extravaganza.{HeadlessJSON, HeadlessSurface, ProductHost, SymphonyWorkflowImport}
+  alias Extravaganza.{
+    HeadlessJSON,
+    HeadlessPreflight,
+    HeadlessSurface,
+    ProductHost,
+    SymphonyWorkflowImport
+  }
 
   alias Extravaganza.Presenters.{
     CommandResultPresenter,
@@ -104,6 +110,14 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
 
       {:error, reason} ->
         render_error(conn, reason)
+    end
+  end
+
+  @spec preflight(Plug.Conn.t(), map()) :: Plug.Conn.t()
+  def preflight(conn, params) do
+    case HeadlessPreflight.run(params) do
+      {:ok, report} -> render_success(conn, :preflight, report)
+      {:error, reason} -> render_error(conn, reason)
     end
   end
 
