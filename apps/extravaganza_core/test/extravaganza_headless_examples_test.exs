@@ -220,12 +220,97 @@ defmodule Extravaganza.HeadlessExamplesTest do
       assert decoded["data"]["provider_effect"]["skip_reason"]["code"] ==
                "credential_not_supplied_to_product_command"
 
+      assert decoded["data"]["example_mode"] == "deterministic_fixture"
+      assert decoded["data"]["deterministic_fixture?"] == true
+      assert decoded["data"]["live_product_path?"] == false
+      assert decoded["data"]["live_provider_effect?"] == false
+      assert decoded["data"]["requires_live_product_path?"] == true
+      assert decoded["data"]["provider_effect"]["live_provider_effect?"] == false
+
       assert decoded["refs"]["run_ref"] == "run:fixture"
       refute Map.has_key?(decoded["refs"], "source_publication_ref")
       refute String.contains?(output, "env-linear")
       refute String.contains?(output, "env-github")
       refute String.contains?(output, "env-codex")
     end
+  end
+
+  @tag :live_provider
+  test "live-named commands do not dispatch provider effects without live product path" do
+    for {operation, expected_operation, argv, stdin?} <- [
+          {:live_linear_source, "live.linear-source",
+           ["--json", "--api-key-stdin", "--trace-id", "trace:fixture-linear-source"], true},
+          {:live_linear_current_states, "live.linear-current-states",
+           [
+             "--json",
+             "--api-key-stdin",
+             "--issue-ids",
+             "lin-issue-321",
+             "--trace-id",
+             "trace:fixture-linear-current-states"
+           ], true},
+          {:live_linear_publication, "live.linear-publication",
+           ["--json", "--api-key-stdin", "--trace-id", "trace:fixture-linear-publication"], true},
+          {:live_linear_graphql_tool, "live.linear-graphql-tool",
+           [
+             "--json",
+             "--api-key-stdin",
+             "--query",
+             "query Viewer { viewer { id } }",
+             "--trace-id",
+             "trace:fixture-linear-graphql"
+           ], true},
+          {:live_codex_turn, "live.codex-turn",
+           ["--json", "--credential-available", "--trace-id", "trace:fixture-codex"], false},
+          {:live_github_evidence, "live.github-evidence",
+           [
+             "--json",
+             "--credential-available",
+             "--repo",
+             "nshkrdotcom/extravaganza",
+             "--pull-number",
+             "17",
+             "--ref",
+             "head-sha",
+             "--trace-id",
+             "trace:fixture-github"
+           ], false}
+        ] do
+      output =
+        if stdin? do
+          capture_io("credential-value\n", fn ->
+            assert :ok = HeadlessCLI.run(operation, argv)
+          end)
+        else
+          capture_io(fn -> assert :ok = HeadlessCLI.run(operation, argv) end)
+        end
+
+      decoded = Jason.decode!(output)
+      data = decoded["data"]
+      provider_effect = data["provider_effect"]
+
+      assert decoded["ok"] == true
+      assert decoded["operation"] == expected_operation
+      assert data["status"] == "skipped"
+      assert data["example_mode"] == "deterministic_fixture"
+      assert data["deterministic_fixture?"] == true
+      assert data["live_product_path?"] == false
+      assert data["live_provider_effect?"] == false
+      assert data["requires_live_product_path?"] == true
+      assert provider_effect["status"] == "skipped"
+      assert provider_effect["skip_reason"]["code"] == "live_product_path_required"
+      assert provider_effect["live_provider_effect?"] == false
+      assert provider_effect["fixture_backed?"] == true
+      assert data["credential_preflight"]["status"] == "requires_live_product_path"
+      refute output =~ "credential-value"
+    end
+
+    refute_received {:fetch_linear_candidates, _, _, _}
+    refute_received {:current_linear_issue_states, _, _, _, _}
+    refute_received {:publish_linear_source, _, _, _}
+    refute_received {:execute_linear_graphql_tool, _, _, _}
+    refute_received {:start_agent_run, _, _, _}
+    refute_received {:fetch_github_pr_evidence, _, _, _}
   end
 
   @tag :live_provider
@@ -259,6 +344,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
                  HeadlessCLI.run(:live_linear_source, [
                    "--json",
                    "--api-key-stdin",
+                   "--live-product-path",
                    "--trace-id",
                    "trace:live-source"
                  ])
@@ -288,7 +374,8 @@ defmodule Extravaganza.HeadlessExamplesTest do
     refute output =~ secret
     refute output =~ "live_provider_effect_deferred"
 
-    assert_received {:fetch_linear_candidates, "extravaganza", source_binding, _opts}
+    assert_received {:fetch_linear_candidates, tenant_id, source_binding, _opts}
+    assert String.starts_with?(tenant_id, "extravaganza-live-")
     assert source_binding.source_binding_id == "linear-primary"
   end
 
@@ -302,6 +389,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
                  HeadlessCLI.run(:live_linear_source, [
                    "--json",
                    "--api-key-stdin",
+                   "--live-product-path",
                    "--source-state",
                    "Todo",
                    "--source-state",
@@ -328,7 +416,8 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert decoded["data"]["provider_effect"]["team_id"] == "team-linear"
     refute output =~ secret
 
-    assert_received {:fetch_linear_candidates, "extravaganza", source_binding, opts}
+    assert_received {:fetch_linear_candidates, tenant_id, source_binding, opts}
+    assert String.starts_with?(tenant_id, "extravaganza-live-")
     assert source_binding.candidate_filters.state_names == ["Todo", "Backlog"]
     assert source_binding.candidate_filters.project_slug == "ENG"
     assert source_binding.candidate_filters.team_id == "team-linear"
@@ -371,6 +460,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
         assert :ok =
                  HeadlessCLI.run(:live_linear_source, [
                    "--json",
+                   "--live-product-path",
                    "--connection-id",
                    "connection-linear-existing",
                    "--credential-ref",
@@ -395,7 +485,8 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert preflight["secret_material_present?"] == false
     assert preflight["secret_material_redacted?"] == true
 
-    assert_received {:fetch_linear_candidates, "extravaganza", _source_binding, opts}
+    assert_received {:fetch_linear_candidates, tenant_id, _source_binding, opts}
+    assert String.starts_with?(tenant_id, "extravaganza-live-")
     assert Keyword.fetch!(opts, :connection_id) == "connection-linear-existing"
     assert Keyword.fetch!(opts, :credential_ref) == "credential-ref-linear-existing"
     assert Keyword.fetch!(opts, :credential_lease_ref) == "credential-lease-linear-existing"
@@ -441,6 +532,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
                  HeadlessCLI.run(:live_linear_source, [
                    "--json",
                    "--api-key-stdin",
+                   "--live-product-path",
                    "--assignee",
                    "all",
                    "--trace-id",
@@ -454,7 +546,8 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert decoded["data"]["status"] == "completed"
     assert decoded["data"]["provider_effect"]["assignee"] == "all"
 
-    assert_received {:fetch_linear_candidates, "extravaganza", source_binding, opts}
+    assert_received {:fetch_linear_candidates, tenant_id, source_binding, opts}
+    assert String.starts_with?(tenant_id, "extravaganza-live-")
     refute Map.has_key?(source_binding.candidate_filters, :assignee)
     assert Keyword.fetch!(opts, :linear_api_key) == secret
     refute output =~ secret
@@ -941,7 +1034,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
   end
 
   @tag :live_provider
-  test "linear source stdin default fixture path installs the product fixture source backend" do
+  test "linear source stdin default fixture path requires explicit live product path" do
     Application.delete_env(:app_kit_core, :source_backend)
     secret = "linear-secret-value"
 
@@ -959,38 +1052,14 @@ defmodule Extravaganza.HeadlessExamplesTest do
     decoded = Jason.decode!(output)
 
     assert decoded["ok"] == true
-    assert decoded["data"]["status"] == "completed"
-    assert decoded["data"]["provider_effect"]["operation"] == "linear.issues.list"
+    assert decoded["data"]["status"] == "skipped"
+    assert decoded["data"]["example_mode"] == "deterministic_fixture"
+    assert decoded["data"]["live_provider_effect?"] == false
 
-    assert [
-             %{
-               "source_ref" => "linear://fixture/issue/ENG-321",
-               "provider_external_ref" => "lin-issue-321",
-               "title" => "Investigate rollback",
-               "description" => "The deployment rolled back after the health checks failed.",
-               "priority" => 2,
-               "labels" => ["automation", "incident"],
-               "branch_ref" => "eng-321-investigate-rollback",
-               "source_url" => "https://linear.app/acme/issue/ENG-321",
-               "source_state" => "Todo",
-               "provider_revision" => "2026-03-12T10:00:00Z",
-               "blocker_refs" => [
-                 %{
-                   "identifier" => "SEC-9",
-                   "source_state" => "In Progress"
-                 }
-               ],
-               "source_routing" => %{
-                 "team" => %{"id" => "team-eng", "key" => "ENG"}
-               }
-             }
-           ] = decoded["data"]["provider_effect"]["subjects"]
+    assert decoded["data"]["provider_effect"]["skip_reason"]["code"] ==
+             "live_product_path_required"
 
-    assert decoded["data"]["product_path"]["appkit_surfaces"] == [
-             "AppKit.SourceSurface",
-             "AppKit.HeadlessSurface"
-           ]
-
+    refute_received {:fetch_linear_candidates, _, _, _}
     refute output =~ secret
     refute output =~ "missing_authorized_source_invocation"
   end
@@ -1005,6 +1074,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
                  HeadlessCLI.run(:live_linear_publication, [
                    "--json",
                    "--api-key-stdin",
+                   "--live-product-path",
                    "--trace-id",
                    "trace:live-publication"
                  ])
@@ -1025,10 +1095,12 @@ defmodule Extravaganza.HeadlessExamplesTest do
     refute output =~ secret
     refute output =~ "live_provider_effect_deferred"
 
-    assert_received {:fetch_linear_candidates, "extravaganza", source_binding, _source_opts}
+    assert_received {:fetch_linear_candidates, tenant_id, source_binding, _source_opts}
+    assert String.starts_with?(tenant_id, "extravaganza-live-")
     assert source_binding.source_binding_id == "linear-primary"
 
-    assert_received {:publish_linear_source, "extravaganza", attrs, opts}
+    assert_received {:publish_linear_source, tenant_id, attrs, opts}
+    assert String.starts_with?(tenant_id, "extravaganza-live-")
     assert attrs.source_binding_id == "linear-primary"
     assert attrs.issue_id == "lin-issue-321"
     assert Keyword.fetch!(opts, :linear_api_key) == secret
@@ -1044,6 +1116,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
                  HeadlessCLI.run(:live_linear_publication, [
                    "--json",
                    "--api-key-stdin",
+                   "--live-product-path",
                    "--issue-id",
                    "lin-issue-321",
                    "--comment-id",
@@ -1062,7 +1135,8 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert decoded["data"]["provider_effect"]["workpad_refs"] == ["linear-comment://comment-1"]
     refute output =~ secret
 
-    assert_received {:publish_linear_source, "extravaganza", attrs, opts}
+    assert_received {:publish_linear_source, tenant_id, attrs, opts}
+    assert String.starts_with?(tenant_id, "extravaganza-live-")
     assert attrs.comment_id == "comment-1"
     assert attrs.body == "Updated by product path"
     assert Keyword.fetch!(opts, :linear_api_key) == secret
@@ -1078,6 +1152,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
                  HeadlessCLI.run(:live_linear_publication, [
                    "--json",
                    "--api-key-stdin",
+                   "--live-product-path",
                    "--issue-id",
                    "lin-issue-321",
                    "--comment-id",
@@ -1100,7 +1175,8 @@ defmodule Extravaganza.HeadlessExamplesTest do
 
     refute output =~ secret
 
-    assert_received {:publish_linear_source, "extravaganza", attrs, _opts}
+    assert_received {:publish_linear_source, tenant_id, attrs, _opts}
+    assert String.starts_with?(tenant_id, "extravaganza-live-")
     assert attrs.comment_id == "stale-comment"
     assert attrs.allow_create_fallback? == true
   end
@@ -1115,6 +1191,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
                  HeadlessCLI.run(:live_linear_publication, [
                    "--json",
                    "--api-key-stdin",
+                   "--live-product-path",
                    "--issue-id",
                    "lin-issue-321",
                    "--state-name",
@@ -1137,7 +1214,8 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert_authority_proof(decoded["data"]["provider_effect"], "linear", "issues-update")
     refute output =~ secret
 
-    assert_received {:publish_linear_source, "extravaganza", attrs, opts}
+    assert_received {:publish_linear_source, tenant_id, attrs, opts}
+    assert String.starts_with?(tenant_id, "extravaganza-live-")
     assert attrs.issue_id == "lin-issue-321"
     assert attrs.state_name == "Done"
     assert attrs.team_id == "team-linear"
@@ -1154,6 +1232,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
                  HeadlessCLI.run(:live_linear_publication, [
                    "--json",
                    "--api-key-stdin",
+                   "--live-product-path",
                    "--issue-id",
                    "lin-issue-321",
                    "--dry-run",
@@ -1178,7 +1257,8 @@ defmodule Extravaganza.HeadlessExamplesTest do
     refute Map.has_key?(decoded["refs"], "source_publication_ref")
     refute output =~ secret
 
-    assert_received {:publish_linear_source, "extravaganza", attrs, opts}
+    assert_received {:publish_linear_source, tenant_id, attrs, opts}
+    assert String.starts_with?(tenant_id, "extravaganza-live-")
     assert attrs.issue_id == "lin-issue-321"
     assert Keyword.fetch!(opts, :dry_run?) == true
     assert Keyword.fetch!(opts, :linear_api_key) == secret
@@ -1247,6 +1327,11 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert decoded["ok"] == true
     assert decoded["operation"] == "live.smoke"
     assert decoded["data"]["status"] == "skipped"
+    assert decoded["data"]["example_mode"] == "deterministic_fixture"
+    assert decoded["data"]["deterministic_fixture?"] == true
+    assert decoded["data"]["live_product_path?"] == false
+    assert decoded["data"]["live_provider_effect?"] == false
+    assert decoded["data"]["requires_live_product_path?"] == true
     assert decoded["data"]["receipt_state"] == "recorded"
     assert decoded["data"]["product_path_exercised?"] == true
     assert decoded["data"]["product_path"]["entrypoint"] == "Extravaganza.ProductHost.live_smoke"
@@ -1307,6 +1392,8 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert decoded["ok"] == true
     assert decoded["operation"] == "live.smoke"
     assert decoded["data"]["status"] == "skipped"
+    assert decoded["data"]["example_mode"] == "deterministic_fixture"
+    assert decoded["data"]["live_provider_effect?"] == false
     assert decoded["data"]["product_path"]["proof_source"] == "fixture_headless_surface"
 
     assert decoded["data"]["product_path"]["lower_path_status"] ==

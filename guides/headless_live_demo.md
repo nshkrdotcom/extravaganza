@@ -12,7 +12,13 @@ These are the user-facing headless entrypoints you can call today:
 - REST API routes under `/api/v1/*` (shared presenter-backed envelopes)
 - Example scripts under `scripts/headless/` for replayable command flows
 
-The same command/result surface is used for fixture and live paths.
+The same command/result surface is used for both modes, but the output labels
+them separately:
+
+- deterministic fixture mode: CI-safe readbacks and fixture receipts; no live
+  provider effect is dispatched.
+- live product path mode: explicit `--live-product-path` execution through the
+  product command path and governed lower providers.
 
 ## Preflight
 
@@ -99,14 +105,28 @@ expects exit code `0` only when the start command returns a valid `ok` envelope.
 
 Live examples are product entrypoints. They require `--live-product-path` to
 start app runtime context. Without it, they intentionally run a fixture-backed
-proof path.
+proof path and report `example_mode: "deterministic_fixture"` plus
+`live_provider_effect?: false`.
 
 ```bash
 mix extravaganza.headless.live.linear_source --live-product-path --json
+mix extravaganza.headless.live.linear_current_states --live-product-path --json
 mix extravaganza.headless.live.codex_turn --live-product-path --json
 mix extravaganza.headless.live.linear_publication --live-product-path --json
+mix extravaganza.headless.live.linear_graphql_tool --live-product-path --json
 mix extravaganza.headless.live.github_evidence --live-product-path --json
 mix extravaganza.headless.live.smoke --live-product-path --json
+```
+
+On this workstation, run live provider checks by prepending the local secrets
+wrapper. The wrapper only injects shell credentials for this node; it is not
+product behavior and the command output must not print secret values.
+
+```bash
+~/scripts/with_bash_secrets mix extravaganza.headless.live.linear_source --live-product-path --json
+~/scripts/with_bash_secrets mix extravaganza.headless.live.codex_turn --live-product-path --json
+~/scripts/with_bash_secrets mix extravaganza.headless.live.github_evidence --live-product-path --json
+~/scripts/with_bash_secrets mix extravaganza.headless.live.smoke --live-product-path --json
 ```
 
 Wrapper script form (same command path):

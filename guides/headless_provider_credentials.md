@@ -47,6 +47,18 @@ Live command aliases in `scripts/headless/*.exs` are thin wrappers:
 `live_linear_source.exs`, `live_codex_turn.exs`, `live_linear_publication.exs`,
 `live_github_evidence.exs`, and `live_smoke.exs`.
 
+On this workstation, prepend `~/scripts/with_bash_secrets` when running live
+provider checks so the local shell gets the provider variables without printing
+their values:
+
+```bash
+~/scripts/with_bash_secrets mix extravaganza.headless.live.linear_source --live-product-path --json
+~/scripts/with_bash_secrets mix extravaganza.headless.live.codex_turn --live-product-path --json
+~/scripts/with_bash_secrets mix extravaganza.headless.live.linear_publication --live-product-path --json
+~/scripts/with_bash_secrets mix extravaganza.headless.live.github_evidence --live-product-path --json
+~/scripts/with_bash_secrets mix extravaganza.headless.live.smoke --live-product-path --json
+```
+
 ### Notes on how values are passed
 
 - Prefer plain shell exports:
@@ -63,10 +75,10 @@ Live command aliases in `scripts/headless/*.exs` are thin wrappers:
 
 Run each provider lane intentionally in two phases.
 
-1) Credential-missing dry run:
+1. Deterministic fixture mode:
 
 ```bash
-mix extravaganza.headless.live.linear_source --live-product-path --json
+mix extravaganza.headless.live.linear_source --json
 ```
 
 Expected `data` shape is:
@@ -74,6 +86,8 @@ Expected `data` shape is:
 ```json
 {
   "status": "skipped",
+  "example_mode": "deterministic_fixture",
+  "live_provider_effect?": false,
   "provider": "linear",
   "credential_refs": ["LINEAR_API_KEY"],
   "provider_effect": {
@@ -85,26 +99,32 @@ Expected `data` shape is:
 }
 ```
 
-2) Credential-provided lane run:
+Supplying credential flags without `--live-product-path` still stays in
+deterministic fixture mode and reports
+`credential_preflight.status: "requires_live_product_path"`.
+
+2. Live product path mode:
 
 ```bash
-export LINEAR_API_KEY=...
-mix extravaganza.headless.live.linear_source --live-product-path --json
+~/scripts/with_bash_secrets mix extravaganza.headless.live.linear_source --live-product-path --json
 ```
 
 Expected change is a shifted code path:
 
 ```json
 {
+  "status": "completed",
+  "example_mode": "live_product_path",
+  "live_provider_effect?": true,
   "provider_effect": {
-    "status": "live_provider_effect_deferred"
+    "status": "receipt_recorded",
+    "provider_request_sent?": true,
+    "provider_response_received?": true,
+    "receipt_recorded?": true,
+    "product_readback_confirmed?": true
   }
 }
 ```
-
-The command still reports `"status": "skipped"` overall because this repo keeps live
-provider side effects explicitly owned by the governed bridge layer, so the
-provider call is only confirmed through lower-layer acceptance proof surfaces.
 
 Repeat that pattern for:
 

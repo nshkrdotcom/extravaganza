@@ -16,4 +16,28 @@ defmodule Extravaganza.HeadlessDocsTest do
     assert guide =~ "AppKit.RuntimeSurface"
     assert guide =~ "AppKit.SourceSurface"
   end
+
+  test "live provider docs distinguish deterministic fixtures from live product proofs" do
+    live_guide_path = Path.expand("../../../guides/headless_live_demo.md", __DIR__)
+
+    credentials_guide_path =
+      Path.expand("../../../guides/headless_provider_credentials.md", __DIR__)
+
+    assert {:ok, live_guide} = File.read(live_guide_path)
+    assert {:ok, credentials_guide} = File.read(credentials_guide_path)
+
+    assert live_guide =~ "deterministic fixture mode"
+    assert live_guide =~ "live product path mode"
+    assert live_guide =~ "--live-product-path"
+    assert live_guide =~ "~/scripts/with_bash_secrets mix extravaganza.headless.live.smoke"
+
+    assert credentials_guide =~
+             "~/scripts/with_bash_secrets mix extravaganza.headless.live.linear_source --live-product-path --json"
+
+    assert credentials_guide =~
+             "~/scripts/with_bash_secrets mix extravaganza.headless.live.codex_turn --live-product-path --json"
+
+    assert credentials_guide =~
+             "~/scripts/with_bash_secrets mix extravaganza.headless.live.github_evidence --live-product-path --json"
+  end
 end

@@ -148,6 +148,7 @@ defmodule Extravaganza.HeadlessLiveExamples do
           "examples" => examples,
           "deterministic_memory_tracker_matrix" => deterministic_memory_tracker_matrix(opts)
         })
+        |> Map.merge(example_mode_fields(opts, summary))
         |> maybe_put("source_publication_ref", aggregate_source_publication_ref(examples))
         |> Map.merge(summary)
 
@@ -187,6 +188,7 @@ defmodule Extravaganza.HeadlessLiveExamples do
         "product_path" => product_path(proof, example.product_entrypoint, provider_effect),
         "provider_effect" => provider_effect
       })
+      |> Map.merge(example_mode_fields(opts, provider_effect))
 
     payload
     |> maybe_put("source_publication_ref", Map.get(provider_effect, "source_publication_ref"))
@@ -195,44 +197,54 @@ defmodule Extravaganza.HeadlessLiveExamples do
   end
 
   defp provider_effect(kind, example, proof, opts) do
-    cond do
-      not credential_supplied?(kind, opts) ->
-        %{
-          "provider" => example.provider,
-          "effect" => example.provider_effect,
-          "capability_ids" => example.capability_ids,
-          "status" => "skipped",
-          "skip_reason" => skip_reason(kind, example, opts),
-          "credential_preflight" => credential_preflight(kind, example, opts)
-        }
+    kind
+    |> provider_effect_for(example, proof, opts)
+    |> annotate_provider_effect(opts)
+  end
 
-      kind == :linear_source ->
-        linear_source_effect(example, proof, opts)
-
-      kind == :linear_current_states ->
-        linear_current_states_effect(example, proof, opts)
-
-      kind == :linear_publication ->
-        linear_publication_effect(example, proof, opts)
-
-      kind == :linear_graphql_tool ->
-        linear_graphql_tool_effect(example, proof, opts)
-
-      kind == :codex_turn ->
-        codex_turn_effect(example, proof, opts)
-
-      kind == :github_evidence ->
-        github_evidence_effect(example, proof, opts)
-
-      true ->
-        %{
-          "provider" => example.provider,
-          "effect" => example.provider_effect,
-          "capability_ids" => example.capability_ids,
-          "status" => "skipped",
-          "skip_reason" => skip_reason(kind, example, opts)
-        }
+  defp provider_effect_for(kind, example, proof, opts) do
+    if provider_effect_skipped?(kind, opts) do
+      skipped_effect(kind, example, opts)
+    else
+      dispatch_provider_effect(kind, example, proof, opts)
     end
+  end
+
+  defp dispatch_provider_effect(:linear_source, example, proof, opts),
+    do: linear_source_effect(example, proof, opts)
+
+  defp dispatch_provider_effect(:linear_current_states, example, proof, opts),
+    do: linear_current_states_effect(example, proof, opts)
+
+  defp dispatch_provider_effect(:linear_publication, example, proof, opts),
+    do: linear_publication_effect(example, proof, opts)
+
+  defp dispatch_provider_effect(:linear_graphql_tool, example, proof, opts),
+    do: linear_graphql_tool_effect(example, proof, opts)
+
+  defp dispatch_provider_effect(:codex_turn, example, proof, opts),
+    do: codex_turn_effect(example, proof, opts)
+
+  defp dispatch_provider_effect(:github_evidence, example, proof, opts),
+    do: github_evidence_effect(example, proof, opts)
+
+  defp dispatch_provider_effect(kind, example, _proof, opts),
+    do: skipped_effect(kind, example, opts)
+
+  defp provider_effect_skipped?(kind, opts) do
+    not credential_supplied?(kind, opts) or
+      (not live_product_path?(opts) and credential_supplied?(kind, opts))
+  end
+
+  defp skipped_effect(kind, example, opts) do
+    %{
+      "provider" => example.provider,
+      "effect" => example.provider_effect,
+      "capability_ids" => example.capability_ids,
+      "status" => "skipped",
+      "skip_reason" => skip_reason(kind, example, opts),
+      "credential_preflight" => credential_preflight(kind, example, opts)
+    }
   end
 
   defp linear_source_effect(example, proof, opts) do
@@ -1963,6 +1975,39 @@ defmodule Extravaganza.HeadlessLiveExamples do
   defp maybe_put_ref(refs, _key, ""), do: refs
   defp maybe_put_ref(refs, key, value), do: Map.put(refs, key, value)
 
+  defp example_mode_fields(opts, proofish) do
+    live_product_path? = live_product_path?(opts)
+
+    %{
+      "example_mode" =>
+        if(live_product_path?, do: "live_product_path", else: "deterministic_fixture"),
+      "deterministic_fixture?" => not live_product_path?,
+      "fixture_backed?" => not live_product_path?,
+      "live_product_path?" => live_product_path?,
+      "live_provider_effect?" => live_product_path? and live_provider_effect_recorded?(proofish),
+      "requires_live_product_path?" => true
+    }
+  end
+
+  defp annotate_provider_effect(provider_effect, opts) do
+    Map.merge(provider_effect, %{
+      "deterministic_fixture?" => deterministic_fixture?(opts),
+      "fixture_backed?" => deterministic_fixture?(opts),
+      "live_product_path?" => live_product_path?(opts),
+      "live_provider_effect?" =>
+        live_product_path?(opts) and live_provider_effect_recorded?(provider_effect)
+    })
+  end
+
+  defp live_provider_effect_recorded?(%{"all_provider_effects_completed?" => true}), do: true
+
+  defp live_provider_effect_recorded?(%{"status" => status})
+       when status in ["receipt_recorded", "governed_denial_recorded"],
+       do: true
+
+  defp live_provider_effect_recorded?(%{"provider_request_sent?" => true}), do: true
+  defp live_provider_effect_recorded?(_value), do: false
+
   defp skip_reason(kind, example, opts) do
     cond do
       credential_ref_present?(opts) ->
@@ -1972,6 +2017,15 @@ defmodule Extravaganza.HeadlessLiveExamples do
           "credential_refs" => example.credential_refs,
           "detail" =>
             "explicit credential refs are redacted metadata; provider dispatch requires the lower connection_id binding"
+        }
+
+      not live_product_path?(opts) and credential_supplied?(kind, opts) ->
+        %{
+          "code" => "live_product_path_required",
+          "provider" => example.provider,
+          "credential_refs" => example.credential_refs,
+          "detail" =>
+            "credential input was accepted only as redacted preflight metadata; live provider dispatch requires --live-product-path"
         }
 
       credential_supplied?(kind, opts) ->
@@ -1998,23 +2052,9 @@ defmodule Extravaganza.HeadlessLiveExamples do
     stdin? = truthy?(Map.get(opts, :api_key_stdin?))
     available? = truthy?(Map.get(opts, :credential_available?))
 
-    status =
-      cond do
-        present?(connection_id) or stdin? or available? or
-            (kind in [:codex_turn, :github_evidence] and
-               truthy?(Map.get(opts, :live_product_path?))) ->
-          "dispatchable"
-
-        present?(credential_ref) or present?(credential_lease_ref) ->
-          "missing_dispatch_binding"
-
-        true ->
-          "missing"
-      end
-
     %{
       "provider" => example.provider,
-      "status" => status,
+      "status" => credential_preflight_status(kind, opts, connection_id, stdin?, available?),
       "dispatch_binding" => credential_dispatch_binding(kind, opts),
       "connection_id" => connection_id,
       "credential_ref" => credential_ref,
@@ -2025,6 +2065,35 @@ defmodule Extravaganza.HeadlessLiveExamples do
     }
     |> compact_map()
   end
+
+  defp credential_preflight_status(kind, opts, connection_id, stdin?, available?) do
+    cond do
+      credential_ref_present?(opts) ->
+        "missing_dispatch_binding"
+
+      deterministic_credential_supplied?(kind, opts) ->
+        "requires_live_product_path"
+
+      deterministic_fixture?(opts) ->
+        "fixture_only"
+
+      dispatchable_credential?(kind, opts, connection_id, stdin?, available?) ->
+        "dispatchable"
+
+      true ->
+        "missing"
+    end
+  end
+
+  defp deterministic_credential_supplied?(kind, opts),
+    do: deterministic_fixture?(opts) and credential_supplied?(kind, opts)
+
+  defp dispatchable_credential?(kind, opts, connection_id, stdin?, available?) do
+    present?(connection_id) or stdin? or available? or app_config_credential?(kind, opts)
+  end
+
+  defp app_config_credential?(kind, opts),
+    do: kind in [:codex_turn, :github_evidence] and live_product_path?(opts)
 
   defp credential_dispatch_binding(kind, opts) do
     cond do
@@ -2103,6 +2172,9 @@ defmodule Extravaganza.HeadlessLiveExamples do
       (present?(string_value(opts, :credential_ref)) or
          present?(string_value(opts, :credential_lease_ref)))
   end
+
+  defp live_product_path?(opts), do: truthy?(Map.get(opts, :live_product_path?))
+  defp deterministic_fixture?(opts), do: not live_product_path?(opts)
 
   defp present?(value) when is_binary(value), do: String.trim(value) != ""
   defp present?(value), do: not is_nil(value)
