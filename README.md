@@ -3,8 +3,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/nshkrdotcom/extravaganza/actions/workflows/ci.yml">
-    <img alt="GitHub Actions Workflow Status" src="https://github.com/nshkrdotcom/extravaganza/actions/workflows/ci.yml/badge.svg" />
+  <a href="https://github.com/nshkrdotcom/extravaganza">
+    <img alt="GitHub: extravaganza" src="https://img.shields.io/badge/GitHub-extravaganza-0b0f14?logo=github" />
   </a>
   <a href="https://github.com/nshkrdotcom/extravaganza/blob/main/LICENSE">
     <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-0b0f14.svg" />
