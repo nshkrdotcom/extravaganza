@@ -76,6 +76,12 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
     orchestrator_state = body["data"]["data"]["symphony_orchestrator_state"]
     assert orchestrator_state["counts"] == %{"running" => 1, "retrying" => 2, "completed" => 1}
 
+    operator_dashboard = body["data"]["data"]["operator_dashboard"]
+    assert operator_dashboard["replacement_for"] == "symphony_status_dashboard"
+    assert operator_dashboard["counts"] == orchestrator_state["counts"]
+    assert operator_dashboard["surface_links"]["events"] == "/api/v1/events"
+    assert operator_dashboard["surface_links"]["logs"] == "/api/v1/logs"
+
     [running | _rest] = orchestrator_state["running"]
     assert running["session_id"] == "session:running"
     assert running["turn_count"] == 7
@@ -115,6 +121,55 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
     assert issue["data"]["data"]["subject_ref"] == "ENG-42"
     assert issue["data"]["data"]["summary"]["issue_identifier"] == "ENG-42"
     assert issue["data"]["data"]["subject_readback_coverage_gaps"] == []
+
+    observability_issue = issue["data"]["data"]["observability_issue"]
+    assert observability_issue["replacement_for"] == "symphony_issue_payload"
+    assert observability_issue["issue_identifier"] == "ENG-42"
+    assert observability_issue["issue_id"] == "ENG-42"
+    assert observability_issue["status"] == "review_pending"
+    assert observability_issue["subject_ref"] == "ENG-42"
+    assert observability_issue["source_ref"] == "linear://fixture/issue/ENG-42"
+    assert observability_issue["run_ref"] == "run:fixture"
+
+    assert observability_issue["workspace"] == %{
+             "display_label" => "Fixture workspace",
+             "path_redacted?" => true,
+             "ref" => "workspace:fixture"
+           }
+
+    assert observability_issue["attempts"] == %{
+             "current_retry_attempt" => 0,
+             "restart_count" => 0
+           }
+
+    assert observability_issue["runtime"] == %{
+             "execution_ref" => "execution:fixture",
+             "run_ref" => "run:fixture",
+             "state" => "review_pending",
+             "updated_at" => "2026-04-27T00:07:00Z"
+           }
+
+    assert observability_issue["running"] == nil
+    assert observability_issue["retry"] == nil
+
+    assert observability_issue["logs"] == %{
+             "codex_session_logs" => [],
+             "runtime_logs" => "/api/v1/logs?subject_id=ENG-42"
+           }
+
+    assert Enum.map(observability_issue["recent_events"], & &1["event"]) == [
+             "run_started",
+             "future_m2_state_added"
+           ]
+
+    assert observability_issue["last_error"] == nil
+
+    assert observability_issue["tracked"] == %{
+             "provider" => "linear",
+             "provider_external_ref" => "lin-issue-42",
+             "source_state" => "Todo",
+             "workflow_state" => "Todo"
+           }
 
     assert Enum.any?(
              subject["data"]["data"]["events"],
@@ -192,6 +247,14 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
     assert refresh["data"]["schema_ref"] == "headless_command_result.v1"
     assert refresh["data"]["data"]["command_kind"] == "refresh"
     assert refresh["data"]["data"]["workflow_effect_state"] == "pending_signal"
+
+    observability_refresh = refresh["data"]["data"]["observability_refresh"]
+    assert observability_refresh["replacement_for"] == "symphony_refresh_payload"
+    assert observability_refresh["queued"] == true
+    assert observability_refresh["coalesced"] == false
+    assert observability_refresh["operations"] == ["poll", "reconcile"]
+    assert observability_refresh["requested_at"] == refresh["data"]["generated_at"]
+    assert is_binary(observability_refresh["correlation_id"])
 
     for action <- ~w[pause resume cancel retry] do
       accepted =

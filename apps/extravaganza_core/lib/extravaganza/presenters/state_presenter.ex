@@ -803,36 +803,58 @@ defmodule Extravaganza.Presenters.SubjectPresenter do
     "action" => :action,
     "action_kind" => :action_kind,
     "allowed_operations" => :allowed_operations,
+    "attempt" => :attempt,
     "available_actions" => :available_actions,
     "blocker_ref" => :blocker_ref,
     "blocker_refs" => :blocker_refs,
     "blocking_conditions" => :blocking_conditions,
     "branch_ref" => :branch_ref,
+    "code" => :code,
     "description" => :description,
+    "display_label" => :display_label,
+    "due_at" => :due_at,
     "events" => :events,
+    "event_kind" => :event_kind,
+    "event_ref" => :event_ref,
     "execution_ref" => :execution_ref,
     "identifier" => :identifier,
     "issue_identifier" => :issue_identifier,
     "labels" => :labels,
+    "last_error_ref" => :last_error_ref,
+    "lifecycle_state" => :lifecycle_state,
+    "message" => :message,
+    "message_summary" => :message_summary,
+    "observed_at" => :observed_at,
     "operation" => :operation,
+    "path_redacted?" => :path_redacted?,
     "priority" => :priority,
+    "provider" => :provider,
+    "provider_external_ref" => :provider_external_ref,
     "provider_refs" => :provider_refs,
     "read_lease" => :read_lease,
     "read_leases" => :read_leases,
     "reason" => :reason,
     "reason_code" => :reason_code,
+    "retries" => :retries,
+    "retry_ref" => :retry_ref,
     "run_ref" => :run_ref,
     "runs" => :runs,
+    "scheduled_at" => :scheduled_at,
+    "severity" => :severity,
     "source" => :source,
     "source_binding_id" => :source_binding_id,
     "source_ref" => :source_ref,
     "source_state" => :source_state,
     "source_url" => :source_url,
     "state" => :state,
+    "status" => :status,
     "stream_attach_lease" => :stream_attach_lease,
     "subject_ref" => :subject_ref,
     "summary" => :summary,
-    "title" => :title
+    "title" => :title,
+    "updated_at" => :updated_at,
+    "workflow_state" => :workflow_state,
+    "workspace_ref" => :workspace_ref
   }
 
   @spec present(struct() | map(), keyword()) :: map()
@@ -869,8 +891,172 @@ defmodule Extravaganza.Presenters.SubjectPresenter do
     coverage = subject_readback_coverage(data)
 
     data
+    |> Map.put("observability_issue", observability_issue(data))
     |> Map.put("subject_readback_coverage", coverage)
     |> Map.put("subject_readback_coverage_gaps", subject_readback_coverage_gaps(coverage))
+  end
+
+  defp observability_issue(data) do
+    summary = map_value(data, "summary") || %{}
+    source = map_value(summary, "source") || %{}
+    runtime_row = map_value(data, "runtime_row") || %{}
+    issue_identifier = issue_identifier(data, summary, source)
+    retry = retry_projection(data)
+
+    %{
+      "replacement_for" => "symphony_issue_payload",
+      "issue_identifier" => issue_identifier,
+      "issue_id" => issue_id(source, issue_identifier),
+      "status" => observability_status(runtime_row, summary, source),
+      "subject_ref" => map_value(data, "subject_ref"),
+      "source_ref" => map_value(source, "source_ref"),
+      "run_ref" => observability_run_ref(data, runtime_row),
+      "workspace" => observability_workspace(map_value(runtime_row, "workspace_ref")),
+      "attempts" => retry_attempts(retry),
+      "runtime" => runtime_projection(runtime_row),
+      "running" => running_projection(runtime_row),
+      "retry" => retry,
+      "logs" => %{
+        "codex_session_logs" => [],
+        "runtime_logs" =>
+          "/api/v1/logs?subject_id=#{runtime_logs_subject(data, issue_identifier)}"
+      },
+      "recent_events" =>
+        data
+        |> list_value("events")
+        |> Enum.map(&recent_event_projection/1),
+      "last_error" => last_error(data),
+      "tracked" => tracked_source(source)
+    }
+    |> compact_map()
+  end
+
+  defp issue_identifier(data, summary, source) do
+    map_value(summary, "issue_identifier") ||
+      map_value(source, "identifier") ||
+      map_value(source, "source_id") ||
+      map_value(data, "subject_ref")
+  end
+
+  defp issue_id(source, issue_identifier), do: map_value(source, "source_id") || issue_identifier
+
+  defp observability_status(runtime_row, summary, source) do
+    Enum.find(
+      [
+        map_value(runtime_row, "state"),
+        map_value(summary, "lifecycle_state"),
+        map_value(source, "workflow_state")
+      ],
+      &present?/1
+    )
+  end
+
+  defp observability_run_ref(data, runtime_row),
+    do: map_value(runtime_row, "run_ref") || first_run_ref(data)
+
+  defp runtime_logs_subject(data, issue_identifier),
+    do: issue_identifier || map_value(data, "subject_ref") || "unknown"
+
+  defp first_run_ref(data) do
+    data
+    |> list_value("runs")
+    |> Enum.find_value(&map_value(&1, "run_ref"))
+  end
+
+  defp observability_workspace(%{} = workspace_ref) do
+    %{
+      "ref" => map_value(workspace_ref, "id"),
+      "display_label" => map_value(workspace_ref, "display_label"),
+      "path_redacted?" => true
+    }
+    |> compact_map()
+  end
+
+  defp observability_workspace(_workspace_ref), do: %{"path_redacted?" => true}
+
+  defp retry_projection(data) do
+    data
+    |> list_value("retries")
+    |> List.first()
+    |> case do
+      %{} = retry ->
+        %{
+          "retry_ref" => map_value(retry, "retry_ref"),
+          "attempt" => map_value(retry, "attempt"),
+          "status" => map_value(retry, "status"),
+          "reason" => map_value(retry, "reason"),
+          "due_at" => map_value(retry, "due_at") || map_value(retry, "scheduled_at"),
+          "last_error_ref" => map_value(retry, "last_error_ref")
+        }
+        |> compact_map()
+
+      _value ->
+        nil
+    end
+  end
+
+  defp retry_attempts(nil), do: %{"current_retry_attempt" => 0, "restart_count" => 0}
+
+  defp retry_attempts(%{} = retry) do
+    attempt = integer_or_zero(map_value(retry, "attempt"))
+
+    %{
+      "current_retry_attempt" => attempt,
+      "restart_count" => attempt
+    }
+  end
+
+  defp runtime_projection(runtime_row) do
+    %{
+      "state" => map_value(runtime_row, "state"),
+      "run_ref" => map_value(runtime_row, "run_ref"),
+      "execution_ref" => map_value(runtime_row, "execution_ref"),
+      "updated_at" => map_value(runtime_row, "updated_at")
+    }
+    |> compact_map()
+  end
+
+  defp running_projection(runtime_row) do
+    if map_value(runtime_row, "state") in ["running", "in_flight", "accepted_active"] do
+      runtime_projection(runtime_row)
+    end
+  end
+
+  defp recent_event_projection(event) do
+    %{
+      "event_ref" => map_value(event, "event_ref"),
+      "event" => map_value(event, "event_kind"),
+      "at" => map_value(event, "observed_at"),
+      "message" => map_value(event, "message_summary")
+    }
+    |> compact_map()
+  end
+
+  defp last_error(data) do
+    data
+    |> list_value("diagnostics")
+    |> Enum.find(&(map_value(&1, "severity") == "error"))
+    |> case do
+      %{} = diagnostic ->
+        %{
+          "code" => map_value(diagnostic, "code"),
+          "message" => map_value(diagnostic, "message")
+        }
+        |> compact_map()
+
+      _value ->
+        nil
+    end
+  end
+
+  defp tracked_source(source) do
+    %{
+      "provider" => map_value(source, "provider"),
+      "provider_external_ref" => map_value(source, "provider_external_ref"),
+      "source_state" => map_value(source, "source_state"),
+      "workflow_state" => map_value(source, "workflow_state")
+    }
+    |> compact_map()
   end
 
   defp subject_readback_coverage(data) do
@@ -1081,6 +1267,9 @@ defmodule Extravaganza.Presenters.SubjectPresenter do
   end
 
   defp map_value(_map, _key), do: nil
+
+  defp integer_or_zero(value) when is_integer(value), do: value
+  defp integer_or_zero(_value), do: 0
 
   defp compact_map(map), do: Map.reject(map, fn {_key, value} -> value in [nil, []] end)
 end

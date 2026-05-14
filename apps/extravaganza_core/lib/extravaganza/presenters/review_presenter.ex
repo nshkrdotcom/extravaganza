@@ -290,6 +290,7 @@ defmodule Extravaganza.Presenters.CommandResultPresenter do
     result
     |> Presenter.present(opts)
     |> put_in(["schema_ref"], "headless_command_result.v1")
+    |> update_in(["data"], &with_observability_refresh(&1, opts))
     |> JSONSupport.normalize()
   end
 
@@ -325,6 +326,7 @@ defmodule Extravaganza.Presenters.CommandResultPresenter do
           "metadata" => metadata
         }
         |> compact_map()
+        |> with_observability_refresh(opts)
     }
   end
 
@@ -334,7 +336,7 @@ defmodule Extravaganza.Presenters.CommandResultPresenter do
       "schema_version" => 1,
       "generated_at" => Keyword.get(opts, :generated_at),
       "correlation_id" => Keyword.get(opts, :correlation_id),
-      "data" => dump_value(result)
+      "data" => result |> dump_value() |> with_observability_refresh(opts)
     }
   end
 
@@ -359,6 +361,41 @@ defmodule Extravaganza.Presenters.CommandResultPresenter do
         %{} = effect -> map_value(effect, "workflow_effect_state")
         _other -> nil
       end
+  end
+
+  defp with_observability_refresh(data, opts) when is_map(data) do
+    if map_value(data, "command_kind") == "refresh" do
+      Map.put(data, "observability_refresh", observability_refresh(data, opts))
+    else
+      data
+    end
+  end
+
+  defp with_observability_refresh(data, _opts), do: data
+
+  defp observability_refresh(data, opts) do
+    %{
+      "replacement_for" => "symphony_refresh_payload",
+      "queued" => refresh_queued?(data),
+      "coalesced" => map_value(data, "coalesced?") || false,
+      "requested_at" =>
+        map_value(data, "requested_at") ||
+          map_value(data, "accepted_at") ||
+          Keyword.get(opts, :generated_at),
+      "operations" => ["poll", "reconcile"],
+      "correlation_id" => map_value(data, "correlation_id") || Keyword.get(opts, :correlation_id)
+    }
+    |> compact_map()
+  end
+
+  defp refresh_queued?(data) do
+    accepted? = map_value(data, "accepted?")
+    status = map_value(data, "status")
+    workflow_effect_state = map_value(data, "workflow_effect_state")
+
+    accepted? != false and
+      (status in ["accepted", "pending_signal", "queued"] or
+         workflow_effect_state in ["pending_signal", "accepted", "queued_signal", "queued"])
   end
 
   defp dump_value(%DateTime{} = value), do: DateTime.to_iso8601(value)

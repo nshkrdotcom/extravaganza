@@ -40,6 +40,10 @@ defmodule Extravaganza.HeadlessDocsTest do
     assert live_guide =~ "tokens-per-second throughput"
     assert live_guide =~ "open http://localhost:4000/operator-console"
     assert live_guide =~ "curl http://localhost:4000/api/v1/events"
+    assert live_guide =~ "## Symphony API Compatibility"
+    assert live_guide =~ "`GET /api/v1/:issue_identifier`"
+    assert live_guide =~ "`observability_issue`"
+    assert live_guide =~ "`observability_refresh`"
 
     assert credentials_guide =~
              "~/scripts/with_bash_secrets mix extravaganza.headless.live.linear_source --live-product-path --json"

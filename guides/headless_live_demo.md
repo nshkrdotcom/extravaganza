@@ -246,6 +246,27 @@ All responses use the same top-level envelope shape as mix commands:
 }
 ```
 
+## Symphony API Compatibility
+
+Extravaganza preserves Symphony's minimum observability API routes while keeping
+the product-owned envelope and AppKit-backed readback boundary:
+
+- `GET /api/v1/state` returns `headless_state_snapshot.v1` and includes both
+  `symphony_orchestrator_state` and `operator_dashboard` projections for the
+  former terminal dashboard state.
+- `GET /api/v1/:issue_identifier` returns `headless_subject_detail.v1` and
+  includes `observability_issue` with issue identity, subject/source/run refs,
+  runtime state, retry/attempt fields, recent events, tracked source metadata,
+  and log links. Workspace identity is represented by a redacted workspace ref,
+  not a raw path.
+- `POST /api/v1/refresh` returns `202` with `headless_command_result.v1` and
+  includes `observability_refresh` with queued/coalesced status, requested time,
+  correlation id, and the poll/reconcile operations requested from the product
+  headless surface.
+
+Method-not-allowed, not-found, timeout, and unavailable responses use the same
+standard JSON error envelope as the rest of the Extravaganza API.
+
 ## Script inventory
 
 Use these scripts for onboarding and smoke runs:

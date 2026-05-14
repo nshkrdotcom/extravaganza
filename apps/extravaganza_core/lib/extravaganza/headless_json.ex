@@ -124,7 +124,7 @@ defmodule Extravaganza.HeadlessJSON do
   def sanitize(value, secret_values) when is_binary(value) do
     value = redact_secret_values(value, secret_values)
 
-    if absolute_path?(value), do: "[redacted-path]", else: value
+    if absolute_path?(value) and not safe_route_path?(value), do: "[redacted-path]", else: value
   end
 
   def sanitize(value, _secret_values) when is_atom(value), do: Atom.to_string(value)
@@ -134,6 +134,11 @@ defmodule Extravaganza.HeadlessJSON do
     Path.type(value) == :absolute
   rescue
     ArgumentError -> false
+  end
+
+  defp safe_route_path?(value) do
+    String.starts_with?(value, ["/api/", "/queue", "/operator-console", "/reviews", "/subjects/"]) or
+      value == "/"
   end
 
   defp subject_paths do
