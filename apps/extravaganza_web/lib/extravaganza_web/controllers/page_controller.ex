@@ -8,6 +8,7 @@ defmodule ExtravaganzaWeb.PageController do
 
   @observability_stream_timeout_ms 30_000
 
+  @spec home(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def home(conn, _params) do
     render(conn, :home,
       identity: Extravaganza.identity(),
@@ -16,6 +17,7 @@ defmodule ExtravaganzaWeb.PageController do
     )
   end
 
+  @spec queue(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def queue(conn, params) do
     case ProductHost.operator_queue(params) do
       {:ok, queue} ->
@@ -44,6 +46,7 @@ defmodule ExtravaganzaWeb.PageController do
     end
   end
 
+  @spec reviews(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def reviews(conn, params) do
     case ProductHost.pending_reviews(params) do
       {:ok, reviews_page} ->
@@ -71,6 +74,7 @@ defmodule ExtravaganzaWeb.PageController do
     end
   end
 
+  @spec operator_console(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def operator_console(conn, _params) do
     {runtime_dashboard, runtime_dashboard_error} = runtime_dashboard()
 
@@ -95,6 +99,7 @@ defmodule ExtravaganzaWeb.PageController do
     end
   end
 
+  @spec operator_console_updates(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def operator_console_updates(conn, params) do
     conn =
       conn
@@ -115,10 +120,12 @@ defmodule ExtravaganzaWeb.PageController do
     end
   end
 
+  @spec subject(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def subject(conn, %{"subject_id" => subject_id}) do
     render_subject(conn, subject_id, %{})
   end
 
+  @spec apply_subject_action(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def apply_subject_action(conn, %{"subject_id" => subject_id, "action" => action} = params) do
     case ProductHost.apply_subject_action(subject_id, action, subject_action_params(params)) do
       {:ok, result} ->
@@ -139,6 +146,7 @@ defmodule ExtravaganzaWeb.PageController do
     end
   end
 
+  @spec issue_read_lease(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def issue_read_lease(conn, %{"subject_id" => subject_id}) do
     case ProductHost.issue_read_lease(subject_id) do
       {:ok, read_lease} ->
@@ -151,6 +159,7 @@ defmodule ExtravaganzaWeb.PageController do
     end
   end
 
+  @spec issue_stream_attach_lease(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def issue_stream_attach_lease(conn, %{"subject_id" => subject_id}) do
     case ProductHost.issue_stream_attach_lease(subject_id) do
       {:ok, stream_attach_lease} ->
@@ -163,6 +172,7 @@ defmodule ExtravaganzaWeb.PageController do
     end
   end
 
+  @spec record_review_decision(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def record_review_decision(
         conn,
         %{"decision_id" => decision_id, "decision" => decision} = params

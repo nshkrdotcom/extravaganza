@@ -32,6 +32,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
     "internal_error" => :internal_server_error
   }
 
+  @spec state(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def state(conn, params) do
     case HeadlessSurface.state_snapshot(params) do
       {:ok, snapshot} ->
@@ -42,6 +43,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
     end
   end
 
+  @spec status(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def status(conn, params) do
     case HeadlessSurface.runtime_status(params) do
       {:ok, status} ->
@@ -56,6 +58,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
     end
   end
 
+  @spec logs(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def logs(conn, params) do
     case HeadlessSurface.runtime_logs(params) do
       {:ok, logs} ->
@@ -66,6 +69,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
     end
   end
 
+  @spec profile(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def profile(conn, params) do
     case SymphonyWorkflowImport.profile(params) do
       {:ok, profile} -> render_success(conn, :profile, profile)
@@ -73,6 +77,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
     end
   end
 
+  @spec profile_validate(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def profile_validate(conn, params) do
     case SymphonyWorkflowImport.profile(params) do
       {:ok, %{"validation" => %{"status" => "valid"}} = profile} ->
@@ -86,6 +91,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
     end
   end
 
+  @spec profile_reload(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def profile_reload(conn, params) do
     result =
       with {:ok, reload} <- SymphonyWorkflowImport.reload(params) do
@@ -98,6 +104,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
     end
   end
 
+  @spec subject(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def subject(conn, %{"subject_id" => subject_id} = params) do
     case HeadlessSurface.subject_detail(subject_id, params) do
       {:ok, detail} ->
@@ -108,6 +115,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
     end
   end
 
+  @spec issue_subject(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def issue_subject(conn, %{"issue_identifier" => issue_identifier} = params) do
     case HeadlessSurface.subject_by_issue_identifier(issue_identifier, params) do
       {:ok, detail} ->
@@ -118,6 +126,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
     end
   end
 
+  @spec run(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def run(conn, %{"run_id" => run_id} = params) do
     case HeadlessSurface.run_detail(run_id, params) do
       {:ok, detail} ->
@@ -128,6 +137,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
     end
   end
 
+  @spec refresh(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def refresh(conn, params) do
     case HeadlessSurface.request_refresh(params) do
       {:ok, result} ->
@@ -146,6 +156,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
     end
   end
 
+  @spec control(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def control(conn, %{"subject_id" => subject_id, "action" => action} = params) do
     case HeadlessSurface.request_control(subject_id, action, params) do
       {:ok, result} ->
@@ -167,6 +178,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
     end
   end
 
+  @spec read_lease(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def read_lease(conn, %{"subject_id" => subject_id}) do
     case HeadlessSurface.issue_read_lease(subject_id) do
       {:ok, lease} ->
@@ -177,6 +189,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
     end
   end
 
+  @spec stream_attach_lease(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def stream_attach_lease(conn, %{"subject_id" => subject_id}) do
     case HeadlessSurface.issue_stream_attach_lease(subject_id) do
       {:ok, lease} ->
@@ -191,6 +204,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
     end
   end
 
+  @spec source_publication(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def source_publication(conn, %{"subject_id" => subject_id}) do
     case HeadlessSurface.source_publication_preview(subject_id) do
       {:ok, preview} ->
@@ -205,6 +219,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
     end
   end
 
+  @spec source_publish(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def source_publish(conn, params) do
     case HeadlessSurface.publish_linear_source(source_publish_attrs(params)) do
       {:ok, result} ->
@@ -228,6 +243,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
     end
   end
 
+  @spec reviews(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def reviews(conn, params) do
     case HeadlessSurface.list_reviews(params) do
       {:ok, reviews_page} ->
@@ -242,6 +258,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
     end
   end
 
+  @spec review_decision(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def review_decision(conn, %{"decision_id" => decision_id, "decision" => decision} = params) do
     review_identity = %{
       id: decision_id,
@@ -273,6 +290,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
     end
   end
 
+  @spec evidence(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def evidence(conn, %{"run_id" => run_id} = params) do
     case HeadlessSurface.evidence_chain(run_id, params) do
       {:ok, evidence} ->
@@ -283,6 +301,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
     end
   end
 
+  @spec events(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def events(conn, params) do
     case HeadlessSurface.events(params) do
       {:ok, events} ->
@@ -293,7 +312,10 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
     end
   end
 
+  @spec method_not_allowed(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def method_not_allowed(conn, _params), do: render_error(conn, :method_not_allowed)
+
+  @spec not_found(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def not_found(conn, _params), do: render_error(conn, :not_found)
 
   defp render_success(conn, operation, data) do

@@ -152,6 +152,7 @@ defmodule Extravaganza.Presenters.StatePresenter do
     }
   end
 
+  @spec future_m2_slots() :: map()
   def future_m2_slots, do: @future_m2_slots
 
   defp with_queue_entry_eligibility(%{payload: payload} = entry) when is_map(payload) do
@@ -752,6 +753,7 @@ end
 defmodule Extravaganza.Presenters.JSONSupport do
   @moduledoc false
 
+  @spec normalize(term()) :: term()
   def normalize(%{} = map) do
     Map.new(map, fn {key, value} -> {key, normalize(value)} end)
   end

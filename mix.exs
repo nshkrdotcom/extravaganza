@@ -69,6 +69,7 @@ defmodule Extravaganza.MixProject do
         no_bypass_gate(),
         "format --check-formatted",
         "compile --warnings-as-errors",
+        "extravaganza.headless.specs.check",
         "cmd env MIX_ENV=test mix test",
         "credo --strict",
         "dialyzer --force-check",

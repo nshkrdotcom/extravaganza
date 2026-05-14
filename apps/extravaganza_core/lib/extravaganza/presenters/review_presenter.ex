@@ -340,6 +340,7 @@ defmodule Extravaganza.Presenters.CommandResultPresenter do
     }
   end
 
+  @spec error(atom() | String.t(), String.t(), keyword()) :: map()
   def error(code, message, opts \\ []) do
     %{
       "error" => %{

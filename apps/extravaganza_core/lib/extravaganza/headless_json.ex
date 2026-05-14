@@ -95,8 +95,10 @@ defmodule Extravaganza.HeadlessJSON do
     |> put_ref("idempotency_key", first_path(data, idempotency_paths()))
   end
 
+  @spec sanitize(term()) :: term()
   def sanitize(value), do: sanitize(value, [])
 
+  @spec sanitize(term(), [String.t()]) :: term()
   def sanitize(%DateTime{} = value, _secret_values), do: DateTime.to_iso8601(value)
   def sanitize(%NaiveDateTime{} = value, _secret_values), do: NaiveDateTime.to_iso8601(value)
   def sanitize(%Date{} = value, _secret_values), do: Date.to_iso8601(value)

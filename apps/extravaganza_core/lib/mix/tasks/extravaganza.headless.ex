@@ -88,6 +88,7 @@ defmodule Mix.Tasks.Extravaganza.Headless.TaskSupport do
   end
 
   @doc false
+  @spec start_app?(atom(), [String.t()]) :: boolean()
   def start_app?(operation, argv) do
     cond do
       "--fixture" in argv -> false
@@ -113,6 +114,7 @@ defmodule Mix.Tasks.Extravaganza.Headless.State do
 
   @moduledoc false
   @shortdoc "Print headless state JSON"
+  @impl Mix.Task
   def run(argv), do: TaskSupport.run(:state, argv)
 end
 
@@ -123,6 +125,7 @@ defmodule Mix.Tasks.Extravaganza.Headless.Queue do
 
   @moduledoc false
   @shortdoc "Print headless queue JSON"
+  @impl Mix.Task
   def run(argv), do: TaskSupport.run(:queue, argv)
 end
 
@@ -133,6 +136,7 @@ defmodule Mix.Tasks.Extravaganza.Headless.Subject do
 
   @moduledoc false
   @shortdoc "Print headless subject detail JSON"
+  @impl Mix.Task
   def run(argv), do: TaskSupport.run(:subject, argv)
 end
 
@@ -143,6 +147,7 @@ defmodule Mix.Tasks.Extravaganza.Headless.Run do
 
   @moduledoc false
   @shortdoc "Print headless run detail JSON"
+  @impl Mix.Task
   def run(argv), do: TaskSupport.run(:run, argv)
 end
 
@@ -153,6 +158,7 @@ defmodule Mix.Tasks.Extravaganza.Headless.Start do
 
   @moduledoc false
   @shortdoc "Start a headless run"
+  @impl Mix.Task
   def run(argv), do: TaskSupport.run(:start, argv)
 end
 
@@ -163,6 +169,7 @@ defmodule Mix.Tasks.Extravaganza.Headless.Refresh do
 
   @moduledoc false
   @shortdoc "Request a headless refresh"
+  @impl Mix.Task
   def run(argv), do: TaskSupport.run(:refresh, argv)
 end
 
@@ -173,6 +180,7 @@ defmodule Mix.Tasks.Extravaganza.Headless.Control do
 
   @moduledoc false
   @shortdoc "Send a headless control command"
+  @impl Mix.Task
   def run(argv), do: TaskSupport.run(:control, argv)
 end
 
@@ -183,6 +191,7 @@ defmodule Mix.Tasks.Extravaganza.Headless.Reviews do
 
   @moduledoc false
   @shortdoc "Print pending headless reviews"
+  @impl Mix.Task
   def run(argv), do: TaskSupport.run(:reviews, argv)
 end
 
@@ -193,6 +202,7 @@ defmodule Mix.Tasks.Extravaganza.Headless.Review do
 
   @moduledoc false
   @shortdoc "Record a headless review decision"
+  @impl Mix.Task
   def run(argv), do: TaskSupport.run(:review, argv)
 end
 
@@ -203,6 +213,7 @@ defmodule Mix.Tasks.Extravaganza.Headless.SourcePreview do
 
   @moduledoc false
   @shortdoc "Print source publication preview"
+  @impl Mix.Task
   def run(argv), do: TaskSupport.run(:source_preview, argv)
 end
 
@@ -213,6 +224,7 @@ defmodule Mix.Tasks.Extravaganza.Headless.Source.Sync do
 
   @moduledoc false
   @shortdoc "Sync a deterministic Linear-shaped source page"
+  @impl Mix.Task
   def run(argv), do: TaskSupport.run(:source_sync, argv)
 end
 
@@ -223,6 +235,7 @@ defmodule Mix.Tasks.Extravaganza.Headless.SourceSync do
 
   @moduledoc false
   @shortdoc "Sync a deterministic Linear-shaped source page"
+  @impl Mix.Task
   def run(argv), do: TaskSupport.run(:source_sync, argv)
 end
 
@@ -233,6 +246,7 @@ defmodule Mix.Tasks.Extravaganza.Headless.SourcePublish do
 
   @moduledoc false
   @shortdoc "Publish a governed Linear source update"
+  @impl Mix.Task
   def run(argv), do: TaskSupport.run(:source_publish, argv)
 end
 
@@ -243,6 +257,7 @@ defmodule Mix.Tasks.Extravaganza.Headless.Profile do
 
   @moduledoc false
   @shortdoc "Print imported Symphony workflow profile JSON"
+  @impl Mix.Task
   def run(argv), do: TaskSupport.run(:profile, argv)
 end
 
@@ -253,6 +268,7 @@ defmodule Mix.Tasks.Extravaganza.Headless.ProfileReload do
 
   @moduledoc false
   @shortdoc "Reload an imported Symphony workflow profile"
+  @impl Mix.Task
   def run(argv), do: TaskSupport.run(:profile_reload, argv)
 end
 
@@ -263,6 +279,7 @@ defmodule Mix.Tasks.Extravaganza.Headless.ProfileValidate do
 
   @moduledoc false
   @shortdoc "Validate an imported Symphony workflow profile"
+  @impl Mix.Task
   def run(argv), do: TaskSupport.run(:profile_validate, argv)
 end
 
@@ -273,6 +290,7 @@ defmodule Mix.Tasks.Extravaganza.Headless.Status do
 
   @moduledoc false
   @shortdoc "Print headless runtime status JSON"
+  @impl Mix.Task
   def run(argv), do: TaskSupport.run(:status, argv)
 end
 
@@ -283,6 +301,7 @@ defmodule Mix.Tasks.Extravaganza.Headless.Logs do
 
   @moduledoc false
   @shortdoc "Print headless runtime logs JSON"
+  @impl Mix.Task
   def run(argv), do: TaskSupport.run(:logs, argv)
 end
 
@@ -293,6 +312,7 @@ defmodule Mix.Tasks.Extravaganza.Headless.Live.LinearSource do
 
   @moduledoc false
   @shortdoc "Run the live-gated Linear source example"
+  @impl Mix.Task
   def run(argv), do: TaskSupport.run(:live_linear_source, argv)
 end
 
@@ -303,6 +323,7 @@ defmodule Mix.Tasks.Extravaganza.Headless.LiveLinearSource do
 
   @moduledoc false
   @shortdoc "Run the live-gated Linear source example"
+  @impl Mix.Task
   def run(argv), do: TaskSupport.run(:live_linear_source, argv)
 end
 
@@ -313,6 +334,7 @@ defmodule Mix.Tasks.Extravaganza.Headless.Live.LinearCurrentStates do
 
   @moduledoc false
   @shortdoc "Run the live-gated Linear current-state example"
+  @impl Mix.Task
   def run(argv), do: TaskSupport.run(:live_linear_current_states, argv)
 end
 
@@ -323,6 +345,7 @@ defmodule Mix.Tasks.Extravaganza.Headless.LiveLinearCurrentStates do
 
   @moduledoc false
   @shortdoc "Run the live-gated Linear current-state example"
+  @impl Mix.Task
   def run(argv), do: TaskSupport.run(:live_linear_current_states, argv)
 end
 
@@ -333,6 +356,7 @@ defmodule Mix.Tasks.Extravaganza.Headless.Live.CodexTurn do
 
   @moduledoc false
   @shortdoc "Run the live-gated Codex turn example"
+  @impl Mix.Task
   def run(argv), do: TaskSupport.run(:live_codex_turn, argv)
 end
 
@@ -343,6 +367,7 @@ defmodule Mix.Tasks.Extravaganza.Headless.LiveCodexTurn do
 
   @moduledoc false
   @shortdoc "Run the live-gated Codex turn example"
+  @impl Mix.Task
   def run(argv), do: TaskSupport.run(:live_codex_turn, argv)
 end
 
@@ -353,6 +378,7 @@ defmodule Mix.Tasks.Extravaganza.Headless.Live.LinearPublication do
 
   @moduledoc false
   @shortdoc "Run the live-gated Linear publication example"
+  @impl Mix.Task
   def run(argv), do: TaskSupport.run(:live_linear_publication, argv)
 end
 
@@ -363,6 +389,7 @@ defmodule Mix.Tasks.Extravaganza.Headless.LiveLinearPublication do
 
   @moduledoc false
   @shortdoc "Run the live-gated Linear publication example"
+  @impl Mix.Task
   def run(argv), do: TaskSupport.run(:live_linear_publication, argv)
 end
 
@@ -373,6 +400,7 @@ defmodule Mix.Tasks.Extravaganza.Headless.Live.LinearGraphqlTool do
 
   @moduledoc false
   @shortdoc "Run the live-gated Linear GraphQL dynamic tool example"
+  @impl Mix.Task
   def run(argv), do: TaskSupport.run(:live_linear_graphql_tool, argv)
 end
 
@@ -383,6 +411,7 @@ defmodule Mix.Tasks.Extravaganza.Headless.LiveLinearGraphqlTool do
 
   @moduledoc false
   @shortdoc "Run the live-gated Linear GraphQL dynamic tool example"
+  @impl Mix.Task
   def run(argv), do: TaskSupport.run(:live_linear_graphql_tool, argv)
 end
 
@@ -393,6 +422,7 @@ defmodule Mix.Tasks.Extravaganza.Headless.Live.GithubEvidence do
 
   @moduledoc false
   @shortdoc "Run the live-gated GitHub evidence example"
+  @impl Mix.Task
   def run(argv), do: TaskSupport.run(:live_github_evidence, argv)
 end
 
@@ -403,6 +433,7 @@ defmodule Mix.Tasks.Extravaganza.Headless.LiveGithubEvidence do
 
   @moduledoc false
   @shortdoc "Run the live-gated GitHub evidence example"
+  @impl Mix.Task
   def run(argv), do: TaskSupport.run(:live_github_evidence, argv)
 end
 
@@ -413,6 +444,7 @@ defmodule Mix.Tasks.Extravaganza.Headless.Live.Smoke do
 
   @moduledoc false
   @shortdoc "Run the aggregate live-gated headless smoke"
+  @impl Mix.Task
   def run(argv), do: TaskSupport.run(:live_smoke, argv)
 end
 
@@ -423,6 +455,7 @@ defmodule Mix.Tasks.Extravaganza.Headless.LiveSmoke do
 
   @moduledoc false
   @shortdoc "Run the aggregate live-gated headless smoke"
+  @impl Mix.Task
   def run(argv), do: TaskSupport.run(:live_smoke, argv)
 end
 
@@ -433,6 +466,7 @@ defmodule Mix.Tasks.Extravaganza.Headless.Evidence do
 
   @moduledoc false
   @shortdoc "Print headless evidence chain"
+  @impl Mix.Task
   def run(argv), do: TaskSupport.run(:evidence, argv)
 end
 
@@ -443,6 +477,7 @@ defmodule Mix.Tasks.Extravaganza.Headless.Events do
 
   @moduledoc false
   @shortdoc "Print headless event page"
+  @impl Mix.Task
   def run(argv), do: TaskSupport.run(:events, argv)
 end
 
@@ -453,5 +488,6 @@ defmodule Mix.Tasks.Extravaganza.Headless.Smoke do
 
   @moduledoc false
   @shortdoc "Run the deterministic headless smoke"
+  @impl Mix.Task
   def run(argv), do: TaskSupport.run(:smoke, argv)
 end
