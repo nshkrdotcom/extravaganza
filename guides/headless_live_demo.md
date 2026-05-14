@@ -323,8 +323,14 @@ product behavior and the command output must not print secret values.
 ~/scripts/with_bash_secrets mix extravaganza.headless.live.codex_turn --live-product-path --ack-headless-guardrails --json
 ~/scripts/with_bash_secrets mix extravaganza.headless.live.github_evidence --live-product-path --ack-headless-guardrails --json
 ~/scripts/with_bash_secrets mix extravaganza.headless.live.github_pr_cleanup --live-product-path --ack-headless-guardrails --json --repo OWNER/REPO --branch BRANCH --confirm-close
-~/scripts/with_bash_secrets mix extravaganza.headless.live.smoke --live-product-path --ack-headless-guardrails --json
+~/scripts/with_bash_secrets bash -lc 'printf "%s" "$LINEAR_API_KEY" | mix extravaganza.headless.live.smoke --live-product-path --ack-headless-guardrails --json --api-key-stdin --assignee all --issue-id LINEAR_ISSUE_UUID --issue-ids LINEAR_ISSUE_UUID --repo OWNER/REPO --pull-number PR_NUMBER --ref HEAD_SHA'
 ```
+
+For `live.smoke`, the aggregate command runs the six non-destructive live lanes.
+Linear credentials must be supplied with `--api-key-stdin` unless a lower
+connection binding is used. GitHub evidence needs a concrete PR target; if the
+default GitHub repository has no pull requests, pass `--repo OWNER/REPO`,
+`--pull-number PR_NUMBER`, and `--ref HEAD_SHA`.
 
 Wrapper script form (same command path):
 

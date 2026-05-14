@@ -31,7 +31,10 @@ defmodule Extravaganza.HeadlessDocsTest do
     assert live_guide =~ "--live-product-path"
     assert live_guide =~ "--ack-headless-guardrails"
     assert live_guide =~ "--i-understand-that-this-will-be-running-without-the-usual-guardrails"
-    assert live_guide =~ "~/scripts/with_bash_secrets mix extravaganza.headless.live.smoke"
+
+    assert live_guide =~
+             "printf \"%s\" \"$LINEAR_API_KEY\" | mix extravaganza.headless.live.smoke"
+
     assert live_guide =~ "mix extravaganza.headless.live.github_pr_cleanup"
     assert live_guide =~ "--confirm-close"
     assert live_guide =~ "not included in `live.smoke`"
@@ -158,7 +161,13 @@ defmodule Extravaganza.HeadlessDocsTest do
           "`write_operations`",
           "intentionally excluded from `live.smoke`",
           "live.smoke",
-          "~/scripts/with_bash_secrets mix extravaganza.headless.live.smoke --live-product-path --ack-headless-guardrails --json",
+          "printf \"%s\" \"$LINEAR_API_KEY\" | mix extravaganza.headless.live.smoke",
+          "printf \"%s\" \"$LINEAR_API_KEY\" | mix extravaganza.headless.live.smoke",
+          "--api-key-stdin --assignee all --issue-id",
+          "--issue-ids",
+          "--repo OWNER/REPO --pull-number",
+          "--ref HEAD_SHA",
+          "If the default GitHub repository has no pull requests",
           "`required_operations`",
           "`completed_operations`",
           "`provider_effect_count`",
@@ -229,7 +238,7 @@ defmodule Extravaganza.HeadlessDocsTest do
           "`mix extravaganza.headless.live.linear_graphql_tool --live-product-path --ack-headless-guardrails --json`",
           "`mix extravaganza.headless.live.github_evidence --live-product-path --ack-headless-guardrails --json`",
           "`mix extravaganza.headless.live.github_pr_cleanup --live-product-path --ack-headless-guardrails --json --confirm-close`",
-          "`mix extravaganza.headless.live.smoke --live-product-path --ack-headless-guardrails --json`",
+          "`mix extravaganza.headless.live.smoke --live-product-path --ack-headless-guardrails --json --api-key-stdin --assignee all --issue-id LINEAR_ISSUE_UUID --issue-ids LINEAR_ISSUE_UUID --repo OWNER/REPO --pull-number PR_NUMBER --ref HEAD_SHA`",
           "`GET /api/v1/state`",
           "`GET /api/v1/status`",
           "`GET /api/v1/preflight`",

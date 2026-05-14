@@ -38,7 +38,7 @@
 4. Run live provider paths through the same product command surface:
 
    ```bash
-   mix extravaganza.headless.live.smoke --live-product-path --ack-headless-guardrails --json
+   printf "%s" "$LINEAR_API_KEY" | mix extravaganza.headless.live.smoke --live-product-path --ack-headless-guardrails --json --api-key-stdin --assignee all --issue-id LINEAR_ISSUE_UUID --issue-ids LINEAR_ISSUE_UUID --repo OWNER/REPO --pull-number PR_NUMBER --ref HEAD_SHA
    ```
 
    If you want live examples to attempt provider execution, export provider
@@ -51,10 +51,10 @@
    export GH_TOKEN=... # or GITHUB_TOKEN
    ```
 
-   Then rerun:
+   Then rerun with a Linear issue UUID and a GitHub PR/ref target:
 
    ```bash
-   mix extravaganza.headless.live.smoke --live-product-path --ack-headless-guardrails --json
+   printf "%s" "$LINEAR_API_KEY" | mix extravaganza.headless.live.smoke --live-product-path --ack-headless-guardrails --json --api-key-stdin --assignee all --issue-id LINEAR_ISSUE_UUID --issue-ids LINEAR_ISSUE_UUID --repo OWNER/REPO --pull-number PR_NUMBER --ref HEAD_SHA
    ```
 
    `--ack-headless-guardrails` is required for live provider paths and
@@ -146,9 +146,9 @@ What this means in practice:
 
 - `MIX_ENV=test mix extravaganza.headless.smoke --deterministic --same-run --json`
   is the local fixture-backed product proof.
-- `mix extravaganza.headless.live.smoke --live-product-path --ack-headless-guardrails --json` exercises
-  the same product command surface against live provider paths when credentials
-  are present.
+- `printf "%s" "$LINEAR_API_KEY" | mix extravaganza.headless.live.smoke --live-product-path --ack-headless-guardrails --json --api-key-stdin --assignee all --issue-id LINEAR_ISSUE_UUID --issue-ids LINEAR_ISSUE_UUID --repo OWNER/REPO --pull-number PR_NUMBER --ref HEAD_SHA`
+  exercises the same product command surface against live provider paths when
+  credentials and concrete provider targets are present.
 - `mix phx.server` exposes the API routes used by operator tooling and browser
   shells: state, status, logs, profile validate/reload, source publication,
   subjects, runs, evidence, events, refresh, action controls, reviews, review

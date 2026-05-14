@@ -73,7 +73,7 @@ these examples.
 ~/scripts/with_bash_secrets mix extravaganza.headless.live.linear_graphql_tool --live-product-path --ack-headless-guardrails --json
 ~/scripts/with_bash_secrets mix extravaganza.headless.live.github_evidence --live-product-path --ack-headless-guardrails --json
 ~/scripts/with_bash_secrets mix extravaganza.headless.live.github_pr_cleanup --live-product-path --ack-headless-guardrails --json --repo OWNER/REPO --branch BRANCH --confirm-close
-~/scripts/with_bash_secrets mix extravaganza.headless.live.smoke --live-product-path --ack-headless-guardrails --json
+~/scripts/with_bash_secrets bash -lc 'printf "%s" "$LINEAR_API_KEY" | mix extravaganza.headless.live.smoke --live-product-path --ack-headless-guardrails --json --api-key-stdin --assignee all --issue-id LINEAR_ISSUE_UUID --issue-ids LINEAR_ISSUE_UUID --repo OWNER/REPO --pull-number PR_NUMBER --ref HEAD_SHA'
 ```
 
 ### Notes on how values are passed
@@ -86,6 +86,12 @@ these examples.
 - For linear examples, you can also pass the key through stdin with
   `--api-key-stdin`:
   `printf '%s' "$LINEAR_API_KEY" | mix ... --api-key-stdin`.
+- For aggregate `live.smoke`, pass Linear through `--api-key-stdin` or a lower
+  connection binding, and pass concrete GitHub evidence target refs with
+  `--repo`, `--pull-number`, and `--ref` when the default GitHub repository has
+  no pull requests. If the default GitHub repository has no pull requests, the
+  GitHub lane reports `missing_live_github_pr` instead of sending a provider
+  request.
 - For safety, keep secrets out of command logs and shell history.
 
 ## Verification workflow
@@ -179,7 +185,7 @@ and a `provider_effect` payload that includes `credential_present?`,
 | `live.linear-graphql-tool` | `~/scripts/with_bash_secrets mix extravaganza.headless.live.linear_graphql_tool --live-product-path --ack-headless-guardrails --json --query "query Viewer { viewer { id } }" --variables-json "{}"` | `LINEAR_API_KEY`; `--query`; optional `--variables-json` JSON object. | Executes the governed Linear dynamic tool through `linear.graphql.execute`; no write unless the supplied query/mutation and lower policy allow it. | Identify the tool execution through `tool_name`, `dynamic_tool_response`, `lower_request_ref`, `lower_receipt_ref`, and the common authority/provider evidence fields. |
 | `live.github-evidence` | `~/scripts/with_bash_secrets mix extravaganza.headless.live.github_evidence --live-product-path --ack-headless-guardrails --json --repo nshkrdotcom/extravaganza --pull-number 17 --ref <head-sha>` | `GH_TOKEN` or `GITHUB_TOKEN`; `--repo`; optional `--pull-number`; optional `--ref` for status/check-run lookup. | Reads GitHub PR evidence through `github.pr.evidence`, including PR fetch, reviews, review comments, combined status, and check runs; no provider write. | Identify provider objects through `repo`, `pull_number`, `head_sha`, `evidence_ref`, `provider_ids`, `provider_refs`, `counts`, `receipt_refs`, `operation_receipts`, `lower_request_ref`, and `lower_receipt_ref`. |
 | `live.github-pr-cleanup` | `~/scripts/with_bash_secrets mix extravaganza.headless.live.github_pr_cleanup --live-product-path --ack-headless-guardrails --json --repo nshkrdotcom/extravaganza --branch cleanup-branch --confirm-close` | `GH_TOKEN` or `GITHUB_TOKEN`; `--repo`; `--branch`; explicit `--confirm-close`; optional `--pull-number`; optional `--closing-comment`. | Writes GitHub PR cleanup through governed `github.pr.list`, `github.comment.create`, and `github.pr.update`; the command comments on and closes matching open PRs for the branch. This standalone destructive lane is intentionally excluded from `live.smoke`. | Identify provider objects and receipts through `repo`, `branch`, `pull_numbers`, `closed_pull_numbers`, `write_operations`, `provider_ids`, `provider_refs`, `counts`, `receipt_refs`, `operation_receipts`, `lower_request_ref`, and `lower_receipt_ref`. |
-| `live.smoke` | `~/scripts/with_bash_secrets mix extravaganza.headless.live.smoke --live-product-path --ack-headless-guardrails --json` | All variables required by the six non-destructive provider lanes above; optional lane-specific refs may be passed when the aggregate command needs deterministic provider targets. | Runs the aggregate product live proof for Linear source, Linear current states, Codex turn, Linear publication, Linear GraphQL, and GitHub evidence. It does not close GitHub PRs. | Identify completion through `required_operations`, `completed_operations`, `skipped_operations`, `failed_operations`, `provider_effect_count`, `all_provider_effects_completed?`, `correlation_ref`, `examples`, and each nested example's provider evidence fields. |
+| `live.smoke` | `~/scripts/with_bash_secrets bash -lc 'printf "%s" "$LINEAR_API_KEY" \| mix extravaganza.headless.live.smoke --live-product-path --ack-headless-guardrails --json --api-key-stdin --assignee all --issue-id LINEAR_ISSUE_UUID --issue-ids LINEAR_ISSUE_UUID --repo OWNER/REPO --pull-number PR_NUMBER --ref HEAD_SHA'` | All variables required by the six non-destructive provider lanes above; `LINEAR_API_KEY` must be piped through `--api-key-stdin` unless using a lower connection binding; pass `--repo`, `--pull-number`, and `--ref` when the default GitHub repo has no PR target; pass a Linear issue UUID for current-state and publication lanes. | Runs the aggregate product live proof for Linear source, Linear current states, Codex turn, Linear publication, Linear GraphQL, and GitHub evidence. It does not close GitHub PRs. | Identify completion through `required_operations`, `completed_operations`, `skipped_operations`, `failed_operations`, `provider_effect_count`, `all_provider_effects_completed?`, `correlation_ref`, `examples`, and each nested example's provider evidence fields. |
 
 ## Provider-by-provider confidence checks
 
