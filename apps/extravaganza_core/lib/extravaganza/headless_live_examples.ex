@@ -550,6 +550,7 @@ defmodule Extravaganza.HeadlessLiveExamples do
       first_prompt = codex_first_prompt_readback(run_detail, turn)
       continuation = codex_continuation_readback(run_detail)
       session_start = codex_session_start_readback(run_detail, turn)
+      session_stop = codex_session_stop_readback(run_detail)
       app_server_protocol = codex_app_server_protocol_readback(run_detail, turn)
       event_stream = codex_event_stream_readback(run_detail)
       token_usage = value(event_stream, :token_usage) || %{}
@@ -608,6 +609,10 @@ defmodule Extravaganza.HeadlessLiveExamples do
           value(session_start, :session_start_lower_request_ref),
         "session_start_lower_receipt_ref" =>
           value(session_start, :session_start_lower_receipt_ref),
+        "session_stop_confirmed?" => codex_session_stop_confirmed?(session_stop),
+        "session_stop_status" => value(session_stop, :session_stop_status),
+        "session_stop_lower_request_ref" => value(session_stop, :session_stop_lower_request_ref),
+        "session_stop_lower_receipt_ref" => value(session_stop, :session_stop_lower_receipt_ref),
         "app_server_protocol_confirmed?" =>
           codex_app_server_protocol_confirmed?(app_server_protocol),
         "app_server_transport" => value(app_server_protocol, :app_server_transport),
@@ -1391,6 +1396,60 @@ defmodule Extravaganza.HeadlessLiveExamples do
   defp session_start_event_kind_from_lifecycle("reused"), do: "codex.session.reused"
   defp session_start_event_kind_from_lifecycle(:reused), do: "codex.session.reused"
   defp session_start_event_kind_from_lifecycle(_lifecycle), do: nil
+
+  defp codex_session_stop_readback(%RuntimeRunDetail{} = run_detail) do
+    %{}
+    |> Map.merge(codex_session_stop_from_extension(run_detail))
+    |> Map.merge(codex_session_stop_from_event(run_detail))
+  end
+
+  defp codex_session_stop_from_extension(%RuntimeRunDetail{runtime_row: runtime_row}) do
+    runtime_row
+    |> value(:extensions)
+    |> value("codex_app_server_session_stop")
+    |> case do
+      %{} = evidence ->
+        %{
+          "confirmed?" => if(truthy?(value(evidence, "confirmed?")), do: true),
+          "runtime_control_session_ref" => value(evidence, :runtime_control_session_ref),
+          "session_stop_status" => value(evidence, :status),
+          "session_stop_lower_request_ref" => value(evidence, :lower_request_ref),
+          "session_stop_lower_receipt_ref" => value(evidence, :lower_receipt_ref)
+        }
+        |> compact_map()
+
+      _missing ->
+        %{}
+    end
+  end
+
+  defp codex_session_stop_from_event(%RuntimeRunDetail{} = run_detail) do
+    run_detail.events
+    |> List.wrap()
+    |> Enum.find(&(value(&1, :event_kind) == "codex.session.stopped"))
+    |> case do
+      nil ->
+        %{}
+
+      event ->
+        extensions = value(event, :extensions) || %{}
+
+        %{
+          "confirmed?" => true,
+          "runtime_control_session_ref" => value(event, :session_ref),
+          "session_stop_status" => value(extensions, :status),
+          "session_stop_lower_request_ref" => value(extensions, :lower_request_ref),
+          "session_stop_lower_receipt_ref" => value(extensions, :lower_receipt_ref)
+        }
+        |> compact_map()
+    end
+  end
+
+  defp codex_session_stop_confirmed?(evidence) do
+    truthy?(value(evidence, "confirmed?")) or
+      present?(value(evidence, :session_stop_lower_receipt_ref)) or
+      value(evidence, :session_stop_status) == "stopped"
+  end
 
   defp codex_app_server_protocol_readback(%RuntimeRunDetail{} = run_detail, turn) do
     %{}

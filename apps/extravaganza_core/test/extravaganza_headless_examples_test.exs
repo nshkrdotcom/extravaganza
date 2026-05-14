@@ -574,6 +574,15 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert provider_effect["session_start_lower_receipt_ref"] ==
              "lower-receipt://codex/session-start/asm-live-product/started"
 
+    assert provider_effect["session_stop_confirmed?"] == true
+    assert provider_effect["session_stop_status"] == "stopped"
+
+    assert provider_effect["session_stop_lower_request_ref"] ==
+             "lower-request://codex/session-stop"
+
+    assert provider_effect["session_stop_lower_receipt_ref"] ==
+             "lower-receipt://codex/session-stop/asm-live-product/stopped"
+
     assert provider_effect["app_server_protocol_confirmed?"] == true
     assert provider_effect["app_server_transport"] == "app_server"
 
@@ -1298,6 +1307,8 @@ defmodule Extravaganza.HeadlessExamplesTest do
     @runtime_control_session_ref "runtime-session://asm-live-product"
     @session_start_lower_request_ref "lower-request://codex/session-start"
     @session_start_lower_receipt_ref "lower-receipt://codex/session-start/asm-live-product/started"
+    @session_stop_lower_request_ref "lower-request://codex/session-stop"
+    @session_stop_lower_receipt_ref "lower-receipt://codex/session-stop/asm-live-product/stopped"
     @provider_session_id "codex-provider-thread-live-product"
     @provider_turn_id "codex-provider-turn-live-product"
     @app_server_jsonrpc_methods ["initialize", "initialized", "thread/start", "turn/start"]
@@ -1394,6 +1405,14 @@ defmodule Extravaganza.HeadlessExamplesTest do
                    "runtime_control_session_ref" => @runtime_control_session_ref,
                    "lower_request_ref" => @session_start_lower_request_ref,
                    "lower_receipt_ref" => @session_start_lower_receipt_ref
+                 },
+                 "codex_app_server_session_stop" => %{
+                   "confirmed?" => true,
+                   "operation" => "codex.session.stop",
+                   "status" => "stopped",
+                   "runtime_control_session_ref" => @runtime_control_session_ref,
+                   "lower_request_ref" => @session_stop_lower_request_ref,
+                   "lower_receipt_ref" => @session_stop_lower_receipt_ref
                  },
                  "codex_first_prompt" => first_prompt,
                  "codex_continuation" => continuation,
@@ -1518,10 +1537,28 @@ defmodule Extravaganza.HeadlessExamplesTest do
                payload_ref: "payload://codex/live-product/continuation-2",
                extensions: continuation
              }),
+           {:ok, session_stop_event} <-
+             RuntimeEventRow.new(%{
+               event_ref: "event://codex/live-product/session-stop",
+               event_seq: 5,
+               event_kind: "codex.session.stopped",
+               observed_at: @observed_at,
+               subject_ref: "subject://extravaganza/live-codex-turn",
+               run_ref: run_ref,
+               workflow_ref: @workflow_ref,
+               session_ref: @runtime_control_session_ref,
+               turn_ref: "turn://codex/live-product/2",
+               payload_ref: "payload://codex/live-product/session-stop",
+               extensions: %{
+                 "lower_request_ref" => @session_stop_lower_request_ref,
+                 "lower_receipt_ref" => @session_stop_lower_receipt_ref,
+                 "status" => "stopped"
+               }
+             }),
            {:ok, event} <-
              RuntimeEventRow.new(%{
                event_ref: "event://codex/live-product/terminal",
-               event_seq: 5,
+               event_seq: 6,
                event_kind: "run.terminal",
                observed_at: @observed_at,
                subject_ref: "subject://extravaganza/live-codex-turn",
@@ -1538,6 +1575,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
             first_prompt_event,
             app_server_protocol_event,
             continuation_event,
+            session_stop_event,
             event
           ],
           turns: [
