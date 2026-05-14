@@ -104,6 +104,59 @@ through typed `AppKit.*` surfaces.
 The CI gate (`mix app_kit.no_bypass`) enforces this boundary continuously with
 both `product` and `hazmat` profiles so it is a hard rule, not a convention.
 
+## Current usable product surface
+
+Extravaganza is currently a headless coding-ops product, not just a scaffold.
+The product can be exercised from three operator-facing surfaces that all stay
+above AppKit:
+
+- Mix tasks for deterministic local proof, live provider smoke, queue/state
+  inspection, source preview/sync/publish, profile validation/reload, evidence
+  lookup, event stream readback, and review decisions
+- a Phoenix JSON API for the same state, source, run, evidence, review,
+  profile, event, refresh, publication, and lower-read surfaces
+- the `Extravaganza.ProductHost` facade for product-owned code paths that need
+  to bootstrap the pack, submit or refresh work, inspect runs, and apply
+  operator controls without importing lower repos directly
+
+The current work completed in this product centers on making the Symphony-style
+coding-agent loop inspectable and repeatable through the actual product path.
+Recent shipped surfaces include Codex first-prompt rendering, app-server
+protocol readback, session-start and session-stop readback, continuation turn
+proof, event-stream proof, token-total readback, runtime snapshot parity,
+stalled-run readback, stall-policy readback, startup cleanup status, running
+source reconciliation, retry due-time and backoff readback, stale retry-token
+protection, queue dispatch eligibility reasons, pre-dispatch revalidation, and
+worker-placement settings.
+
+The source side is also product-visible now. The headless path exposes Linear
+candidate DTO parity, subject readback parity, current-state live examples,
+GraphQL dynamic-tool examples, publication dry-run proof, publication write
+variants, source blocker denial readback, source payload readback, and refresh
+ticks for poll reconciliation. The evidence side exposes GitHub PR evidence
+runtime proof and Codex session evidence through the same product-owned command
+and API path.
+
+What this means in practice:
+
+- `MIX_ENV=test mix extravaganza.headless.smoke --deterministic --same-run --json`
+  is the local fixture-backed product proof.
+- `mix extravaganza.headless.live.smoke --live-product-path --json` exercises
+  the same product command surface against live provider paths when credentials
+  are present.
+- `mix phx.server` exposes the API routes used by operator tooling and browser
+  shells: state, status, logs, profile validate/reload, source publication,
+  subjects, runs, evidence, events, refresh, action controls, reviews, review
+  decisions, and issue-identifier lookup.
+- Product code sees DTOs and product-level commands. Durable workflows,
+  connector credentials, provider calls, source admission, lower facts, and
+  governance enforcement remain below AppKit.
+
+The usable feature today is therefore a full headless product proof and an API
+operator shell for governed coding-agent work. It is not yet a polished browser
+application, and it does not claim live provider acceptance unless the live
+command path is run with real credentials and the lower stack substrate is up.
+
 ## What this repo owns
 
 - Product UX and operator journeys
