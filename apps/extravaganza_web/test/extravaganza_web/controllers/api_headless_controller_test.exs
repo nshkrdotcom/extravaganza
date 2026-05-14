@@ -111,11 +111,29 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
     assert subject["data"]["schema_ref"] == "headless_subject_detail.v1"
     assert issue["data"]["schema_ref"] == "headless_subject_detail.v1"
     assert subject["data"]["data"]["agent_loop_diagnostics"] == []
+    assert subject["data"]["data"]["subject_readback_coverage_gaps"] == []
+    assert issue["data"]["data"]["subject_ref"] == "ENG-42"
+    assert issue["data"]["data"]["summary"]["issue_identifier"] == "ENG-42"
+    assert issue["data"]["data"]["subject_readback_coverage_gaps"] == []
 
     assert Enum.any?(
              subject["data"]["data"]["events"],
              &(&1["event_kind"] == "future_m2_state_added")
            )
+
+    coverage = subject["data"]["data"]["subject_readback_coverage"]
+
+    assert coverage["available_actions"]["action_kinds"] == [
+             "pause",
+             "resume",
+             "cancel",
+             "retry",
+             "rework"
+           ]
+
+    assert coverage["read_leases"]["operations"] == ["read_lease", "stream_attach_lease"]
+    assert coverage["source_refs"]["source_refs"] == ["linear://fixture/issue/ENG-42"]
+    assert coverage["blockers"]["reason_codes"] == ["non_terminal_dependency"]
   end
 
   test "GET /api/v1/runs/:run_id returns ordered events and M2-safe slots", %{conn: conn} do

@@ -276,6 +276,94 @@ defmodule Extravaganza.HeadlessSurfaceTest do
     refute String.contains?(Jason.encode!(rendered), "api_key")
   end
 
+  test "subject presenter indexes issue lookup, source, action, lease, run, and blocker coverage" do
+    assert {:ok, subject} = HeadlessSurface.subject_detail("subject:fixture")
+    rendered = SubjectPresenter.present(subject, correlation_id: "corr:subject")
+
+    assert rendered["schema_ref"] == "headless_subject_detail.v1"
+    assert rendered["correlation_id"] == "corr:subject"
+    assert rendered["data"]["subject_readback_coverage_gaps"] == []
+
+    coverage = rendered["data"]["subject_readback_coverage"]
+
+    assert Map.keys(coverage) |> Enum.sort() == [
+             "active_run_refs",
+             "available_actions",
+             "blockers",
+             "issue_identifier_lookup",
+             "normalized_issue_fields",
+             "read_leases",
+             "runtime_projection",
+             "source_refs"
+           ]
+
+    assert coverage["issue_identifier_lookup"] == %{
+             "fields" => ["subject_ref", "summary.issue_identifier"],
+             "issue_identifier" => "ENG-42"
+           }
+
+    assert coverage["normalized_issue_fields"] == %{
+             "field_names" => [
+               "identifier",
+               "title",
+               "description",
+               "priority",
+               "labels",
+               "source_state",
+               "source_url",
+               "branch_ref"
+             ],
+             "fields" => ["summary", "summary.source"]
+           }
+
+    assert coverage["runtime_projection"] == %{
+             "execution_refs" => ["execution:fixture"],
+             "fields" => ["runtime_row", "events"],
+             "states" => ["review_pending"],
+             "subject_refs" => ["subject:fixture"]
+           }
+
+    assert coverage["available_actions"] == %{
+             "action_kinds" => ["pause", "resume", "cancel", "retry", "rework"],
+             "fields" => ["summary.available_actions"]
+           }
+
+    assert coverage["read_leases"] == %{
+             "fields" => ["summary.read_leases"],
+             "operations" => ["read_lease", "stream_attach_lease"]
+           }
+
+    assert coverage["source_refs"] == %{
+             "fields" => ["summary.provider_refs", "summary.source"],
+             "provider_refs" => ["source:linear:ENG-42"],
+             "source_binding_ids" => ["linear-primary"],
+             "source_refs" => ["linear://fixture/issue/ENG-42"]
+           }
+
+    assert coverage["active_run_refs"] == %{
+             "fields" => ["runtime_row.run_ref", "runs"],
+             "run_refs" => ["run:fixture"]
+           }
+
+    assert coverage["blockers"] == %{
+             "blocker_refs" => ["subject:blocker:fixture"],
+             "fields" => ["summary.blocking_conditions", "summary.source.blocker_refs"],
+             "reason_codes" => ["non_terminal_dependency"]
+           }
+
+    assert {:ok, issue_subject} = HeadlessSurface.subject_by_issue_identifier("ENG-42")
+    rendered_issue = SubjectPresenter.present(issue_subject)
+
+    assert rendered_issue["data"]["subject_ref"] == "ENG-42"
+    assert rendered_issue["data"]["summary"]["issue_identifier"] == "ENG-42"
+    assert rendered_issue["data"]["subject_readback_coverage_gaps"] == []
+
+    encoded = Jason.encode!(rendered)
+    refute String.contains?(encoded, "workspace_path")
+    refute String.contains?(encoded, "/home/")
+    refute String.contains?(encoded, "api_key")
+  end
+
   test "subject and run presenters pass through future M2 event slots safely" do
     assert {:ok, subject} = HeadlessSurface.subject_detail("subject:fixture")
     rendered_subject = SubjectPresenter.present(subject)

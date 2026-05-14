@@ -734,6 +734,61 @@ defmodule Extravaganza.Presenters.SubjectPresenter do
     read_lease: nil,
     stream_attach_lease: nil
   }
+  @subject_readback_coverage_kinds ~w[
+    issue_identifier_lookup
+    normalized_issue_fields
+    runtime_projection
+    available_actions
+    read_leases
+    source_refs
+    active_run_refs
+    blockers
+  ]
+  @normalized_issue_fields ~w[
+    identifier
+    title
+    description
+    priority
+    labels
+    source_state
+    source_url
+    branch_ref
+  ]
+  @atom_keys %{
+    "action" => :action,
+    "action_kind" => :action_kind,
+    "allowed_operations" => :allowed_operations,
+    "available_actions" => :available_actions,
+    "blocker_ref" => :blocker_ref,
+    "blocker_refs" => :blocker_refs,
+    "blocking_conditions" => :blocking_conditions,
+    "branch_ref" => :branch_ref,
+    "description" => :description,
+    "events" => :events,
+    "execution_ref" => :execution_ref,
+    "identifier" => :identifier,
+    "issue_identifier" => :issue_identifier,
+    "labels" => :labels,
+    "operation" => :operation,
+    "priority" => :priority,
+    "provider_refs" => :provider_refs,
+    "read_lease" => :read_lease,
+    "read_leases" => :read_leases,
+    "reason" => :reason,
+    "reason_code" => :reason_code,
+    "run_ref" => :run_ref,
+    "runs" => :runs,
+    "source" => :source,
+    "source_binding_id" => :source_binding_id,
+    "source_ref" => :source_ref,
+    "source_state" => :source_state,
+    "source_url" => :source_url,
+    "state" => :state,
+    "stream_attach_lease" => :stream_attach_lease,
+    "subject_ref" => :subject_ref,
+    "summary" => :summary,
+    "title" => :title
+  }
 
   @spec present(struct() | map(), keyword()) :: map()
   def present(value, opts \\ [])
@@ -742,7 +797,7 @@ defmodule Extravaganza.Presenters.SubjectPresenter do
     detail
     |> Presenter.present(opts)
     |> put_in(["schema_ref"], "headless_subject_detail.v1")
-    |> update_in(["data"], &Map.merge(StatePresenter.future_m2_slots(), &1))
+    |> update_in(["data"], &with_subject_readback/1)
     |> JSONSupport.normalize()
   end
 
@@ -763,6 +818,226 @@ defmodule Extravaganza.Presenters.SubjectPresenter do
 
     Map.merge(assigns, %{future_m2: StatePresenter.future_m2_slots()})
   end
+
+  defp with_subject_readback(data) when is_map(data) do
+    data = Map.merge(StatePresenter.future_m2_slots(), data)
+    coverage = subject_readback_coverage(data)
+
+    data
+    |> Map.put("subject_readback_coverage", coverage)
+    |> Map.put("subject_readback_coverage_gaps", subject_readback_coverage_gaps(coverage))
+  end
+
+  defp subject_readback_coverage(data) do
+    summary = map_value(data, "summary") || %{}
+    source = map_value(summary, "source") || %{}
+    runtime_row = map_value(data, "runtime_row") || %{}
+
+    %{
+      "issue_identifier_lookup" => issue_identifier_lookup_coverage(data, summary, source),
+      "normalized_issue_fields" => normalized_issue_fields_coverage(summary, source),
+      "runtime_projection" => runtime_projection_coverage(runtime_row, data),
+      "available_actions" => available_actions_coverage(summary),
+      "read_leases" => read_leases_coverage(summary),
+      "source_refs" => source_refs_coverage(summary, source),
+      "active_run_refs" => active_run_refs_coverage(runtime_row, data),
+      "blockers" => blockers_coverage(summary, source)
+    }
+    |> compact_map()
+  end
+
+  defp subject_readback_coverage_gaps(coverage) do
+    Enum.reject(@subject_readback_coverage_kinds, fn kind ->
+      coverage
+      |> Map.get(kind)
+      |> coverage_present?()
+    end)
+  end
+
+  defp issue_identifier_lookup_coverage(_data, summary, source) do
+    %{
+      "fields" => ["subject_ref", "summary.issue_identifier"],
+      "issue_identifier" =>
+        map_value(summary, "issue_identifier") ||
+          map_value(source, "identifier") ||
+          map_value(source, "source_id")
+    }
+    |> compact_map()
+  end
+
+  defp normalized_issue_fields_coverage(summary, source) do
+    %{
+      "fields" => ["summary", "summary.source"],
+      "field_names" =>
+        Enum.filter(
+          @normalized_issue_fields,
+          &normalized_issue_field_present?(&1, summary, source)
+        )
+    }
+    |> compact_map()
+  end
+
+  defp runtime_projection_coverage(runtime_row, _data) do
+    %{
+      "fields" => ["runtime_row", "events"],
+      "subject_refs" => runtime_row |> singleton_string_value("subject_ref"),
+      "execution_refs" => runtime_row |> singleton_string_value("execution_ref"),
+      "states" => runtime_row |> singleton_string_value("state")
+    }
+    |> compact_map()
+  end
+
+  defp available_actions_coverage(summary) do
+    %{
+      "fields" => ["summary.available_actions"],
+      "action_kinds" =>
+        summary
+        |> list_value("available_actions")
+        |> Enum.map(&(map_value(&1, "action_kind") || map_value(&1, "action")))
+        |> Enum.reject(&is_nil/1)
+        |> Enum.map(&to_string/1)
+    }
+    |> compact_map()
+  end
+
+  defp read_leases_coverage(summary) do
+    read_leases = map_value(summary, "read_leases") || %{}
+
+    %{
+      "fields" => ["summary.read_leases"],
+      "operations" =>
+        [
+          read_leases |> map_value("read_lease") |> map_value("operation"),
+          read_leases |> map_value("stream_attach_lease") |> map_value("operation")
+        ]
+        |> Enum.reject(&is_nil/1)
+        |> Enum.map(&to_string/1)
+    }
+    |> compact_map()
+  end
+
+  defp source_refs_coverage(summary, source) do
+    %{
+      "fields" => ["summary.provider_refs", "summary.source"],
+      "provider_refs" => summary |> map_value("provider_refs") |> map_values(),
+      "source_binding_ids" => source |> singleton_string_value("source_binding_id"),
+      "source_refs" => source |> singleton_string_value("source_ref")
+    }
+    |> compact_map()
+  end
+
+  defp active_run_refs_coverage(runtime_row, data) do
+    run_refs =
+      runtime_row
+      |> singleton_string_value("run_ref")
+      |> Kernel.++(data |> list_value("runs") |> string_values("run_ref"))
+      |> Enum.uniq()
+
+    %{
+      "fields" => ["runtime_row.run_ref", "runs"],
+      "run_refs" => run_refs
+    }
+    |> compact_map()
+  end
+
+  defp blockers_coverage(summary, source) do
+    blockers = list_value(summary, "blocking_conditions") ++ list_value(source, "blocker_refs")
+
+    %{
+      "fields" => ["summary.blocking_conditions", "summary.source.blocker_refs"],
+      "reason_codes" =>
+        blockers
+        |> Enum.map(&(map_value(&1, "reason_code") || map_value(&1, "reason")))
+        |> Enum.reject(&is_nil/1)
+        |> Enum.map(&to_string/1)
+        |> Enum.uniq(),
+      "blocker_refs" =>
+        blockers
+        |> Enum.flat_map(&blocker_refs/1)
+        |> Enum.uniq()
+    }
+    |> compact_map()
+  end
+
+  defp normalized_issue_field_present?("title", summary, source),
+    do: present?(map_value(summary, "title") || map_value(source, "title"))
+
+  defp normalized_issue_field_present?("identifier", summary, source),
+    do:
+      present?(
+        map_value(summary, "issue_identifier") ||
+          map_value(source, "identifier") ||
+          map_value(source, "source_id")
+      )
+
+  defp normalized_issue_field_present?(field, _summary, source),
+    do: present?(map_value(source, field))
+
+  defp blocker_refs(blocker) do
+    direct_refs =
+      [
+        map_value(blocker, "blocker_ref"),
+        map_value(blocker, "subject_ref")
+      ]
+      |> Enum.reject(&is_nil/1)
+      |> Enum.map(&to_string/1)
+
+    direct_refs ++ list_value(blocker, "blocker_refs")
+  end
+
+  defp map_values(map) when is_map(map) do
+    map
+    |> Map.values()
+    |> Enum.reject(&is_nil/1)
+    |> Enum.map(&to_string/1)
+  end
+
+  defp map_values(_value), do: []
+
+  defp singleton_string_value(map, key) do
+    case map_value(map, key) do
+      nil -> []
+      value -> [to_string(value)]
+    end
+  end
+
+  defp string_values(values, key) when is_list(values) do
+    values
+    |> Enum.map(&map_value(&1, key))
+    |> Enum.reject(&is_nil/1)
+    |> Enum.map(&to_string/1)
+  end
+
+  defp list_value(map, key) do
+    case map_value(map, key) do
+      values when is_list(values) -> values
+      _other -> []
+    end
+  end
+
+  defp coverage_present?(%{} = coverage) do
+    coverage
+    |> Map.drop(["fields"])
+    |> Enum.any?(fn {_key, value} -> value not in [nil, [], %{}] end)
+  end
+
+  defp coverage_present?(_coverage), do: false
+
+  defp present?(value), do: value not in [nil, "", [], %{}]
+
+  defp map_value(map, key) when is_map(map) do
+    atom_key = Map.get(@atom_keys, key)
+
+    cond do
+      Map.has_key?(map, key) -> Map.get(map, key)
+      atom_key && Map.has_key?(map, atom_key) -> Map.get(map, atom_key)
+      true -> nil
+    end
+  end
+
+  defp map_value(_map, _key), do: nil
+
+  defp compact_map(map), do: Map.reject(map, fn {_key, value} -> value in [nil, []] end)
 end
 
 defmodule Extravaganza.Presenters.RunPresenter do

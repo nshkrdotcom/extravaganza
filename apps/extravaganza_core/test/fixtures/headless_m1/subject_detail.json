@@ -5,7 +5,66 @@
   "summary": {
     "title": "Fixture subject detail",
     "lifecycle_state": "review_pending",
-    "provider_refs": {"linear": "source:linear:ENG-42"}
+    "issue_identifier": "ENG-42",
+    "provider_refs": {"linear": "source:linear:ENG-42"},
+    "source": {
+      "identifier": "ENG-42",
+      "source_id": "ENG-42",
+      "source_ref": "linear://fixture/issue/ENG-42",
+      "provider": "linear",
+      "provider_external_ref": "lin-issue-42",
+      "provider_revision": "2026-04-27T00:07:00Z",
+      "source_binding_id": "linear-primary",
+      "description": "Fixture Linear issue carrying subject-detail readback proof.",
+      "priority": 1,
+      "labels": ["automation", "review"],
+      "branch_ref": "eng-42-fixture-subject-detail",
+      "source_url": "https://linear.app/acme/issue/ENG-42",
+      "source_state": "Todo",
+      "workflow_state": "Todo",
+      "source_routing": {
+        "assignee": {"id": "usr-linear-viewer", "name": "Taylor Automation"},
+        "project": {"id": "project-ops", "slug_id": "ENG", "name": "Engineering"},
+        "team": {"id": "team-eng", "key": "ENG", "name": "Engineering"}
+      },
+      "blocker_refs": [
+        {
+          "subject_ref": "subject:blocker:fixture",
+          "reason": "non_terminal_dependency",
+          "identifier": "SEC-9",
+          "source_ref": "linear://fixture/issue/SEC-9",
+          "source_state": "In Progress",
+          "title": "Restore deployment credentials",
+          "url": "https://linear.app/acme/issue/SEC-9"
+        }
+      ]
+    },
+    "available_actions": [
+      {"action_kind": "pause"},
+      {"action_kind": "resume"},
+      {"action_kind": "cancel"},
+      {"action_kind": "retry"},
+      {"action_kind": "rework"}
+    ],
+    "read_leases": {
+      "read_lease": {
+        "operation": "read_lease",
+        "lease_ref": "read-lease:fixture",
+        "allowed_operations": ["fetch_subject", "fetch_run", "fetch_events"]
+      },
+      "stream_attach_lease": {
+        "operation": "stream_attach_lease",
+        "lease_ref": "stream-attach-lease:fixture",
+        "allowed_operations": ["attach_run_stream"]
+      }
+    },
+    "blocking_conditions": [
+      {
+        "reason_code": "non_terminal_dependency",
+        "blocker_ref": "subject:blocker:fixture",
+        "dispatch_eligible?": false
+      }
+    ]
   },
   "runtime_row": {
     "subject_ref": "subject:fixture",
@@ -19,6 +78,6 @@
     {"event_ref": "event:fixture:1", "event_seq": 1, "event_kind": "run_started", "observed_at": "2026-04-27T00:00:00Z", "subject_ref": "subject:fixture", "run_ref": "run:fixture", "message_summary": "Run started"},
     {"event_ref": "event:fixture:2", "event_seq": 2, "event_kind": "future_m2_state_added", "observed_at": "2026-04-27T00:01:00Z", "subject_ref": "subject:fixture", "run_ref": "run:fixture", "message_summary": "Unknown future event passed through"}
   ],
-  "runs": [{"run_ref": "run:fixture", "state": "review_pending"}],
+  "runs": [{"run_ref": "run:fixture", "state": "review_pending", "active?": true}],
   "diagnostics": []
 }
