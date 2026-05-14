@@ -386,7 +386,32 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
 
     assert read["operation"] == "read_lease"
     assert read["data"]["schema_ref"] == "headless_lease.v1"
-    assert get_in(read, ["data", "data", "lease_ref", "execution_ref", "id"])
+    read_execution_id = get_in(read, ["data", "data", "lease_ref", "execution_ref", "id"])
+    assert read_execution_id
+    assert get_in(read, ["data", "data", "scope", "subject_ref"]) == subject_id
+    assert get_in(read, ["data", "data", "scope", "execution_ref"]) == read_execution_id
+    assert get_in(read, ["data", "data", "scope", "source_revision_ref"])
+    assert get_in(read, ["data", "data", "scope", "runtime_revision_ref"])
+    assert get_in(read, ["data", "data", "scope", "invalidation", "lease_family"]) == "read"
+
+    assert get_in(read, [
+             "data",
+             "data",
+             "scope",
+             "invalidation",
+             "on_source_revision_change"
+           ]) == true
+
+    assert get_in(read, [
+             "data",
+             "data",
+             "scope",
+             "invalidation",
+             "on_runtime_revision_change"
+           ]) == true
+
+    assert is_integer(get_in(read, ["data", "data", "invalidation_cursor"]))
+    assert is_binary(get_in(read, ["data", "data", "invalidation_channel"]))
 
     stream =
       conn
@@ -396,7 +421,33 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
 
     assert stream["operation"] == "stream_attach_lease"
     assert stream["data"]["schema_ref"] == "headless_lease.v1"
+    stream_execution_id = get_in(stream, ["data", "data", "lease_ref", "execution_ref", "id"])
+    assert get_in(stream, ["data", "data", "scope", "subject_ref"]) == subject_id
+    assert get_in(stream, ["data", "data", "scope", "execution_ref"]) == stream_execution_id
+    assert get_in(stream, ["data", "data", "scope", "source_revision_ref"])
+    assert get_in(stream, ["data", "data", "scope", "runtime_revision_ref"])
+
+    assert get_in(stream, ["data", "data", "scope", "invalidation", "lease_family"]) ==
+             "stream_attach"
+
+    assert get_in(stream, [
+             "data",
+             "data",
+             "scope",
+             "invalidation",
+             "on_source_revision_change"
+           ]) == true
+
+    assert get_in(stream, [
+             "data",
+             "data",
+             "scope",
+             "invalidation",
+             "on_runtime_revision_change"
+           ]) == true
+
     assert is_integer(get_in(stream, ["data", "data", "reconnect_cursor"]))
+    assert is_binary(get_in(stream, ["data", "data", "invalidation_channel"]))
   end
 
   test "API routes return JSON method-not-allowed and not-found envelopes", %{conn: conn} do

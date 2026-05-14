@@ -8,6 +8,7 @@ defmodule Extravaganza.Operators do
     OperatorActionRef,
     OperatorActionRequest,
     RequestContext,
+    SubjectDetail,
     SubjectRef,
     SubjectRuntimeProjection
   }
@@ -86,11 +87,11 @@ defmodule Extravaganza.Operators do
   @spec issue_read_lease(String.t(), keyword()) ::
           {:ok, AppKit.Core.ReadLease.t()} | {:error, term()}
   def issue_read_lease(subject_id, opts \\ []) when is_binary(subject_id) and is_list(opts) do
-    with_lineage_execution(subject_id, opts, fn config, context, execution_ref ->
+    with_lineage_execution(subject_id, opts, fn config, context, subject, execution_ref ->
       OperatorSurface.issue_read_lease(
         context,
         execution_ref,
-        ProductSurface.operator_opts(config, opts)
+        lease_operator_opts(config, opts, subject, execution_ref, "read")
       )
     end)
   end
@@ -99,22 +100,23 @@ defmodule Extravaganza.Operators do
           {:ok, AppKit.Core.StreamAttachLease.t()} | {:error, term()}
   def issue_stream_attach_lease(subject_id, opts \\ [])
       when is_binary(subject_id) and is_list(opts) do
-    with_lineage_execution(subject_id, opts, fn config, context, execution_ref ->
+    with_lineage_execution(subject_id, opts, fn config, context, subject, execution_ref ->
       OperatorSurface.issue_stream_attach_lease(
         context,
         execution_ref,
-        ProductSurface.operator_opts(config, opts)
+        lease_operator_opts(config, opts, subject, execution_ref, "stream_attach")
       )
     end)
   end
 
-  defp with_lineage_execution(subject_id, opts, callback) when is_function(callback, 3) do
+  defp with_lineage_execution(subject_id, opts, callback) when is_function(callback, 4) do
     with_bootstrapped_subject(subject_id, opts, fn config, context, subject_ref ->
       query_opts = ProductSurface.work_query_opts(config, opts)
 
-      with {:ok, subject} <- WorkSurface.get_subject(context, subject_ref, query_opts),
+      with {:ok, %SubjectDetail{} = subject} <-
+             WorkSurface.get_subject(context, subject_ref, query_opts),
            %ExecutionRef{} = execution_ref <- LineageSummary.lineage_execution_ref(subject) do
-        callback.(config, context, execution_ref)
+        callback.(config, context, subject, execution_ref)
       else
         nil -> {:error, :missing_lineage_execution}
         {:error, reason} -> {:error, reason}
@@ -194,6 +196,59 @@ defmodule Extravaganza.Operators do
         request_id: map_value(attrs, :request_id) || context.request_id
     }
   end
+
+  defp lease_operator_opts(
+         config,
+         opts,
+         %SubjectDetail{} = subject,
+         %ExecutionRef{} = execution_ref,
+         family
+       ) do
+    operator_opts = ProductSurface.operator_opts(config, opts)
+    existing_scope = operator_opts |> Keyword.get(:scope, %{}) |> normalize_scope()
+    scope = Map.merge(existing_scope, lease_scope(subject, execution_ref, family))
+    Keyword.put(operator_opts, :scope, scope)
+  end
+
+  defp lease_scope(%SubjectDetail{} = subject, %ExecutionRef{} = execution_ref, family) do
+    payload = Map.get(subject, :payload, %{})
+
+    %{
+      "subject_ref" => subject.subject_ref.id,
+      "execution_ref" => execution_ref.id,
+      "source_revision_ref" => source_revision_ref(payload),
+      "runtime_revision_ref" => runtime_revision_ref(payload, execution_ref),
+      "invalidation" => %{
+        "lease_family" => family,
+        "on_source_revision_change" => true,
+        "on_runtime_revision_change" => true
+      }
+    }
+    |> compact_map()
+  end
+
+  defp source_revision_ref(payload) do
+    map_value(payload, :source_revision_ref) ||
+      map_value(payload, :provider_revision) ||
+      map_value(payload, :updated_at) ||
+      map_value(payload, :source_ref) ||
+      map_value(payload, :external_ref)
+  end
+
+  defp runtime_revision_ref(payload, %ExecutionRef{} = execution_ref) do
+    map_value(payload, :runtime_revision_ref) ||
+      map_value(payload, :latest_execution_trace_id) ||
+      map_value(payload, :active_execution_trace_id) ||
+      map_value(payload, :latest_execution_id) ||
+      execution_ref.id
+  end
+
+  defp normalize_scope(%{} = scope),
+    do: Map.new(scope, fn {key, value} -> {to_string(key), value} end)
+
+  defp normalize_scope(_scope), do: %{}
+
+  defp compact_map(map), do: Map.reject(map, fn {_key, value} -> is_nil(value) end)
 
   defp map_value(map, key) when is_map(map),
     do: Map.get(map, key) || Map.get(map, Atom.to_string(key))

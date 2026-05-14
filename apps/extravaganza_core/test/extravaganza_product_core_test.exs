@@ -11,12 +11,15 @@ defmodule ExtravaganzaProductCoreTest do
     LowerReceiptSummary,
     PageRequest,
     PageResult,
+    ReadLease,
     RequestContext,
     ReviewProjection,
     RunRef,
     RuntimeEventSummary,
     RuntimeFactsProjection,
     SourceBindingProjection,
+    StreamAttachLease,
+    SubjectDetail,
     SubjectRef,
     SubjectRuntimeProjection,
     WorkspaceRef
@@ -42,7 +45,12 @@ defmodule ExtravaganzaProductCoreTest do
     Workflows
   }
 
-  alias Extravaganza.Presenters.{CommandResultPresenter, ReviewPresenter, StatePresenter}
+  alias Extravaganza.Presenters.{
+    CommandResultPresenter,
+    LeasePresenter,
+    ReviewPresenter,
+    StatePresenter
+  }
 
   alias Extravaganza.TestSupport.ExecutionTraceFixture
   alias Extravaganza.TestSupport.LinearIssueFixture
@@ -335,6 +343,102 @@ defmodule ExtravaganzaProductCoreTest do
           "subject_ref" => subject_id
         }
       })
+    end
+  end
+
+  defmodule FakeLeaseWorkBackend do
+    @behaviour AppKit.Core.Backends.WorkBackend
+
+    def get_subject(_context, %SubjectRef{} = subject_ref, _opts) do
+      with {:ok, execution_ref} <-
+             ExecutionRef.new(%{
+               id: "execution:lease-scope",
+               subject_ref: subject_ref,
+               recipe_ref: "coding_operations",
+               dispatch_state: "accepted_active"
+             }) do
+        SubjectDetail.new(%{
+          subject_ref: subject_ref,
+          lifecycle_state: "running",
+          title: "Lease scope fixture",
+          current_execution_ref: execution_ref,
+          payload: %{
+            "provider_revision" => "linear-provider-rev-42",
+            "source_ref" => "linear://ENG-LEASE",
+            "latest_execution_trace_id" => "trace-runtime-42",
+            "latest_execution_id" => execution_ref.id
+          }
+        })
+      end
+    end
+  end
+
+  defmodule FakeRevisionLeaseOperatorBackend do
+    @behaviour AppKit.Core.Backends.OperatorBackend
+
+    def issue_read_lease(
+          %RequestContext{} = context,
+          %ExecutionRef{} = execution_ref,
+          opts
+        ) do
+      scope = Keyword.get(opts, :scope, %{})
+      authorization_scope = authorization_scope(context, execution_ref, opts)
+      send(self(), {:read_lease_requested, execution_ref.id, authorization_scope, scope})
+
+      ReadLease.new(%{
+        lease_ref: %{
+          id: "read-lease:appkit",
+          allowed_family: "unified_trace",
+          execution_ref: execution_ref
+        },
+        trace_id: context.trace_id,
+        expires_at: ~U[2026-05-14 00:00:00Z],
+        lease_token: "read-token",
+        allowed_operations: [:fetch_run, :events, :attempts, :run_artifacts],
+        authorization_scope: authorization_scope,
+        scope: scope,
+        lineage_anchor: %{"lower_run_id" => "lower-run-lease"},
+        invalidation_cursor: 12,
+        invalidation_channel: "read:unified_trace:trace-runtime-42"
+      })
+    end
+
+    def issue_stream_attach_lease(
+          %RequestContext{} = context,
+          %ExecutionRef{} = execution_ref,
+          opts
+        ) do
+      scope = Keyword.get(opts, :scope, %{})
+      authorization_scope = authorization_scope(context, execution_ref, opts)
+      send(self(), {:stream_attach_lease_requested, execution_ref.id, authorization_scope, scope})
+
+      StreamAttachLease.new(%{
+        lease_ref: %{
+          id: "stream-lease:appkit",
+          allowed_family: "runtime_stream",
+          execution_ref: execution_ref
+        },
+        trace_id: context.trace_id,
+        expires_at: ~U[2026-05-14 00:00:00Z],
+        attach_token: "attach-token",
+        authorization_scope: authorization_scope,
+        scope: scope,
+        lineage_anchor: %{"lower_run_id" => "lower-run-lease"},
+        reconnect_cursor: 12,
+        invalidation_channel: "stream:runtime_stream:trace-runtime-42",
+        poll_interval_ms: 1_000
+      })
+    end
+
+    defp authorization_scope(context, %ExecutionRef{} = execution_ref, opts) do
+      %{
+        tenant_id: context.tenant_ref.id,
+        installation_revision: Keyword.fetch!(opts, :installation_revision),
+        activation_epoch: Keyword.fetch!(opts, :activation_epoch),
+        lease_epoch: Keyword.fetch!(opts, :lease_epoch),
+        execution_id: execution_ref.id,
+        trace_id: context.trace_id
+      }
     end
   end
 
@@ -1389,6 +1493,71 @@ defmodule ExtravaganzaProductCoreTest do
              "workflow_effect_state" => "pending_signal",
              "workflow_signal" => "operator.resume"
            }
+  end
+
+  test "product lease requests carry source and runtime revision invalidation scope through AppKit",
+       %{
+         tenant_id: tenant_id,
+         pack_version: pack_version
+       } do
+    activate_fixture_registration!(tenant_id: tenant_id, pack_version: pack_version)
+
+    opts = [
+      tenant_id: tenant_id,
+      pack_version: pack_version,
+      work_query_backend: FakeLeaseWorkBackend,
+      operator_backend: FakeRevisionLeaseOperatorBackend,
+      installation_revision: 11,
+      activation_epoch: 5,
+      lease_epoch: 9
+    ]
+
+    assert {:ok, read_lease} = ProductHost.issue_read_lease("subject:lease-scope", opts)
+
+    assert_receive {:read_lease_requested, "execution:lease-scope", read_authorization,
+                    read_scope}
+
+    assert read_authorization.installation_revision == 11
+    assert read_authorization.activation_epoch == 5
+    assert read_authorization.lease_epoch == 9
+    assert read_scope["subject_ref"] == "subject:lease-scope"
+    assert read_scope["execution_ref"] == "execution:lease-scope"
+    assert read_scope["source_revision_ref"] == "linear-provider-rev-42"
+    assert read_scope["runtime_revision_ref"] == "trace-runtime-42"
+    assert read_scope["invalidation"]["on_source_revision_change"] == true
+    assert read_scope["invalidation"]["on_runtime_revision_change"] == true
+    assert read_scope["invalidation"]["lease_family"] == "read"
+    assert read_lease.invalidation_cursor == 12
+    assert read_lease.invalidation_channel == "read:unified_trace:trace-runtime-42"
+
+    rendered_read = LeasePresenter.present(read_lease)
+    assert rendered_read["schema_ref"] == "headless_lease.v1"
+    assert rendered_read["data"]["scope"]["source_revision_ref"] == "linear-provider-rev-42"
+    assert rendered_read["data"]["scope"]["runtime_revision_ref"] == "trace-runtime-42"
+
+    assert {:ok, stream_lease} =
+             ProductHost.issue_stream_attach_lease("subject:lease-scope", opts)
+
+    assert_receive {:stream_attach_lease_requested, "execution:lease-scope", stream_authorization,
+                    stream_scope}
+
+    assert stream_authorization.installation_revision == 11
+    assert stream_authorization.activation_epoch == 5
+    assert stream_authorization.lease_epoch == 9
+    assert stream_scope["subject_ref"] == "subject:lease-scope"
+    assert stream_scope["execution_ref"] == "execution:lease-scope"
+    assert stream_scope["source_revision_ref"] == "linear-provider-rev-42"
+    assert stream_scope["runtime_revision_ref"] == "trace-runtime-42"
+    assert stream_scope["invalidation"]["on_source_revision_change"] == true
+    assert stream_scope["invalidation"]["on_runtime_revision_change"] == true
+    assert stream_scope["invalidation"]["lease_family"] == "stream_attach"
+    assert stream_lease.reconnect_cursor == 12
+    assert stream_lease.invalidation_channel == "stream:runtime_stream:trace-runtime-42"
+
+    rendered_stream = LeasePresenter.present(stream_lease)
+    assert rendered_stream["schema_ref"] == "headless_lease.v1"
+    assert rendered_stream["data"]["scope"]["source_revision_ref"] == "linear-provider-rev-42"
+    assert rendered_stream["data"]["scope"]["runtime_revision_ref"] == "trace-runtime-42"
   end
 
   test "product-local operator detail exposes actions, trace, and leased read surfaces", %{
