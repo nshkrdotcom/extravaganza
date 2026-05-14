@@ -70,6 +70,14 @@ defmodule Extravaganza.HeadlessRuntimeSurfaceTest do
         "remote_workspace_semantics"
       ]
 
+    app_kit_future_policy =
+      decoded["data"]["profile"]["app_kit_runtime_profile"]["program"]["configuration"][
+        "future_work_policy"
+      ]
+
+    assert app_kit_future_policy["source_admission"]["active_states"] == ["Todo", "In Progress"]
+    assert app_kit_future_policy["scope"]["applies_to"] == "future_work_only"
+
     assert remote_semantics["replacement"] == "mezzanine_runtime_placement"
 
     assert remote_semantics["ssh_command_execution"] ==
@@ -101,6 +109,84 @@ defmodule Extravaganza.HeadlessRuntimeSurfaceTest do
     assert workflow_reload["prompt_hash"] == decoded["data"]["profile"]["workflow"]["prompt_hash"]
     assert workflow_reload["runtime_profile_ref"] == "runtime-profile://symphony-workflow"
     assert workflow_reload["runtime_profile_apply"]["status"] == "updated"
+    refute status_output =~ @secret
+  end
+
+  @tag :tmp_dir
+  test "profile reload exposes future work policy for later dispatch and retries", %{
+    tmp_dir: tmp_dir
+  } do
+    workflow_path = write_future_policy_workflow!(tmp_dir)
+    cache_path = Path.join(tmp_dir, "future-policy-last-good.json")
+
+    output =
+      capture_io(fn ->
+        assert :ok =
+                 HeadlessCLI.run(:profile_reload, [
+                   "--json",
+                   @guardrails_ack,
+                   "--workflow",
+                   workflow_path,
+                   "--env",
+                   "LINEAR_API_KEY=#{@secret}",
+                   "--profile-cache",
+                   cache_path,
+                   "--trace-id",
+                   "trace:future-policy-apply"
+                 ])
+      end)
+
+    decoded = Jason.decode!(output)
+    policy = get_in(decoded, ["data", "profile", "future_work_policy"])
+
+    assert policy["scope"] == %{
+             "applies_to" => "future_work_only",
+             "mutates_active_runs?" => false
+           }
+
+    assert policy["source_admission"]["active_states"] == ["Ready", "In Progress"]
+    assert policy["source_admission"]["terminal_states"] == ["Done", "Canceled"]
+    assert policy["polling"]["interval_ms"] == 12_345
+    assert policy["dispatch"]["max_concurrent_agents"] == 4
+    assert policy["dispatch"]["max_concurrent_agents_by_state"] == %{"ready" => 2}
+    assert policy["dispatch"]["max_concurrent_agents_per_host"] == 1
+    assert policy["codex"]["command"] == "codex app-server --profile future"
+    assert policy["codex"]["approval_policy"]["reject"]["sandbox_approval"] == false
+    assert policy["codex"]["thread_sandbox"] == "danger-full-access"
+    assert policy["codex"]["turn_sandbox_policy"]["type"] == "dangerFullAccess"
+    assert policy["codex"]["turn_timeout_ms"] == 60_000
+    assert policy["codex"]["read_timeout_ms"] == 7_000
+    assert policy["codex"]["stall_timeout_ms"] == 9_000
+    assert policy["workspace"]["root"] == "[redacted-path]"
+    assert policy["workspace"]["hooks"]["before_run"] == "scripts/before_run.sh"
+    assert policy["workspace"]["hooks"]["timeout_ms"] == 2_500
+    assert policy["retry"]["failure_base_backoff_ms"] == 10_000
+    assert policy["retry"]["continuation_backoff_ms"] == 1_000
+    assert policy["retry"]["max_retry_backoff_ms"] == 44_000
+
+    status_output =
+      capture_io(fn ->
+        assert :ok =
+                 HeadlessCLI.run(:status, [
+                   "--json",
+                   "--profile-cache",
+                   cache_path,
+                   "--trace-id",
+                   "trace:future-policy-status"
+                 ])
+      end)
+
+    status_policy =
+      get_in(Jason.decode!(status_output), [
+        "data",
+        "data",
+        "metadata",
+        "workflow_reload",
+        "future_work_policy"
+      ])
+
+    assert status_policy == policy
+    refute output =~ @secret
     refute status_output =~ @secret
   end
 
@@ -359,6 +445,59 @@ defmodule Extravaganza.HeadlessRuntimeSurfaceTest do
       ssh_hosts:
         - worker-a
       max_concurrent_agents_per_host: 2
+    ---
+    Ship {{ issue.identifier }}
+    """)
+
+    path
+  end
+
+  defp write_future_policy_workflow!(tmp_dir) do
+    path = Path.join(tmp_dir, "WORKFLOW-future-policy.md")
+
+    File.write!(path, """
+    ---
+    tracker:
+      kind: linear
+      api_key: $LINEAR_API_KEY
+      project_slug: ENG
+      active_states:
+        - Ready
+        - In Progress
+      terminal_states:
+        - Done
+        - Canceled
+    polling:
+      interval_ms: 12345
+    workspace:
+      root: future-workspaces
+    worker:
+      ssh_hosts:
+        - worker-a
+      max_concurrent_agents_per_host: 1
+    agent:
+      max_concurrent_agents: 4
+      max_turns: 8
+      max_retry_backoff_ms: 44000
+      max_concurrent_agents_by_state:
+        Ready: 2
+    codex:
+      command: codex app-server --profile future
+      approval_policy:
+        reject:
+          sandbox_approval: false
+          rules: true
+          mcp_elicitations: true
+      thread_sandbox: danger-full-access
+      turn_sandbox_policy:
+        type: dangerFullAccess
+      turn_timeout_ms: 60000
+      read_timeout_ms: 7000
+      stall_timeout_ms: 9000
+    hooks:
+      before_run: scripts/before_run.sh
+      after_run: scripts/after_run.sh
+      timeout_ms: 2500
     ---
     Ship {{ issue.identifier }}
     """)

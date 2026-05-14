@@ -12,18 +12,22 @@ defmodule Extravaganza.Workflows do
     PolicyPresets,
     ProductPack,
     ProductSurface,
-    RunProfiles.DefaultCodexProfile
+    RunProfiles.DefaultCodexProfile,
+    SymphonyWorkflowImport
   }
 
   @spec start_run(map(), keyword()) :: {:ok, AppKit.Core.Result.t()} | {:error, term()}
   def start_run(domain_call, opts \\ []) when is_map(domain_call) and is_list(opts) do
     with {:ok, %{config: config, context: context}} <- ProductSurface.bootstrapped_context(opts),
-         :ok <- validate_runtime_profile_compatibility(config),
+         {:ok, policy_config} <- start_runtime_policy_config(opts),
+         :ok <- validate_runtime_profile_compatibility(config, policy_config),
          {:ok, subject_ref} <- WorkSurface.ingest_subject(context, Map.new(domain_call)),
          idempotency_key = idempotency_key(context, subject_ref, config),
          context = %{context | idempotency_key: idempotency_key},
          {:ok, run_request} <-
-           RunRequest.new(run_request_attrs(subject_ref, config, context, idempotency_key)) do
+           RunRequest.new(
+             run_request_attrs(subject_ref, config, context, idempotency_key, policy_config)
+           ) do
       WorkControl.start_run(context, run_request, ProductSurface.work_control_opts(config, opts))
     end
   end
@@ -67,9 +71,7 @@ defmodule Extravaganza.Workflows do
     end
   end
 
-  defp run_request_attrs(subject_ref, config, context, idempotency_key) do
-    policy_config = PolicyPresets.DefaultCodingOps.runtime_config()
-
+  defp run_request_attrs(subject_ref, config, context, idempotency_key, policy_config) do
     %{
       subject_ref: subject_ref,
       recipe_ref: ProductPack.execution_recipe_ref(config),
@@ -117,7 +119,32 @@ defmodule Extravaganza.Workflows do
       "redaction_profile_ref" => "redaction://extravaganza/default",
       "prompt_context_recipe_refs" => [CodingOpsTemplates.prompt_ref()]
     }
+    |> put_future_work_policy_metadata(policy_config)
   end
+
+  defp start_runtime_policy_config(opts) do
+    if profile_cache_path_requested?(opts) do
+      SymphonyWorkflowImport.runtime_policy_config_from_cache(opts)
+    else
+      {:ok, PolicyPresets.DefaultCodingOps.runtime_config()}
+    end
+  end
+
+  defp profile_cache_path_requested?(opts) do
+    Keyword.has_key?(opts, :profile_cache_path) or Keyword.has_key?(opts, :cache_path)
+  end
+
+  defp put_future_work_policy_metadata(metadata, %{"future_work_policy" => policy})
+       when is_map(policy) do
+    scope = Map.get(policy, "scope") || %{}
+
+    metadata
+    |> Map.put("future_work_policy_ref", Map.get(policy, "policy_ref"))
+    |> Map.put("future_work_policy_scope", Map.get(scope, "applies_to"))
+    |> Map.put("mutates_active_runs?", Map.get(scope, "mutates_active_runs?"))
+  end
+
+  defp put_future_work_policy_metadata(metadata, _policy_config), do: metadata
 
   defp memory_config(policy_config), do: Map.get(policy_config, "memory", %{})
 

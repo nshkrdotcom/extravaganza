@@ -7,7 +7,11 @@ defmodule Extravaganza.SymphonyWorkflowImport do
   env map when `$VAR` indirection should be resolved.
   """
 
+  alias Extravaganza.PolicyPresets.DefaultCodingOps
+
   @workflow_file_name "WORKFLOW.md"
+  @continuation_retry_delay_ms 1_000
+  @failure_retry_base_ms 10_000
   @default_linear_endpoint "https://api.linear.app/graphql"
   @default_active_states ["Todo", "In Progress"]
   @default_terminal_states ["Closed", "Cancelled", "Canceled", "Duplicate", "Done"]
@@ -68,6 +72,8 @@ defmodule Extravaganza.SymphonyWorkflowImport do
   def profile(opts \\ []) do
     with {:ok, loaded} <- load(opts),
          {:ok, config} <- normalized_config(loaded, env(opts)) do
+      future_work_policy = future_work_policy(config, loaded)
+
       {:ok,
        %{
          "source" => "symphony_workflow",
@@ -77,6 +83,8 @@ defmodule Extravaganza.SymphonyWorkflowImport do
            "prompt_hash" => prompt_hash(loaded.prompt_template)
          },
          "config" => config,
+         "future_work_policy" => future_work_policy,
+         "runtime_policy_config" => runtime_policy_config(config, future_work_policy),
          "runtime_profile" => runtime_profile(config),
          "app_kit_runtime_profile" => app_kit_runtime_profile(config, loaded),
          "validation" => validation_summary(config)
@@ -145,6 +153,29 @@ defmodule Extravaganza.SymphonyWorkflowImport do
           "error" => sanitize_reload_reason(reason),
           "last_known_good" => %{"status" => "unavailable"}
         }
+    end
+  end
+
+  @spec runtime_policy_config_from_cache(keyword() | map()) :: {:ok, map()} | {:error, term()}
+  def runtime_policy_config_from_cache(opts \\ []) do
+    opts
+    |> profile_cache_path()
+    |> read_reload_cache()
+    |> case do
+      {:ok, %{"profile" => %{"runtime_policy_config" => policy_config}}}
+      when is_map(policy_config) ->
+        {:ok, policy_config}
+
+      {:ok, %{"profile" => %{"config" => config} = profile}}
+      when is_map(config) ->
+        policy = future_work_policy_from_cached_profile(config, profile)
+        {:ok, runtime_policy_config(config, policy)}
+
+      {:ok, _payload} ->
+        {:error, :invalid_last_known_good}
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -577,6 +608,7 @@ defmodule Extravaganza.SymphonyWorkflowImport do
 
   defp app_kit_runtime_profile(config, loaded) do
     prompt_hash = prompt_hash(loaded.prompt_template)
+    future_work_policy = future_work_policy(config, loaded)
 
     %{
       "program" => %{
@@ -588,7 +620,8 @@ defmodule Extravaganza.SymphonyWorkflowImport do
           "workflow_path" => loaded.path,
           "prompt_hash" => prompt_hash,
           "tracker" => profile_tracker_config(config["tracker"]),
-          "polling" => config["polling"]
+          "polling" => config["polling"],
+          "future_work_policy" => future_work_policy
         },
         "metadata" => %{
           "managed_by" => "extravaganza_core",
@@ -662,6 +695,7 @@ defmodule Extravaganza.SymphonyWorkflowImport do
           "polling_interval_ms" => config["polling"]["interval_ms"],
           "max_concurrent_agents" => config["agent"]["max_concurrent_agents"],
           "max_concurrent_agents_by_state" => config["agent"]["max_concurrent_agents_by_state"],
+          "future_work_policy_ref" => future_work_policy["policy_ref"],
           "remote_workspace_semantics" => remote_workspace_semantics(config)
         }
       }
@@ -687,6 +721,99 @@ defmodule Extravaganza.SymphonyWorkflowImport do
     |> Map.drop(["api_key_supplied?"])
     |> Map.put("api_key_ref", tracker["api_key_ref"])
   end
+
+  defp future_work_policy(config, loaded) do
+    prompt_hash = prompt_hash(loaded.prompt_template)
+
+    %{
+      "policy_ref" => "future-work-policy://symphony-workflow/#{hash_suffix(prompt_hash)}",
+      "source" => "symphony_workflow",
+      "workflow" => %{
+        "path" => loaded.path,
+        "prompt_hash" => prompt_hash
+      },
+      "scope" => %{
+        "applies_to" => "future_work_only",
+        "mutates_active_runs?" => false
+      },
+      "source_admission" => %{
+        "tracker_kind" => config["tracker"]["kind"],
+        "endpoint" => config["tracker"]["endpoint"],
+        "api_key_ref" => config["tracker"]["api_key_ref"],
+        "project_slug" => config["tracker"]["project_slug"],
+        "assignee" => config["tracker"]["assignee"],
+        "active_states" => config["tracker"]["active_states"],
+        "terminal_states" => config["tracker"]["terminal_states"]
+      },
+      "polling" => config["polling"],
+      "dispatch" => %{
+        "max_concurrent_agents" => config["agent"]["max_concurrent_agents"],
+        "max_concurrent_agents_by_state" => config["agent"]["max_concurrent_agents_by_state"],
+        "max_concurrent_agents_per_host" => config["worker"]["max_concurrent_agents_per_host"],
+        "worker_hosts" => config["worker"]["ssh_hosts"] || []
+      },
+      "codex" => Map.put(config["codex"], "max_turns", config["agent"]["max_turns"]),
+      "workspace" => %{
+        "root" => config["workspace"]["root"],
+        "hooks" => config["hooks"],
+        "remote_workspace_semantics" => remote_workspace_semantics(config)
+      },
+      "retry" => %{
+        "strategy" => "symphony_exponential_backoff",
+        "continuation_backoff_ms" => @continuation_retry_delay_ms,
+        "failure_base_backoff_ms" => @failure_retry_base_ms,
+        "max_retry_backoff_ms" => config["agent"]["max_retry_backoff_ms"]
+      }
+    }
+  end
+
+  defp future_work_policy_from_cached_profile(config, profile) do
+    case Map.get(profile, "future_work_policy") do
+      policy when is_map(policy) ->
+        policy
+
+      _other ->
+        loaded = %{
+          path: get_in(profile, ["workflow", "path"]) || @workflow_file_name,
+          prompt_template: get_in(profile, ["workflow", "prompt_template"]) || ""
+        }
+
+        future_work_policy(config, loaded)
+    end
+  end
+
+  defp runtime_policy_config(config, future_work_policy) do
+    default_config = DefaultCodingOps.runtime_config()
+
+    default_config
+    |> Map.put("tracker", profile_tracker_config(config["tracker"]))
+    |> Map.put("polling", config["polling"])
+    |> Map.put("worker", config["worker"])
+    |> Map.put("agent", config["agent"])
+    |> Map.put("codex", config["codex"])
+    |> Map.put("hooks", config["hooks"])
+    |> Map.put(
+      "workspace",
+      Map.merge(Map.get(default_config, "workspace", %{}), config["workspace"])
+    )
+    |> Map.put("retry", runtime_retry_config(default_config, config))
+    |> Map.put("future_work_policy", future_work_policy)
+  end
+
+  defp runtime_retry_config(default_config, config) do
+    default_config
+    |> Map.get("retry", %{})
+    |> Map.merge(%{
+      "strategy" => "symphony_exponential_backoff",
+      "continuation_backoff_ms" => @continuation_retry_delay_ms,
+      "failure_base_backoff_ms" => @failure_retry_base_ms,
+      "max_backoff_ms" => config["agent"]["max_retry_backoff_ms"],
+      "max_retry_backoff_ms" => config["agent"]["max_retry_backoff_ms"]
+    })
+  end
+
+  defp hash_suffix("sha256:" <> digest), do: digest
+  defp hash_suffix(value), do: to_string(value)
 
   defp render_solid_prompt(template, assigns) do
     with {:ok, parsed} <- parse_solid_template(template) do
@@ -808,6 +935,7 @@ defmodule Extravaganza.SymphonyWorkflowImport do
       "status" => "reloaded",
       "workflow_path" => summary["workflow_path"],
       "prompt_hash" => summary["prompt_hash"],
+      "future_work_policy" => summary["future_work_policy"],
       "last_known_good" => Map.put(summary, "status", "updated")
     }
   end
@@ -823,7 +951,8 @@ defmodule Extravaganza.SymphonyWorkflowImport do
   defp reload_profile_summary(profile) do
     %{
       "workflow_path" => profile |> get_in(["workflow", "path"]) |> redact_path(),
-      "prompt_hash" => get_in(profile, ["workflow", "prompt_hash"])
+      "prompt_hash" => get_in(profile, ["workflow", "prompt_hash"]),
+      "future_work_policy" => Map.get(profile, "future_work_policy")
     }
   end
 

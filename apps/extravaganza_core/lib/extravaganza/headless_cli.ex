@@ -702,7 +702,7 @@ defmodule Extravaganza.HeadlessCLI do
     unique = unique_suffix()
 
     opts
-    |> Map.take([:tenant_id, :pack_version])
+    |> Map.take([:tenant_id, :pack_version, :profile_cache_path])
     |> Map.put_new(:tenant_id, "extravaganza-headless-#{unique}")
     |> Map.put_new(:pack_version, "1.0.0-headless.#{unique}")
     |> Enum.to_list()

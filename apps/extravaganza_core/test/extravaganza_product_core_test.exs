@@ -44,6 +44,7 @@ defmodule ExtravaganzaProductCoreTest do
     Queries,
     Reviews,
     RunProfiles.DefaultCodexProfile,
+    SymphonyWorkflowImport,
     Workflows
   }
 
@@ -1346,6 +1347,82 @@ defmodule ExtravaganzaProductCoreTest do
     assert result.payload.workflow_start_ref == result.payload.run_ref.metadata.workflow_start_ref
   end
 
+  @tag :tmp_dir
+  test "product-local start_run uses cached reload policy for future dispatch only",
+       %{
+         tenant_id: tenant_id,
+         pack_version: pack_version,
+         tmp_dir: tmp_dir
+       } do
+    activate_fixture_registration!(tenant_id: tenant_id, pack_version: pack_version)
+
+    assert {:ok, initial} =
+             Workflows.start_run(
+               %{
+                 external_ref: "linear:ENG-208",
+                 title: "Initial default run",
+                 description: "This run should keep the default policy",
+                 source_kind: "linear",
+                 payload: %{"issue_id" => "ENG-208"},
+                 normalized_payload: %{"issue_id" => "ENG-208"}
+               },
+               tenant_id: tenant_id,
+               pack_version: pack_version
+             )
+
+    initial_policy = initial.payload.params["runtime_policy_config"]
+    refute Map.has_key?(initial_policy, "future_work_policy")
+
+    workflow_path = write_future_dispatch_workflow!(tmp_dir)
+    cache_path = Path.join(tmp_dir, "future-dispatch-profile.json")
+
+    assert {:ok, %{"status" => "reloaded"}} =
+             SymphonyWorkflowImport.reload(
+               workflow_path: workflow_path,
+               profile_cache_path: cache_path,
+               env: %{"LINEAR_API_KEY" => "linear-secret-value"}
+             )
+
+    assert {:ok, future} =
+             Workflows.start_run(
+               %{
+                 external_ref: "linear:ENG-209",
+                 title: "Future cached-policy run",
+                 description: "This run should carry the reloaded policy",
+                 source_kind: "linear",
+                 payload: %{"issue_id" => "ENG-209"},
+                 normalized_payload: %{"issue_id" => "ENG-209"}
+               },
+               tenant_id: tenant_id,
+               pack_version: pack_version,
+               profile_cache_path: cache_path
+             )
+
+    future_policy = future.payload.params["runtime_policy_config"]
+
+    assert future_policy["future_work_policy"]["source_admission"]["active_states"] == [
+             "Ready",
+             "In Progress"
+           ]
+
+    assert future_policy["future_work_policy"]["polling"]["interval_ms"] == 12_345
+    assert future_policy["future_work_policy"]["dispatch"]["max_concurrent_agents"] == 4
+    assert future_policy["future_work_policy"]["codex"]["command"] == "codex app-server --future"
+
+    assert future_policy["future_work_policy"]["workspace"]["root"] ==
+             Path.join(tmp_dir, "future")
+
+    assert future_policy["future_work_policy"]["retry"]["max_retry_backoff_ms"] == 44_000
+
+    assert future.payload.run_request_metadata["future_work_policy_ref"] ==
+             future_policy["future_work_policy"]["policy_ref"]
+
+    assert future.payload.run_request_metadata["future_work_policy_scope"] == "future_work_only"
+    assert future.payload.run_request_metadata["mutates_active_runs?"] == false
+    assert initial.payload.params["runtime_policy_config"] == initial_policy
+    refute Map.has_key?(initial.payload.run_request_metadata, "future_work_policy_ref")
+  end
+
   test "product-local query facade lists the operator queue through app kit", %{
     tenant_id: tenant_id,
     pack_version: pack_version
@@ -2270,6 +2347,48 @@ defmodule ExtravaganzaProductCoreTest do
         registration = MezzanineConfigRegistry.register_pack!(compiled_pack)
         activate_registration!(registration)
     end
+  end
+
+  defp write_future_dispatch_workflow!(tmp_dir) do
+    path = Path.join(tmp_dir, "WORKFLOW-future-dispatch.md")
+
+    File.write!(path, """
+    ---
+    tracker:
+      kind: linear
+      api_key: $LINEAR_API_KEY
+      project_slug: ENG
+      active_states:
+        - Ready
+        - In Progress
+      terminal_states:
+        - Done
+        - Canceled
+    polling:
+      interval_ms: 12345
+    workspace:
+      root: future
+    worker:
+      max_concurrent_agents_per_host: 1
+    agent:
+      max_concurrent_agents: 4
+      max_turns: 8
+      max_retry_backoff_ms: 44000
+      max_concurrent_agents_by_state:
+        Ready: 2
+    codex:
+      command: codex app-server --future
+      turn_timeout_ms: 60000
+      read_timeout_ms: 7000
+      stall_timeout_ms: 9000
+    hooks:
+      before_run: scripts/before_run.sh
+      timeout_ms: 2500
+    ---
+    Ship {{ issue.identifier }}
+    """)
+
+    path
   end
 
   defp activate_registration!(%PackRegistration{} = registration) do

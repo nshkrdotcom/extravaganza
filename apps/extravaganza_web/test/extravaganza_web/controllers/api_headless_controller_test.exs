@@ -469,6 +469,12 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
     assert reload["data"]["status"] == "reloaded"
     assert reload["data"]["runtime_profile_apply"]["status"] == "updated"
     assert reload["runtime_profile_ref"] == "runtime-profile://symphony-workflow"
+
+    assert reload["data"]["profile"]["future_work_policy"]["source_admission"][
+             "active_states"
+           ] == ["Ready"]
+
+    assert reload["data"]["profile"]["future_work_policy"]["polling"]["interval_ms"] == 12_345
     refute Jason.encode!(reload) =~ @secret
 
     status =
@@ -484,6 +490,9 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
     assert workflow_reload["workflow_path"] == "[redacted-path]"
     assert workflow_reload["runtime_profile_ref"] == "runtime-profile://symphony-workflow"
     assert workflow_reload["runtime_profile_apply"]["status"] == "updated"
+
+    assert workflow_reload["future_work_policy"]["source_admission"]["active_states"] == ["Ready"]
+    assert workflow_reload["future_work_policy"]["polling"]["interval_ms"] == 12_345
     refute Jason.encode!(status) =~ @secret
   end
 
@@ -844,6 +853,12 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
       kind: linear
       api_key: $LINEAR_API_KEY
       project_slug: ENG
+      active_states:
+        - Ready
+      terminal_states:
+        - Done
+    polling:
+      interval_ms: 12345
     codex:
       command: codex app-server
     ---
