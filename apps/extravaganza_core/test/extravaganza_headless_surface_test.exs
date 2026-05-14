@@ -464,6 +464,141 @@ defmodule Extravaganza.HeadlessSurfaceTest do
     refute String.contains?(encoded_run, "integration_postgres")
   end
 
+  test "run presenter indexes lower handle, workspace, turn, retry, codex event, and receipt coverage" do
+    assert {:ok, %RuntimeRunDetail{} = run} = HeadlessSurface.run_detail("run:fixture")
+    rendered = RunPresenter.present(run, correlation_id: "corr:run")
+
+    assert rendered["schema_ref"] == "headless_run_detail.v1"
+    assert rendered["correlation_id"] == "corr:run"
+    assert rendered["data"]["run_readback_coverage_gaps"] == []
+
+    coverage = rendered["data"]["run_readback_coverage"]
+
+    assert Map.keys(coverage) |> Enum.sort() == [
+             "continuation_decision",
+             "current_status",
+             "last_codex_event",
+             "lower_run_handle",
+             "prompt_profile_refs",
+             "receipts",
+             "retry_metadata",
+             "turn_limits",
+             "workspace_identity"
+           ]
+
+    assert coverage["lower_run_handle"] == %{
+             "execution_refs" => ["execution:fixture"],
+             "fields" => [
+               "run_ref",
+               "runtime_row.run_ref",
+               "runtime_row.execution_ref",
+               "runtime_row.workflow_ref",
+               "runtime_row.session_ref",
+               "runtime_row.extensions.lower_envelope",
+               "runtime_row.extensions.lower_receipt"
+             ],
+             "lower_receipt_refs" => ["lower-receipt:fixture"],
+             "lower_request_refs" => ["lower-request:fixture"],
+             "run_refs" => ["run:fixture"],
+             "session_refs" => ["session:fixture:1"],
+             "workflow_refs" => ["workflow:fixture"]
+           }
+
+    assert coverage["workspace_identity"] == %{
+             "display_labels" => ["Fixture workspace"],
+             "fields" => ["runtime_row.workspace_ref"],
+             "path_redacted?" => true,
+             "workspace_refs" => ["workspace:fixture"]
+           }
+
+    assert coverage["prompt_profile_refs"] == %{
+             "continuation_prompt_refs" => ["prompt:fixture:continuation"],
+             "fields" => [
+               "runtime_row.extensions.governance",
+               "runtime_row.extensions.lower_envelope",
+               "runtime_row.extensions.prompt_profile",
+               "events.profile_ref",
+               "events.source_contract_ref",
+               "turns"
+             ],
+             "prompt_refs" => ["prompt:fixture:first"],
+             "profile_refs" => ["runtime-profile:local-deterministic"],
+             "sandbox_profile_refs" => ["sandbox:fixture"],
+             "source_contract_refs" => ["source-contract:fixture"]
+           }
+
+    assert coverage["turn_limits"] == %{
+             "continuation_turn_counts" => [1],
+             "fields" => ["turns", "runtime_row.extensions.continuation"],
+             "max_turns" => [3],
+             "max_turns_reached?" => false,
+             "turn_counts" => [2]
+           }
+
+    assert coverage["current_status"] == %{
+             "fields" => [
+               "runtime_row.state",
+               "runtime_row.status_reason",
+               "runtime_row.updated_at"
+             ],
+             "states" => ["stalled"],
+             "status_reasons" => ["stall_timeout"],
+             "updated_at" => ["2026-04-27T00:10:00Z"]
+           }
+
+    assert coverage["retry_metadata"] == %{
+             "attempt_refs" => [
+               "attempt:fixture:stall:2",
+               "attempt:fixture:1",
+               "attempt:fixture:2"
+             ],
+             "continuation_attempt_refs" => ["attempt:fixture:1"],
+             "delay_types" => ["failure_backoff", "continuation"],
+             "fields" => ["retries"],
+             "retry_refs" => ["retry:fixture:stall:2"],
+             "statuses" => ["scheduled"]
+           }
+
+    assert coverage["continuation_decision"] == %{
+             "decisions" => ["schedule_continuation_retry"],
+             "fields" => ["retries", "runtime_row.extensions.continuation"],
+             "next_delay_ms" => [1000],
+             "reasons" => ["source_still_active"]
+           }
+
+    assert coverage["last_codex_event"] == %{
+             "event_refs" => ["event:run:8"],
+             "event_kinds" => ["codex.agent_message.updated"],
+             "fields" => ["events", "runtime_row.token_totals"],
+             "message_summaries" => ["Codex agent message updated"],
+             "session_refs" => ["session:fixture:1"],
+             "token_totals" => [
+               %{"input_tokens" => 1200, "output_tokens" => 800, "total_tokens" => 2000}
+             ]
+           }
+
+    assert coverage["receipts"] == %{
+             "acceptance_receipt_refs" => ["acceptance:fixture"],
+             "fields" => [
+               "runtime_row.extensions.lower_receipt",
+               "runtime_row.extensions.retry_receipts",
+               "runtime_row.extensions.source_publication",
+               "runtime_row.extensions.review_decision",
+               "runtime_row.extensions.acceptance"
+             ],
+             "lower_receipt_refs" => ["lower-receipt:fixture"],
+             "review_decision_refs" => ["review-decision:fixture"],
+             "source_publication_receipt_refs" => ["source-publication:fixture"],
+             "retry_receipt_refs" => ["retry-receipt:fixture:none"]
+           }
+
+    encoded = Jason.encode!(rendered)
+    refute String.contains?(encoded, "workspace_path")
+    refute String.contains?(encoded, "/tmp/")
+    refute String.contains?(encoded, "/home/")
+    refute String.contains?(encoded, "api_key")
+  end
+
   test "refresh and control commands return typed command results" do
     assert {:ok, %CommandResult{} = refresh} =
              HeadlessSurface.request_refresh(%{"idempotency_key" => "idem:refresh"})

@@ -10,7 +10,9 @@
     "state": "stalled",
     "status_reason": "stall_timeout",
     "updated_at": "2026-04-27T00:10:00Z",
+    "session_ref": {"id": "session:fixture:1", "kind": "codex_app_server", "metadata": {"thread_id": "thread:fixture:1", "turn_id": "turn:fixture:1"}},
     "workspace_ref": {"id": "workspace:fixture", "display_label": "Fixture workspace", "path_redacted?": true},
+    "token_totals": {"total_input_tokens": 1200, "total_output_tokens": 800, "total_tokens": 2000, "cached_input_tokens": 64, "source": "codex_event_stream"},
     "extensions": {
       "governance": {
         "runtime_profile_ref": "runtime-profile:local-deterministic",
@@ -55,6 +57,23 @@
         "attempt_ref": "attempt:fixture:1",
         "status": "succeeded"
       },
+      "prompt_profile": {
+        "prompt_ref": "prompt:fixture:first",
+        "prompt_hash": "sha256:fixture-first-prompt",
+        "continuation_prompt_ref": "prompt:fixture:continuation",
+        "continuation_guidance_ref": "continuation-guidance:fixture",
+        "source_contract_ref": "source-contract:fixture",
+        "profile_ref": "runtime-profile:local-deterministic"
+      },
+      "continuation": {
+        "decision": "schedule_continuation_retry",
+        "turn_count": 2,
+        "max_turns": 3,
+        "continuation_turn_count": 1,
+        "max_turns_reached?": false,
+        "next_delay_ms": 1000,
+        "reason": "source_still_active"
+      },
       "retry_receipts": [{"retry_receipt_ref": "retry-receipt:fixture:none", "status": "not_needed"}],
       "incident_bundles": [],
       "acceptance": {
@@ -93,7 +112,7 @@
     {"event_ref": "event:run:11", "event_seq": 11, "event_kind": "reconciliation.terminal_source_detected", "observed_at": "2026-04-27T00:08:00Z", "run_ref": "run:fixture", "subject_ref": "subject:fixture", "message_summary": "Reconciliation observed terminal source state", "extensions": {"source_ref": "linear:fixture", "source_state": "Done", "terminal?": true, "action": "cancel_lower_run"}},
     {"event_ref": "event:run:10", "event_seq": 10, "event_kind": "source.publication.completed", "observed_at": "2026-04-27T00:07:30Z", "run_ref": "run:fixture", "subject_ref": "subject:fixture", "message_summary": "Source publication completed", "extensions": {"source_publication_receipt_ref": "source-publication:fixture", "source_ref": "linear-comment:fixture", "mode": "deterministic_preview"}},
     {"event_ref": "event:run:9", "event_seq": 9, "event_kind": "lower_receipt_observed", "observed_at": "2026-04-27T00:07:00Z", "run_ref": "run:fixture", "message_summary": "Lower receipt observed"},
-    {"event_ref": "event:run:8", "event_seq": 8, "event_kind": "codex.agent_message.updated", "observed_at": "2026-04-27T00:06:30Z", "run_ref": "run:fixture", "attempt_ref": "attempt:fixture:1", "session_ref": "session:fixture:1", "message_summary": "Codex agent message updated", "extensions": {"last_message": "Working on fixture task", "token_delta": {"input_tokens": 42, "output_tokens": 7, "total_tokens": 49}}},
+    {"event_ref": "event:run:8", "event_seq": 8, "event_kind": "codex.agent_message.updated", "observed_at": "2026-04-27T00:06:30Z", "run_ref": "run:fixture", "attempt_ref": "attempt:fixture:1", "session_ref": "session:fixture:1", "turn_ref": "turn:fixture:1", "profile_ref": "runtime-profile:local-deterministic", "source_contract_ref": "source-contract:fixture", "message_summary": "Codex agent message updated", "extensions": {"last_message": "Working on fixture task", "token_delta": {"input_tokens": 42, "output_tokens": 7, "total_tokens": 49}}},
     {"event_ref": "event:run:7", "event_seq": 7, "event_kind": "workspace.hook.after_create", "observed_at": "2026-04-27T00:06:00Z", "run_ref": "run:fixture", "attempt_ref": "attempt:fixture:1", "workspace_ref": "workspace:fixture", "message_summary": "after_create hook completed", "extensions": {"hook_receipt": {"hook_ref": "hook:fixture:after_create", "stage": "after_create", "status": "succeeded", "fatal?": true, "action": "continue", "timeout_ms": 60000, "result": {"stdout": "created workspace\n", "stderr": ""}, "truncated?": false, "path_redacted?": true}}},
     {"event_ref": "event:run:6", "event_seq": 6, "event_kind": "dispatch.started", "observed_at": "2026-04-27T00:05:30Z", "run_ref": "run:fixture", "subject_ref": "subject:fixture", "message_summary": "Dispatch started", "extensions": {"execution_ref": "execution:fixture", "workflow_ref": "workflow:fixture", "worker_ref": "worker:fixture"}},
     {"event_ref": "event:run:5", "event_seq": 5, "event_kind": "candidate.rejected", "observed_at": "2026-04-27T00:05:00Z", "subject_ref": "subject:blocked", "message_summary": "Candidate rejected by blocker rule", "extensions": {"reason": "non_terminal_dependency", "dispatch_eligible?": false, "blocker_refs": ["subject:blocker:fixture"]}},
@@ -104,7 +123,29 @@
     {"event_ref": "event:run:0", "event_seq": 0, "event_kind": "run_started", "observed_at": "2026-04-27T00:01:00Z", "run_ref": "run:fixture", "message_summary": "Run started"}
   ],
   "retries": [{"retry_ref": "retry:fixture:stall:2", "attempt_ref": "attempt:fixture:stall:2", "status": "scheduled", "reason": "stall_timeout", "scheduled_at": "2026-04-27T00:10:00Z", "due_at": "2026-04-27T00:10:10Z", "delay_ms": 10000, "delay_type": "failure_backoff", "worker_ref": "worker:fixture", "workspace_ref": "workspace:fixture", "metadata": {"safe_action": "terminate_lower_and_schedule_retry"}}, {"attempt_ref": "attempt:fixture:1", "status": "scheduled", "reason": "source_still_active", "scheduled_at": "2026-04-27T00:10:00Z", "due_at": "2026-04-27T00:10:00Z", "delay_ms": 1000, "delay_type": "continuation", "continuation?": true, "worker_ref": "worker:fixture", "workspace_ref": "workspace:fixture"}, {"attempt_ref": "attempt:fixture:2", "status": "scheduled", "reason": "agent exited", "scheduled_at": "2026-04-27T00:20:00Z", "due_at": "2026-04-27T00:20:00Z", "delay_ms": 20000, "delay_type": "failure_backoff", "worker_ref": "worker:fixture", "workspace_ref": "workspace:fixture"}],
-  "turns": [],
+  "turns": [
+    {
+      "turn_ref": "turn:fixture:1",
+      "session_ref": "session:fixture:1",
+      "thread_ref": "thread:fixture:1",
+      "provider_session_id": "thread-1",
+      "provider_turn_id": "turn-1",
+      "turn_number": 2,
+      "turn_count": 2,
+      "max_turns": 3,
+      "continuation_turn_count": 1,
+      "max_turns_reached?": false,
+      "prompt_ref": "prompt:fixture:first",
+      "continuation_prompt_ref": "prompt:fixture:continuation",
+      "prompt_hash": "sha256:fixture-first-prompt",
+      "profile_ref": "runtime-profile:local-deterministic",
+      "sandbox_profile_ref": "sandbox:fixture",
+      "source_contract_ref": "source-contract:fixture",
+      "workspace_ref": "workspace:fixture",
+      "lower_request_ref": "lower-request:fixture",
+      "lower_receipt_ref": "lower-receipt:fixture"
+    }
+  ],
   "budget_state": {"status": "not_available"},
   "candidate_fact_refs": [],
   "memory_proof_refs": [],

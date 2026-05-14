@@ -1047,6 +1047,75 @@ defmodule Extravaganza.Presenters.RunPresenter do
   alias Extravaganza.Presenters.JSONSupport
   alias Extravaganza.Presenters.StatePresenter
 
+  @run_readback_coverage_kinds ~w[
+    lower_run_handle
+    workspace_identity
+    prompt_profile_refs
+    turn_limits
+    current_status
+    retry_metadata
+    continuation_decision
+    last_codex_event
+    receipts
+  ]
+  @atom_keys %{
+    "acceptance" => :acceptance,
+    "acceptance_receipt_ref" => :acceptance_receipt_ref,
+    "attempt_ref" => :attempt_ref,
+    "continuation" => :continuation,
+    "continuation?" => :continuation?,
+    "continuation_prompt_ref" => :continuation_prompt_ref,
+    "continuation_turn_count" => :continuation_turn_count,
+    "decision" => :decision,
+    "delay_ms" => :delay_ms,
+    "delay_type" => :delay_type,
+    "display_label" => :display_label,
+    "event_kind" => :event_kind,
+    "event_ref" => :event_ref,
+    "event_seq" => :event_seq,
+    "execution_ref" => :execution_ref,
+    "extensions" => :extensions,
+    "governance" => :governance,
+    "id" => :id,
+    "lower_envelope" => :lower_envelope,
+    "lower_receipt" => :lower_receipt,
+    "lower_receipt_ref" => :lower_receipt_ref,
+    "lower_request_ref" => :lower_request_ref,
+    "max_turns" => :max_turns,
+    "max_turns_reached?" => :max_turns_reached?,
+    "message_summary" => :message_summary,
+    "next_delay_ms" => :next_delay_ms,
+    "path_redacted?" => :path_redacted?,
+    "profile_ref" => :profile_ref,
+    "prompt_profile" => :prompt_profile,
+    "prompt_ref" => :prompt_ref,
+    "reason" => :reason,
+    "retry_receipt_ref" => :retry_receipt_ref,
+    "retry_receipts" => :retry_receipts,
+    "retry_ref" => :retry_ref,
+    "review_decision" => :review_decision,
+    "run_ref" => :run_ref,
+    "runtime_profile_ref" => :runtime_profile_ref,
+    "runtime_row" => :runtime_row,
+    "sandbox_profile_ref" => :sandbox_profile_ref,
+    "session_ref" => :session_ref,
+    "source_contract_ref" => :source_contract_ref,
+    "source_publication" => :source_publication,
+    "source_publication_receipt_ref" => :source_publication_receipt_ref,
+    "state" => :state,
+    "status" => :status,
+    "status_reason" => :status_reason,
+    "token_totals" => :token_totals,
+    "total_input_tokens" => :total_input_tokens,
+    "total_output_tokens" => :total_output_tokens,
+    "total_tokens" => :total_tokens,
+    "turn_count" => :turn_count,
+    "turns" => :turns,
+    "updated_at" => :updated_at,
+    "workflow_ref" => :workflow_ref,
+    "workspace_ref" => :workspace_ref
+  }
+
   @spec present(struct() | map(), keyword()) :: map()
   def present(value, opts \\ [])
 
@@ -1054,19 +1123,369 @@ defmodule Extravaganza.Presenters.RunPresenter do
     detail
     |> Presenter.present(opts)
     |> put_in(["schema_ref"], "headless_run_detail.v1")
-    |> update_in(["data"], &Map.merge(StatePresenter.future_m2_slots(), &1))
+    |> update_in(["data"], &with_run_readback/1)
     |> JSONSupport.normalize()
   end
 
   def present(%{} = detail, opts) do
+    data =
+      detail
+      |> stringify()
+      |> with_run_readback()
+
     %{
       "schema_ref" => "headless_run_detail.v1",
       "schema_version" => 1,
       "generated_at" => Keyword.get(opts, :generated_at),
       "correlation_id" => Keyword.get(opts, :correlation_id),
-      "data" => Map.merge(StatePresenter.future_m2_slots(), stringify(detail))
+      "data" => data
     }
   end
 
   defp stringify(map), do: Map.new(map, fn {key, value} -> {to_string(key), value} end)
+
+  defp with_run_readback(data) when is_map(data) do
+    data = Map.merge(StatePresenter.future_m2_slots(), data)
+    coverage = run_readback_coverage(data)
+
+    data
+    |> Map.put("run_readback_coverage", coverage)
+    |> Map.put("run_readback_coverage_gaps", run_readback_coverage_gaps(coverage))
+  end
+
+  defp run_readback_coverage(data) do
+    runtime_row = map_value(data, "runtime_row") || %{}
+    extensions = map_value(runtime_row, "extensions") || %{}
+    events = list_value(data, "events")
+    retries = list_value(data, "retries")
+    turns = list_value(data, "turns")
+
+    %{
+      "lower_run_handle" => lower_run_handle_coverage(data, runtime_row, extensions, turns),
+      "workspace_identity" => workspace_identity_coverage(runtime_row),
+      "prompt_profile_refs" => prompt_profile_refs_coverage(extensions, events, turns),
+      "turn_limits" => turn_limits_coverage(extensions, turns),
+      "current_status" => current_status_coverage(runtime_row),
+      "retry_metadata" => retry_metadata_coverage(retries),
+      "continuation_decision" => continuation_decision_coverage(extensions, retries),
+      "last_codex_event" => last_codex_event_coverage(runtime_row, events),
+      "receipts" => receipts_coverage(extensions)
+    }
+    |> compact_map()
+  end
+
+  defp run_readback_coverage_gaps(coverage) do
+    Enum.reject(@run_readback_coverage_kinds, fn kind ->
+      coverage
+      |> Map.get(kind)
+      |> coverage_present?()
+    end)
+  end
+
+  defp lower_run_handle_coverage(data, runtime_row, extensions, turns) do
+    lower_envelope = map_value(extensions, "lower_envelope") || %{}
+    lower_receipt = map_value(extensions, "lower_receipt") || %{}
+
+    %{
+      "fields" => [
+        "run_ref",
+        "runtime_row.run_ref",
+        "runtime_row.execution_ref",
+        "runtime_row.workflow_ref",
+        "runtime_row.session_ref",
+        "runtime_row.extensions.lower_envelope",
+        "runtime_row.extensions.lower_receipt"
+      ],
+      "run_refs" =>
+        string_values([map_value(data, "run_ref"), map_value(runtime_row, "run_ref")]),
+      "execution_refs" => singleton_string_value(runtime_row, "execution_ref"),
+      "workflow_refs" => singleton_string_value(runtime_row, "workflow_ref"),
+      "session_refs" => session_refs(runtime_row),
+      "lower_request_refs" =>
+        string_values([map_value(lower_envelope, "lower_request_ref")]) ++
+          string_values(turns, "lower_request_ref"),
+      "lower_receipt_refs" =>
+        string_values([map_value(lower_receipt, "lower_receipt_ref")]) ++
+          string_values(turns, "lower_receipt_ref")
+    }
+    |> uniq_lists()
+    |> compact_map()
+  end
+
+  defp workspace_identity_coverage(runtime_row) do
+    workspace_ref = map_value(runtime_row, "workspace_ref") || %{}
+
+    %{
+      "fields" => ["runtime_row.workspace_ref"],
+      "workspace_refs" => singleton_string_value(workspace_ref, "id"),
+      "display_labels" => singleton_string_value(workspace_ref, "display_label"),
+      "path_redacted?" => map_value(workspace_ref, "path_redacted?")
+    }
+    |> compact_map()
+  end
+
+  defp prompt_profile_refs_coverage(extensions, events, turns) do
+    governance = map_value(extensions, "governance") || %{}
+    lower_envelope = map_value(extensions, "lower_envelope") || %{}
+    prompt_profile = map_value(extensions, "prompt_profile") || %{}
+
+    %{
+      "fields" => [
+        "runtime_row.extensions.governance",
+        "runtime_row.extensions.lower_envelope",
+        "runtime_row.extensions.prompt_profile",
+        "events.profile_ref",
+        "events.source_contract_ref",
+        "turns"
+      ],
+      "prompt_refs" =>
+        string_values([map_value(prompt_profile, "prompt_ref")]) ++
+          string_values(turns, "prompt_ref"),
+      "continuation_prompt_refs" =>
+        string_values([map_value(prompt_profile, "continuation_prompt_ref")]) ++
+          string_values(turns, "continuation_prompt_ref"),
+      "profile_refs" =>
+        string_values([
+          map_value(governance, "runtime_profile_ref"),
+          map_value(prompt_profile, "profile_ref")
+        ]) ++
+          string_values(events, "profile_ref") ++ string_values(turns, "profile_ref"),
+      "sandbox_profile_refs" =>
+        string_values([map_value(lower_envelope, "sandbox_profile_ref")]) ++
+          string_values(turns, "sandbox_profile_ref"),
+      "source_contract_refs" =>
+        string_values([map_value(prompt_profile, "source_contract_ref")]) ++
+          string_values(events, "source_contract_ref") ++
+          string_values(turns, "source_contract_ref")
+    }
+    |> uniq_lists()
+    |> compact_map()
+  end
+
+  defp turn_limits_coverage(extensions, turns) do
+    continuation = map_value(extensions, "continuation") || %{}
+
+    %{
+      "fields" => ["turns", "runtime_row.extensions.continuation"],
+      "turn_counts" =>
+        integer_values([map_value(continuation, "turn_count")]) ++
+          integer_values(turns, "turn_count"),
+      "max_turns" =>
+        integer_values([map_value(continuation, "max_turns")]) ++
+          integer_values(turns, "max_turns"),
+      "continuation_turn_counts" =>
+        integer_values([map_value(continuation, "continuation_turn_count")]) ++
+          integer_values(turns, "continuation_turn_count"),
+      "max_turns_reached?" =>
+        first_boolean([
+          map_value(continuation, "max_turns_reached?")
+          | Enum.map(turns, &map_value(&1, "max_turns_reached?"))
+        ])
+    }
+    |> uniq_lists()
+    |> compact_map()
+  end
+
+  defp current_status_coverage(runtime_row) do
+    %{
+      "fields" => [
+        "runtime_row.state",
+        "runtime_row.status_reason",
+        "runtime_row.updated_at"
+      ],
+      "states" => singleton_string_value(runtime_row, "state"),
+      "status_reasons" => singleton_string_value(runtime_row, "status_reason"),
+      "updated_at" => singleton_string_value(runtime_row, "updated_at")
+    }
+    |> compact_map()
+  end
+
+  defp retry_metadata_coverage(retries) do
+    %{
+      "fields" => ["retries"],
+      "retry_refs" => string_values(retries, "retry_ref"),
+      "attempt_refs" => string_values(retries, "attempt_ref"),
+      "continuation_attempt_refs" =>
+        retries
+        |> Enum.filter(&(map_value(&1, "continuation?") == true))
+        |> string_values("attempt_ref"),
+      "delay_types" => string_values(retries, "delay_type"),
+      "statuses" => string_values(retries, "status")
+    }
+    |> uniq_lists()
+    |> compact_map()
+  end
+
+  defp continuation_decision_coverage(extensions, retries) do
+    continuation = map_value(extensions, "continuation") || %{}
+    continuation_retries = Enum.filter(retries, &(map_value(&1, "continuation?") == true))
+
+    %{
+      "fields" => ["retries", "runtime_row.extensions.continuation"],
+      "decisions" =>
+        string_values([
+          map_value(continuation, "decision") ||
+            if(continuation_retries == [], do: nil, else: "schedule_continuation_retry")
+        ]),
+      "reasons" =>
+        string_values([map_value(continuation, "reason")]) ++
+          string_values(continuation_retries, "reason"),
+      "next_delay_ms" =>
+        integer_values([map_value(continuation, "next_delay_ms")]) ++
+          integer_values(continuation_retries, "delay_ms")
+    }
+    |> uniq_lists()
+    |> compact_map()
+  end
+
+  defp last_codex_event_coverage(runtime_row, events) do
+    token_totals = token_totals_coverage(map_value(runtime_row, "token_totals"))
+
+    %{
+      "fields" => ["events", "runtime_row.token_totals"],
+      "event_refs" => events |> last_codex_events() |> string_values("event_ref"),
+      "event_kinds" => events |> last_codex_events() |> string_values("event_kind"),
+      "session_refs" => events |> last_codex_events() |> string_values("session_ref"),
+      "message_summaries" => events |> last_codex_events() |> string_values("message_summary"),
+      "token_totals" => if(token_totals == %{}, do: [], else: [token_totals])
+    }
+    |> compact_map()
+  end
+
+  defp receipts_coverage(extensions) do
+    lower_receipt = map_value(extensions, "lower_receipt") || %{}
+    source_publication = map_value(extensions, "source_publication") || %{}
+    review_decision = map_value(extensions, "review_decision") || %{}
+    acceptance = map_value(extensions, "acceptance") || %{}
+
+    %{
+      "fields" => [
+        "runtime_row.extensions.lower_receipt",
+        "runtime_row.extensions.retry_receipts",
+        "runtime_row.extensions.source_publication",
+        "runtime_row.extensions.review_decision",
+        "runtime_row.extensions.acceptance"
+      ],
+      "lower_receipt_refs" => singleton_string_value(lower_receipt, "lower_receipt_ref"),
+      "retry_receipt_refs" =>
+        extensions
+        |> list_value("retry_receipts")
+        |> string_values("retry_receipt_ref"),
+      "source_publication_receipt_refs" =>
+        singleton_string_value(source_publication, "source_publication_receipt_ref"),
+      "review_decision_refs" => singleton_string_value(review_decision, "decision_ref"),
+      "acceptance_receipt_refs" => singleton_string_value(acceptance, "acceptance_receipt_ref")
+    }
+    |> compact_map()
+  end
+
+  defp session_refs(runtime_row) do
+    case map_value(runtime_row, "session_ref") do
+      %{} = session_ref -> singleton_string_value(session_ref, "id")
+      value when is_binary(value) -> [value]
+      _other -> []
+    end
+  end
+
+  defp last_codex_events(events) do
+    events
+    |> Enum.filter(fn event ->
+      event
+      |> map_value("event_kind")
+      |> to_string()
+      |> String.starts_with?("codex.")
+    end)
+    |> Enum.sort_by(&(map_value(&1, "event_seq") || -1), :desc)
+    |> Enum.take(1)
+  end
+
+  defp token_totals_coverage(nil), do: %{}
+
+  defp token_totals_coverage(%{} = token_totals) do
+    %{
+      "input_tokens" => map_value(token_totals, "total_input_tokens"),
+      "output_tokens" => map_value(token_totals, "total_output_tokens"),
+      "total_tokens" => map_value(token_totals, "total_tokens")
+    }
+    |> compact_map()
+  end
+
+  defp token_totals_coverage(_value), do: %{}
+
+  defp first_boolean(values) do
+    case Enum.find(values, &(is_boolean(&1) or &1 in ["true", "false"])) do
+      value when is_boolean(value) -> value
+      "true" -> true
+      "false" -> false
+      _other -> nil
+    end
+  end
+
+  defp singleton_string_value(map, key) do
+    case map_value(map, key) do
+      nil -> []
+      value -> [to_string(value)]
+    end
+  end
+
+  defp string_values(values, key) when is_list(values) do
+    values
+    |> Enum.map(&map_value(&1, key))
+    |> string_values()
+  end
+
+  defp string_values(values) when is_list(values) do
+    values
+    |> Enum.reject(&(&1 in [nil, "nil"]))
+    |> Enum.map(&to_string/1)
+    |> Enum.uniq()
+  end
+
+  defp integer_values(values, key) when is_list(values) do
+    values
+    |> Enum.map(&map_value(&1, key))
+    |> integer_values()
+  end
+
+  defp integer_values(values) when is_list(values) do
+    values
+    |> Enum.filter(&is_integer/1)
+    |> Enum.uniq()
+  end
+
+  defp list_value(map, key) do
+    case map_value(map, key) do
+      values when is_list(values) -> values
+      _other -> []
+    end
+  end
+
+  defp coverage_present?(%{} = coverage) do
+    coverage
+    |> Map.drop(["fields"])
+    |> Enum.any?(fn {_key, value} -> value not in [nil, [], %{}] end)
+  end
+
+  defp coverage_present?(_coverage), do: false
+
+  defp map_value(map, key) when is_map(map) do
+    atom_key = Map.get(@atom_keys, key)
+
+    cond do
+      Map.has_key?(map, key) -> Map.get(map, key)
+      atom_key && Map.has_key?(map, atom_key) -> Map.get(map, atom_key)
+      true -> nil
+    end
+  end
+
+  defp map_value(_map, _key), do: nil
+
+  defp uniq_lists(map) do
+    Map.new(map, fn
+      {key, value} when is_list(value) -> {key, Enum.uniq(value)}
+      entry -> entry
+    end)
+  end
+
+  defp compact_map(map), do: Map.reject(map, fn {_key, value} -> value in [nil, []] end)
 end
