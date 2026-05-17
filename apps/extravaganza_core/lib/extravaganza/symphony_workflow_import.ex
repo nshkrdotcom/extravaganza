@@ -254,7 +254,7 @@ defmodule Extravaganza.SymphonyWorkflowImport do
   end
 
   defp split_front_matter(content) do
-    lines = String.split(content, ~r/\R/, trim: false)
+    lines = split_lines(content)
 
     case lines do
       ["---" | tail] ->
@@ -1029,7 +1029,7 @@ defmodule Extravaganza.SymphonyWorkflowImport do
   end
 
   defp env_reference_name("$" <> env_name) do
-    if String.match?(env_name, ~r/^[A-Za-z_][A-Za-z0-9_]*$/) do
+    if valid_env_name?(env_name) do
       {:ok, env_name}
     else
       :error
@@ -1037,6 +1037,39 @@ defmodule Extravaganza.SymphonyWorkflowImport do
   end
 
   defp env_reference_name(_value), do: :error
+
+  defp split_lines(content), do: split_lines(content, "", [])
+
+  defp split_lines(<<>>, current, lines), do: Enum.reverse([current | lines])
+
+  defp split_lines(<<"\r\n", rest::binary>>, current, lines),
+    do: split_lines(rest, "", [current | lines])
+
+  defp split_lines(<<"\n", rest::binary>>, current, lines),
+    do: split_lines(rest, "", [current | lines])
+
+  defp split_lines(<<"\r", rest::binary>>, current, lines),
+    do: split_lines(rest, "", [current | lines])
+
+  defp split_lines(<<char::utf8, rest::binary>>, current, lines) do
+    split_lines(rest, current <> <<char::utf8>>, lines)
+  end
+
+  defp valid_env_name?(<<first::utf8, rest::binary>>) do
+    env_name_start?(first) and valid_env_name_rest?(rest)
+  end
+
+  defp valid_env_name?(_value), do: false
+
+  defp valid_env_name_rest?(<<>>), do: true
+
+  defp valid_env_name_rest?(<<char::utf8, rest::binary>>) do
+    env_name_part?(char) and valid_env_name_rest?(rest)
+  end
+
+  defp env_name_start?(char), do: ascii_letter?(char) or char == ?_
+  defp env_name_part?(char), do: env_name_start?(char) or char in ?0..?9
+  defp ascii_letter?(char), do: char in ?A..?Z or char in ?a..?z
 
   defp env_value(env, key) do
     env = normalize_env(env)

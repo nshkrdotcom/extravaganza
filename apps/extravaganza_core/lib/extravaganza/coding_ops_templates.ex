@@ -95,11 +95,12 @@ defmodule Extravaganza.CodingOpsTemplates do
           {:ok, String.t()} | {:error, term()}
   def render_prompt_template(template, attrs, opts \\ [])
       when is_binary(template) and is_map(attrs) and is_list(opts) do
-    with :ok <- compile_prompt_template(template, opts) do
+    with {:ok, segments} <- parse_template(template),
+         :ok <- compile_prompt_template(template, opts) do
       rendered =
-        Regex.replace(~r/\{\{\s*(.*?)\s*\}\}/, template, fn _match, expression ->
-          render_template_expression(expression, attrs)
-        end)
+        segments
+        |> Enum.map(&render_template_segment(&1, attrs))
+        |> IO.iodata_to_binary()
 
       {:ok, rendered}
     end
@@ -263,20 +264,23 @@ defmodule Extravaganza.CodingOpsTemplates do
   end
 
   defp balanced_template_tags(template) do
-    opens = Regex.scan(~r/\{\{/, template) |> length()
-    closes = Regex.scan(~r/\}\}/, template) |> length()
-
-    if opens == closes do
-      :ok
-    else
-      {:error, {:template_parse_error, %{reason: :unbalanced_interpolation}}}
+    case parse_template(template) do
+      {:ok, _segments} -> :ok
+      {:error, reason} -> {:error, reason}
     end
   end
 
   defp template_expressions(template) do
-    ~r/\{\{\s*(.*?)\s*\}\}/
-    |> Regex.scan(template, capture: :all_but_first)
-    |> Enum.map(fn [expression] -> String.trim(expression) end)
+    case parse_template(template) do
+      {:ok, segments} ->
+        Enum.flat_map(segments, fn
+          {:expression, expression} -> [expression]
+          {:text, _text} -> []
+        end)
+
+      {:error, _reason} ->
+        []
+    end
   end
 
   defp validate_template_expressions(expressions, allowed_variables, allowed_filters) do
@@ -340,6 +344,66 @@ defmodule Extravaganza.CodingOpsTemplates do
     String.to_existing_atom(key)
   rescue
     ArgumentError -> key
+  end
+
+  defp parse_template(template), do: parse_template(template, [])
+
+  defp parse_template(template, segments) do
+    case split_once(template, "{{") do
+      :nomatch ->
+        if String.contains?(template, "}}") do
+          {:error, {:template_parse_error, %{reason: :unbalanced_interpolation}}}
+        else
+          {:ok, Enum.reverse(add_text_segment(segments, template))}
+        end
+
+      {before_open, after_open} ->
+        if String.contains?(before_open, "}}") do
+          {:error, {:template_parse_error, %{reason: :unbalanced_interpolation}}}
+        else
+          parse_template_expression(after_open, before_open, segments)
+        end
+    end
+  end
+
+  defp parse_template_expression(after_open, before_open, segments) do
+    case split_once(after_open, "}}") do
+      :nomatch ->
+        {:error, {:template_parse_error, %{reason: :unbalanced_interpolation}}}
+
+      {expression, rest} ->
+        next_segments =
+          segments
+          |> add_text_segment(before_open)
+          |> add_expression_segment(expression)
+
+        parse_template(rest, next_segments)
+    end
+  end
+
+  defp add_text_segment(segments, ""), do: segments
+  defp add_text_segment(segments, text), do: [{:text, text} | segments]
+
+  defp add_expression_segment(segments, expression) do
+    [{:expression, String.trim(expression)} | segments]
+  end
+
+  defp split_once(value, marker) do
+    case :binary.match(value, marker) do
+      :nomatch ->
+        :nomatch
+
+      {index, size} ->
+        before_match = binary_part(value, 0, index)
+        after_match = binary_part(value, index + size, byte_size(value) - index - size)
+        {before_match, after_match}
+    end
+  end
+
+  defp render_template_segment({:text, text}, _attrs), do: text
+
+  defp render_template_segment({:expression, expression}, attrs) do
+    render_template_expression(expression, attrs)
   end
 
   defp apply_template_filters(value, filters) do

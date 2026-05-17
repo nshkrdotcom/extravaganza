@@ -2322,9 +2322,10 @@ defmodule ExtravaganzaProductCoreTest do
     mismatched =
       update_in(proof, ["readbacks", Access.at!(0), "run_ref"], fn _ -> "run://mismatch" end)
 
-    assert_raise ArgumentError, ~r/same-run readback refs diverged: state/, fn ->
-      HeadlessSameRunSmoke.assert_same_run!(mismatched)
-    end
+    error =
+      assert_raise ArgumentError, fn -> HeadlessSameRunSmoke.assert_same_run!(mismatched) end
+
+    assert String.contains?(Exception.message(error), "same-run readback refs diverged: state")
   end
 
   defp activate_fixture_registration!(opts) do

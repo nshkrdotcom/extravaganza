@@ -220,7 +220,28 @@ defmodule Extravaganza.HeadlessShutdown do
   defp ref_suffix(value) do
     value
     |> to_string()
-    |> String.replace(~r/[^A-Za-z0-9_.:-]+/, "-")
+    |> String.to_charlist()
+    |> Enum.reduce({[], false}, &append_ref_suffix_char/2)
+    |> elem(0)
+    |> Enum.reverse()
+    |> IO.iodata_to_binary()
+  end
+
+  defp append_ref_suffix_char(char, {chars, in_replacement?}) do
+    cond do
+      ref_suffix_char?(char) ->
+        {[char | chars], false}
+
+      in_replacement? ->
+        {chars, true}
+
+      true ->
+        {[?- | chars], true}
+    end
+  end
+
+  defp ref_suffix_char?(char) do
+    char in ?A..?Z or char in ?a..?z or char in ?0..?9 or char in [?_, ?., ?:, ?-]
   end
 
   defp confirm_aliases do

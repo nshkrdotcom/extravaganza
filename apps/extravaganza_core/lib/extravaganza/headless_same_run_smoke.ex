@@ -955,7 +955,15 @@ defmodule Extravaganza.HeadlessSameRunSmoke do
   defp stringify_keys(map), do: Map.new(map, fn {key, value} -> {to_string(key), value} end)
 
   defp safe_ref_fragment(ref) do
-    Regex.replace(~r/[^A-Za-z0-9._-]/, to_string(ref), "-")
+    ref
+    |> to_string()
+    |> String.to_charlist()
+    |> Enum.map(fn char -> if safe_ref_fragment_char?(char), do: char, else: ?- end)
+    |> IO.iodata_to_binary()
+  end
+
+  defp safe_ref_fragment_char?(char) do
+    char in ?A..?Z or char in ?a..?z or char in ?0..?9 or char in [?., ?_, ?-]
   end
 
   defp unique_suffix do
