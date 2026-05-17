@@ -1689,12 +1689,15 @@ defmodule Extravaganza.HeadlessExamplesTest do
   end
 
   test "CLI emits stable JSON envelopes for fixture state, run, evidence, and events" do
-    for {operation, argv} <- [
-          {:state, common_args()},
-          {:run, ["run:fixture" | common_args()]},
-          {:evidence, ["run:fixture" | common_args()]},
-          {:events, ["--run", "run:fixture" | common_args()]},
-          {:stop, ["--confirm-no-active-lower-runs" | common_args()]}
+    for {operation, argv, schema_ref, required_refs} <- [
+          {:state, common_args(), "headless_state_snapshot.v1", []},
+          {:run, ["run:fixture" | common_args()], "headless_run_detail.v1",
+           ["run_ref", "lower_request_ref", "lower_receipt_ref"]},
+          {:evidence, ["run:fixture" | common_args()], "headless_evidence_chain.v1",
+           ["run_ref", "source_publication_ref"]},
+          {:events, ["--run", "run:fixture" | common_args()], "headless_events.v1",
+           ["run_ref", "event_page_ref"]},
+          {:stop, ["--confirm-no-active-lower-runs" | common_args()], "headless_shutdown.v1", []}
         ] do
       output = capture_io(fn -> assert :ok = HeadlessCLI.run(operation, argv) end)
       decoded = Jason.decode!(output)
@@ -1703,23 +1706,56 @@ defmodule Extravaganza.HeadlessExamplesTest do
       assert decoded["schema"] == "extravaganza.headless.response.v1"
       assert decoded["operation"] == Atom.to_string(operation)
       assert decoded["trace_id"] == "trace:examples"
+      assert decoded["data"]["schema_ref"] == schema_ref
+
+      for ref <- required_refs do
+        assert is_binary(decoded["refs"][ref])
+      end
+
       refute String.contains?(output, "workspace_path")
       refute String.contains?(output, "/home/")
     end
   end
 
   test "golden headless examples are valid standard envelopes" do
+    expected = %{
+      "error_projection_unavailable.json" => {:error, "run_detail", nil, []},
+      "events.json" => {:ok, "events", "headless_events.v1", ["event_page_ref", "run_ref"]},
+      "evidence.json" =>
+        {:ok, "evidence", "headless_evidence_chain.v1",
+         ["authority_ref", "run_ref", "source_publication_ref"]},
+      "run.json" =>
+        {:ok, "run", "headless_run_detail.v1",
+         ["authority_ref", "lower_receipt_ref", "lower_request_ref", "run_ref"]},
+      "state.json" => {:ok, "state", "headless_state_snapshot.v1", []}
+    }
+
     for path <- Path.wildcard("examples/headless/*.json") do
       body = path |> File.read!() |> Jason.decode!()
+      filename = Path.basename(path)
+      {status, operation, schema_ref, required_refs} = Map.fetch!(expected, filename)
 
-      assert body["ok"] in [true, false]
+      assert body["ok"] == (status == :ok)
 
       assert body["schema"] in [
                "extravaganza.headless.response.v1",
                "extravaganza.headless.error.v1"
              ]
 
-      assert is_binary(body["operation"])
+      assert body["operation"] == operation
+
+      if schema_ref do
+        assert body["data"]["schema_ref"] == schema_ref
+      end
+
+      for ref <- required_refs do
+        assert is_binary(body["refs"][ref])
+      end
+
+      encoded = Jason.encode!(body)
+      refute String.contains?(encoded, "workspace_path")
+      refute String.contains?(encoded, "/home/")
+      refute String.contains?(encoded, "api_key")
     end
   end
 

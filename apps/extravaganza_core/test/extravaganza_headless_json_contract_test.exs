@@ -66,6 +66,136 @@ defmodule Extravaganza.HeadlessJSONContractTest do
     refute String.contains?(encoded, "/home/")
   end
 
+  test "run detail JSON keeps the deterministic operator-visible field sets" do
+    assert {:ok, run} = HeadlessSurface.run_detail("run:fixture")
+
+    presented = RunPresenter.present(run)
+    data = presented["data"]
+    runtime_row = data["runtime_row"]
+    extensions = runtime_row["extensions"]
+
+    assert Map.keys(data) |> Enum.sort() == [
+             "agent_loop_diagnostics",
+             "budget_state",
+             "candidate_fact_refs",
+             "diagnostics",
+             "events",
+             "memory_proof_refs",
+             "persistence_posture",
+             "retries",
+             "run_readback_coverage",
+             "run_readback_coverage_gaps",
+             "run_ref",
+             "runtime_row",
+             "schema_ref",
+             "schema_version",
+             "turns"
+           ]
+
+    assert Map.keys(runtime_row) |> Enum.sort() == [
+             "execution_ref",
+             "extensions",
+             "persistence_posture",
+             "polling_state",
+             "provider_refs",
+             "run_ref",
+             "session_ref",
+             "state",
+             "status_reason",
+             "subject_ref",
+             "token_totals",
+             "updated_at",
+             "workflow_ref",
+             "workspace_ref"
+           ]
+
+    assert Map.keys(extensions) |> Enum.sort() == [
+             "acceptance",
+             "continuation",
+             "credential_preflight",
+             "governance",
+             "incident_bundles",
+             "lower_envelope",
+             "lower_receipt",
+             "prompt_profile",
+             "provider_request_response",
+             "retry_receipts",
+             "review_decision",
+             "source_publication",
+             "stall"
+           ]
+
+    assert Map.keys(extensions["provider_request_response"]) |> Enum.sort() == [
+             "operation",
+             "provider",
+             "provider_request_ref",
+             "provider_request_sent?",
+             "provider_response_received?",
+             "provider_response_ref",
+             "raw_material_present?",
+             "receipt_recorded?"
+           ]
+
+    assert Map.keys(extensions["source_publication"]) |> Enum.sort() == [
+             "comment_ref",
+             "mode",
+             "source_publication_receipt_ref",
+             "source_ref",
+             "workpad_refs"
+           ]
+
+    assert [turn] = data["turns"]
+
+    assert Map.keys(turn) |> Enum.sort() == [
+             "continuation_prompt_ref",
+             "continuation_turn_count",
+             "lower_receipt_ref",
+             "lower_request_ref",
+             "max_turns",
+             "max_turns_reached?",
+             "profile_ref",
+             "prompt_hash",
+             "prompt_ref",
+             "provider_session_id",
+             "provider_turn_id",
+             "sandbox_profile_ref",
+             "session_ref",
+             "source_contract_ref",
+             "thread_ref",
+             "turn_count",
+             "turn_number",
+             "turn_ref",
+             "workspace_ref"
+           ]
+
+    envelope = HeadlessJSON.success(:run, presented, trace_id: "trace:shape")
+
+    assert Map.keys(envelope) |> Enum.sort() == [
+             "data",
+             "generated_at",
+             "ok",
+             "operation",
+             "refs",
+             "runtime_profile_ref",
+             "schema",
+             "trace_id"
+           ]
+
+    assert Map.keys(envelope["refs"]) |> Enum.sort() == [
+             "authority_ref",
+             "capability_negotiation_ref",
+             "connector_manifest_ref",
+             "decision_ref",
+             "lower_receipt_ref",
+             "lower_request_ref",
+             "run_ref",
+             "runtime_profile_ref",
+             "source_publication_ref",
+             "subject_ref",
+             "workflow_ref"
+           ]
+  end
+
   test "success and error envelopes redact caller-supplied live provider secret values" do
     secrets = %{
       linear_api_key: "lin_api_phase53_secret",
