@@ -9,6 +9,7 @@ defmodule Extravaganza.HeadlessSurface do
 
   alias AppKit.Core.RunRef
   alias AppKit.Core.RuntimeReadback.{CommandResult, ControlRequest, RuntimeStateSnapshot}
+  alias AppKit.Core.RuntimeSurface.{GitHubPrBranchCleanupReceipt, GitHubPrEvidenceReceipt}
   alias AppKit.HeadlessSurface, as: AppKitHeadlessSurface
   alias AppKit.RuntimeGateway, as: AppKitRuntimeGateway
   alias AppKit.RuntimeSurface, as: AppKitRuntimeSurface
@@ -244,14 +245,44 @@ defmodule Extravaganza.HeadlessSurface do
   @spec fetch_github_pr_evidence(map(), keyword()) :: {:ok, struct()} | {:error, term()}
   def fetch_github_pr_evidence(attrs, opts \\ []) when is_map(attrs) and is_list(opts) do
     with {:ok, %{context: context}} <- context_bundle(opts) do
-      AppKitRuntimeSurface.fetch_github_pr_evidence(context, attrs, opts)
+      case AppKitRuntimeGateway.collect_evidence(
+             context,
+             :proposed_change_evidence,
+             attrs |> Map.new() |> Map.put_new(:evidence_binding, github_pr_evidence_binding()),
+             runtime_gateway_opts(opts)
+           ) do
+        {:ok, result} ->
+          result
+          |> normalize_result_attrs()
+          |> Map.put_new(:tenant_ref, context.tenant_ref.id)
+          |> GitHubPrEvidenceReceipt.new()
+
+        {:error, reason} ->
+          {:error, reason}
+      end
     end
   end
 
   @spec cleanup_github_pr_branch(map(), keyword()) :: {:ok, struct()} | {:error, term()}
   def cleanup_github_pr_branch(attrs, opts \\ []) when is_map(attrs) and is_list(opts) do
     with {:ok, %{context: context}} <- context_bundle(opts) do
-      AppKitRuntimeSurface.cleanup_github_pr_branch(context, attrs, opts)
+      case AppKitRuntimeGateway.invoke_resource_effect(
+             context,
+             :proposed_change_cleanup,
+             attrs
+             |> Map.new()
+             |> Map.put_new(:resource_effect_binding, github_pr_branch_cleanup_binding()),
+             runtime_gateway_opts(opts)
+           ) do
+        {:ok, result} ->
+          result
+          |> normalize_result_attrs()
+          |> Map.put_new(:tenant_ref, context.tenant_ref.id)
+          |> GitHubPrBranchCleanupReceipt.new()
+
+        {:error, reason} ->
+          {:error, reason}
+      end
     end
   end
 
@@ -325,14 +356,17 @@ defmodule Extravaganza.HeadlessSurface do
   end
 
   defp runtime_gateway_opts(opts) do
-    default_backend =
+    backend =
       Keyword.get(opts, :generic_backend) ||
         Application.get_env(:app_kit_core, :generic_backend) ||
         Keyword.get(opts, :source_backend) ||
-        Application.get_env(:app_kit_core, :source_backend) ||
-        AppKit.Bridges.MezzanineBridge
+        Application.get_env(:app_kit_core, :source_backend)
 
-    Keyword.put(opts, :generic_backend, default_backend)
+    if backend do
+      Keyword.put(opts, :generic_backend, backend)
+    else
+      opts
+    end
   end
 
   defp put_runtime_binding(request) do
@@ -367,6 +401,45 @@ defmodule Extravaganza.HeadlessSurface do
       operation_ref: "linear.graphql.execute",
       tool_name: "linear_graphql",
       allowed_operations: ["linear.graphql.execute"]
+    }
+  end
+
+  defp github_pr_evidence_binding do
+    %{
+      evidence_binding_ref: "evidence-binding://extravaganza/proposed-change-evidence",
+      evidence_role_ref: :proposed_change_evidence,
+      evidence_kind: :github_pr_evidence,
+      adapter_ref: :github,
+      connector_ref: "jido/connectors/github",
+      manifest_ref: "manifest://jido/connectors/github@local",
+      operation_refs: %{
+        fetch: "github.pr.fetch",
+        reviews: "github.pr.reviews.list",
+        review_comments: "github.pr.review_comments.list",
+        combined_status: "github.commit.statuses.get_combined",
+        check_runs: "github.check_runs.list_for_ref"
+      },
+      credential_binding_ref: "credential-binding://extravaganza/github"
+    }
+  end
+
+  defp github_pr_branch_cleanup_binding do
+    %{
+      resource_effect_binding_ref:
+        "resource-effect-binding://extravaganza/proposed-change-cleanup",
+      resource_effect_role_ref: :proposed_change_cleanup,
+      effect_kind: :github_pr_branch_cleanup,
+      adapter_ref: :github,
+      connector_ref: "jido/connectors/github",
+      manifest_ref: "manifest://jido/connectors/github@local",
+      operation_group_ref: "operation-group://extravaganza/github-pr-branch-cleanup",
+      operation_refs: %{
+        list: "github.pr.list",
+        comment: "github.comment.create",
+        close: "github.pr.update"
+      },
+      credential_binding_ref: "credential-binding://extravaganza/github",
+      confirmation_policy_ref: "confirmation-policy://extravaganza/github-pr-cleanup"
     }
   end
 
@@ -491,6 +564,9 @@ defmodule Extravaganza.HeadlessSurface do
 
   defp map_value(map, key) when is_map(map),
     do: Map.get(map, key) || Map.get(map, Atom.to_string(key))
+
+  defp normalize_result_attrs(%_{} = result), do: Map.from_struct(result)
+  defp normalize_result_attrs(%{} = result), do: Map.new(result)
 
   @doc false
   @spec control_request_schema() :: module()

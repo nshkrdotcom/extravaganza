@@ -758,7 +758,7 @@ defmodule Extravaganza.HeadlessLiveExamples do
           "counts" => receipt.counts,
           "receipt_refs" => receipt.receipt_refs,
           "operation_receipts" => receipt.operation_receipts,
-          "appkit_surfaces" => ["AppKit.RuntimeSurface", "AppKit.HeadlessSurface"],
+          "appkit_surfaces" => ["AppKit.RuntimeGateway", "AppKit.HeadlessSurface"],
           "lower_request_ref" => first_ref(receipt.receipt_refs, "lower_request_refs"),
           "lower_receipt_ref" => first_ref(receipt.receipt_refs, "lower_receipt_refs")
         }
@@ -799,7 +799,7 @@ defmodule Extravaganza.HeadlessLiveExamples do
           "counts" => receipt.counts,
           "receipt_refs" => receipt.receipt_refs,
           "operation_receipts" => receipt.operation_receipts,
-          "appkit_surfaces" => ["AppKit.RuntimeSurface", "AppKit.HeadlessSurface"],
+          "appkit_surfaces" => ["AppKit.RuntimeGateway", "AppKit.HeadlessSurface"],
           "lower_request_ref" => first_ref(receipt.receipt_refs, "lower_request_refs"),
           "lower_receipt_ref" => first_ref(receipt.receipt_refs, "lower_receipt_refs")
         }

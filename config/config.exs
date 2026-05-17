@@ -1,6 +1,7 @@
 import Config
 
 config :app_kit_core,
+  generic_backend: AppKit.Bridges.MezzanineBridge,
   installation_backend: AppKit.Bridges.MezzanineBridge,
   work_query_backend: AppKit.Bridges.MezzanineBridge,
   work_backend: AppKit.Bridges.MezzanineBridge,

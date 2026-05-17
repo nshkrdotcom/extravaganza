@@ -617,12 +617,6 @@ defmodule Extravaganza.HeadlessRuntimeSurfaceTest do
         })
       )
     end
-
-    @impl true
-    def fetch_github_pr_evidence(_context, _request, _opts), do: {:error, :not_used}
-
-    @impl true
-    def cleanup_github_pr_branch(_context, _request, _opts), do: {:error, :not_used}
   end
 
   defmodule SourceBackend do

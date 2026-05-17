@@ -26,6 +26,7 @@ defmodule Extravaganza.DependencySourcesTest do
     :app_kit_replay_viewer,
     :app_kit_review_surface,
     :app_kit_run_governance,
+    :app_kit_runtime_gateway,
     :app_kit_scope_objects,
     :app_kit_web_components,
     :app_kit_work_control,

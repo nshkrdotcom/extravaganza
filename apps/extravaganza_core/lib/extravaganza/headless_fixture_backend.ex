@@ -158,6 +158,7 @@ defmodule Extravaganza.HeadlessFixtureBackend do
      }}
   end
 
+  @spec invoke_runtime_tool(term(), term(), term(), map(), keyword()) :: {:ok, map()}
   def invoke_runtime_tool(_context, _tool_role_ref, _operation_role_ref, _attrs, _opts) do
     output = ~s({"data":{"viewer":{"id":"usr-linear-viewer"}}})
 

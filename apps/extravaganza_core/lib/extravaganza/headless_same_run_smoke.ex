@@ -146,14 +146,6 @@ defmodule Extravaganza.HeadlessSameRunSmoke do
     @impl true
     def record_live_effect(_context, _attrs, _opts), do: not_used_error(:record_live_effect)
 
-    @impl true
-    def fetch_github_pr_evidence(_context, _request, _opts),
-      do: not_used_error(:fetch_github_pr_evidence)
-
-    @impl true
-    def cleanup_github_pr_branch(_context, _request, _opts),
-      do: not_used_error(:cleanup_github_pr_branch)
-
     defp not_used_error(feature) do
       {:ok, error} =
         SurfaceError.new(%{

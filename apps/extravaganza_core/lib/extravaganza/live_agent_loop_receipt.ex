@@ -299,9 +299,14 @@ defmodule Extravaganza.LiveAgentLoopReceipt do
       Keyword.get(opts, :generic_backend) ||
         Keyword.get(opts, :runtime_gateway_backend) ||
         Keyword.get(opts, :backend) ||
-        AppKit.Bridges.MezzanineBridge
+        Application.get_env(:app_kit_core, :generic_backend) ||
+        Application.get_env(:app_kit_core, :source_backend)
 
-    Keyword.put(opts, :generic_backend, backend)
+    if backend do
+      Keyword.put(opts, :generic_backend, backend)
+    else
+      opts
+    end
   end
 
   defp put_runtime_binding(request) do

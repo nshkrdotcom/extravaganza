@@ -510,8 +510,8 @@ defmodule Extravaganza.HeadlessExamplesTest do
     refute_received {:publish_source, _, _, _, _}
     refute_received {:invoke_runtime_tool, _, _, _, _, _}
     refute_received {:start_agent_run, _, _, _}
-    refute_received {:fetch_github_pr_evidence, _, _, _}
-    refute_received {:cleanup_github_pr_branch, _, _, _}
+    refute_received {:collect_evidence, _, _, _, _}
+    refute_received {:invoke_resource_effect, _, _, _, _}
   end
 
   @tag :live_provider
@@ -1067,7 +1067,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
 
   @tag :live_provider
   test "github evidence live product path fetches provider evidence through AppKit without writes" do
-    Application.put_env(:app_kit_core, :runtime_backend, __MODULE__.GitHubEvidenceBackend)
+    Application.put_env(:app_kit_core, :generic_backend, __MODULE__.GenericRuntimeBackend)
 
     output =
       capture_io(fn ->
@@ -1102,7 +1102,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert preflight["secret_material_redacted?"] == true
 
     assert data["product_path"]["appkit_surfaces"] == [
-             "AppKit.RuntimeSurface",
+             "AppKit.RuntimeGateway",
              "AppKit.HeadlessSurface"
            ]
 
@@ -1139,7 +1139,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert data["capability_negotiation_ref"] == "cap-neg://github/pr-fetch"
     refute Map.has_key?(data, "source_publication_ref")
 
-    assert_received {:fetch_github_pr_evidence, tenant_id, request, opts}
+    assert_received {:collect_evidence, tenant_id, :proposed_change_evidence, request, opts}
     assert String.starts_with?(tenant_id, "extravaganza-live-")
     assert request.repo == "nshkrdotcom/extravaganza"
     assert request.pull_number == 17
@@ -1151,7 +1151,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
 
   @tag :live_provider
   test "github cleanup live product path closes matching branch PRs through AppKit with confirmation" do
-    Application.put_env(:app_kit_core, :runtime_backend, __MODULE__.GitHubEvidenceBackend)
+    Application.put_env(:app_kit_core, :generic_backend, __MODULE__.GenericRuntimeBackend)
 
     output =
       capture_io(fn ->
@@ -1195,7 +1195,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert data["lower_request_ref"] == "lower-request://github/pr-cleanup"
     assert data["lower_receipt_ref"] == "lower-receipt://github/pr-cleanup/succeeded"
 
-    assert_received {:cleanup_github_pr_branch, tenant_id, request, opts}
+    assert_received {:invoke_resource_effect, tenant_id, :proposed_change_cleanup, request, opts}
     assert String.starts_with?(tenant_id, "extravaganza-live-")
     assert request.repo == "nshkrdotcom/extravaganza"
     assert request.branch == "cleanup-branch"
@@ -1207,7 +1207,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
   @tag :live_provider
   test "aggregate live smoke product path completes only with all provider effects on one trace" do
     Application.put_env(:app_kit_core, :headless_backend, __MODULE__.CodexAgentBackend)
-    Application.put_env(:app_kit_core, :runtime_backend, __MODULE__.GitHubEvidenceBackend)
+    Application.put_env(:app_kit_core, :generic_backend, __MODULE__.GenericRuntimeBackend)
 
     secret = "linear-secret-value"
 
@@ -1306,7 +1306,9 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert Keyword.fetch!(graphql_opts, :trace_id) == "trace:live-smoke-product"
     assert Keyword.fetch!(graphql_opts, :linear_api_key) == secret
 
-    assert_received {:fetch_github_pr_evidence, _tenant_id, github_request, github_opts}
+    assert_received {:collect_evidence, _tenant_id, :proposed_change_evidence, github_request,
+                     github_opts}
+
     assert github_request.repo == "nshkrdotcom/extravaganza"
     assert github_request.pull_number == 17
     assert github_request.ref == "head-sha"
@@ -2209,10 +2211,9 @@ defmodule Extravaganza.HeadlessExamplesTest do
     @impl true
     def record_live_effect(_context, _attrs, _opts), do: {:error, :not_used}
 
-    @impl true
-    def fetch_github_pr_evidence(context, request, opts) do
+    def collect_evidence(context, evidence_role_ref, request, opts) do
       if pid = Process.get(:headless_examples_test_pid) do
-        send(pid, {:fetch_github_pr_evidence, context.tenant_ref.id, request, opts})
+        send(pid, {:collect_evidence, context.tenant_ref.id, evidence_role_ref, request, opts})
       end
 
       GitHubPrEvidenceReceipt.new(%{
@@ -2291,10 +2292,13 @@ defmodule Extravaganza.HeadlessExamplesTest do
       })
     end
 
-    @impl true
-    def cleanup_github_pr_branch(context, request, opts) do
+    def invoke_resource_effect(context, resource_effect_role_ref, request, opts) do
       if pid = Process.get(:headless_examples_test_pid) do
-        send(pid, {:cleanup_github_pr_branch, context.tenant_ref.id, request, opts})
+        send(
+          pid,
+          {:invoke_resource_effect, context.tenant_ref.id, resource_effect_role_ref, request,
+           opts}
+        )
       end
 
       GitHubPrBranchCleanupReceipt.new(%{
@@ -2611,6 +2615,14 @@ defmodule Extravaganza.HeadlessExamplesTest do
 
     def invoke_runtime_tool(context, tool_role_ref, operation_role_ref, attrs, opts) do
       SourceBackend.invoke_runtime_tool(context, tool_role_ref, operation_role_ref, attrs, opts)
+    end
+
+    def collect_evidence(context, evidence_role_ref, attrs, opts) do
+      GitHubEvidenceBackend.collect_evidence(context, evidence_role_ref, attrs, opts)
+    end
+
+    def invoke_resource_effect(context, resource_effect_role_ref, attrs, opts) do
+      GitHubEvidenceBackend.invoke_resource_effect(context, resource_effect_role_ref, attrs, opts)
     end
   end
 end
