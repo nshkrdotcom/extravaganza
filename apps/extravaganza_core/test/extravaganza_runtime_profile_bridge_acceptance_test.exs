@@ -26,7 +26,7 @@ defmodule Extravaganza.RuntimeProfileBridgeAcceptanceTest do
        %{tmp_dir: tmp_dir} do
     workflow_path = write_workflow!(tmp_dir)
     cache_path = Path.join(tmp_dir, "last-good-profile.json")
-    unique = :erlang.unique_integer([:positive])
+    unique = "#{System.os_time(:nanosecond)}-#{:erlang.unique_integer([:positive])}"
     tenant_id = "extravaganza-runtime-profile-#{unique}"
 
     output =
@@ -46,7 +46,7 @@ defmodule Extravaganza.RuntimeProfileBridgeAcceptanceTest do
                    "--pack-version",
                    "1.0.0-runtime-profile-#{unique}",
                    "--trace-id",
-                   "trace:runtime-profile-bridge"
+                   "trace:runtime-profile-bridge-#{unique}"
                  ])
       end)
 

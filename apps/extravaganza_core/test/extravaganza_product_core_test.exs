@@ -65,6 +65,7 @@ defmodule ExtravaganzaProductCoreTest do
   alias Mezzanine.EvidenceLedger.Repo, as: EvidenceRepo
   alias Mezzanine.Execution.Repo, as: ExecutionRepo
   alias Mezzanine.Execution.RuntimeStack
+  alias Mezzanine.Pack.BindingSpec
   alias Mezzanine.Pack.Compiler
 
   defmodule FakeRuntimeProjectionBackend do
@@ -556,6 +557,84 @@ defmodule ExtravaganzaProductCoreTest do
     assert source_publisher.trigger == {:subject_entered_state, "awaiting_review"}
     assert source_publisher.operation == :update_comment
     assert source_publisher.template_ref == "operator_review_workpad"
+
+    assert compiled_pack.bindings_by_kind |> Map.keys() |> Enum.sort() == [
+             :evidence,
+             :resource_effect,
+             :runtime,
+             :runtime_tool,
+             :source,
+             :source_publication
+           ]
+
+    assert compiled_pack.bindings_by_ref |> Map.keys() |> Enum.sort() == [
+             "codex_session",
+             "github_pr",
+             "github_pr_cleanup",
+             "linear_graphql",
+             "linear_primary",
+             "linear_workpad_review"
+           ]
+
+    generic_source = compiled_pack.bindings_by_ref["linear_primary"]
+    assert BindingSpec.kind(generic_source) == :source
+    assert generic_source.connector_ref == "jido/connectors/linear"
+    assert generic_source.manifest_ref == "manifest://jido/connectors/linear@local"
+    assert generic_source.operation_refs["fetch_candidates"] == "linear.issues.list"
+    assert generic_source.operation_refs["current_states"] == "linear.issues.list"
+    assert generic_source.operation_refs["refresh_item"] == "linear.issues.retrieve"
+
+    runtime_binding = compiled_pack.bindings_by_ref["codex_session"]
+    assert BindingSpec.kind(runtime_binding) == :runtime
+    assert runtime_binding.connector_ref == "jido/connectors/codex_cli"
+    assert runtime_binding.operation_refs["session_turn"] == "codex.session.turn"
+
+    tool_binding = compiled_pack.bindings_by_ref["linear_graphql"]
+    assert BindingSpec.kind(tool_binding) == :runtime_tool
+    assert tool_binding.runtime_binding_ref == "codex_session"
+    assert tool_binding.operation_refs["execute_graphql"] == "linear.graphql.execute"
+
+    evidence_binding = compiled_pack.bindings_by_ref["github_pr"]
+    assert BindingSpec.kind(evidence_binding) == :evidence
+    assert evidence_binding.operation_refs["fetch"] == "github.pr.fetch"
+
+    assert evidence_binding.operation_refs["combined_status"] ==
+             "github.commit.statuses.get_combined"
+
+    cleanup_binding = compiled_pack.bindings_by_ref["github_pr_cleanup"]
+    assert BindingSpec.kind(cleanup_binding) == :resource_effect
+    assert cleanup_binding.operation_refs["list"] == "github.pr.list"
+    assert cleanup_binding.operation_group_ref == "github_pr_branch_cleanup_group"
+
+    graph = compiled_pack.compiled_operation_graphs_by_ref["coding_ops_operation_graph"]
+    assert graph.workflow_ref == "coding_ops_workflow"
+    assert graph.roles_by_ref["issue_tracker"].binding_ref == "linear_primary"
+    assert graph.roles_by_ref["coding_agent_runtime"].binding_ref == "codex_session"
+    assert graph.roles_by_ref["coding_agent_runtime"].operation_role == "session_turn"
+    assert graph.roles_by_ref["issue_graphql_tool"].binding_kind == :runtime_tool
+    assert graph.roles_by_ref["proposed_change_evidence"].binding_ref == "github_pr"
+    assert graph.roles_by_ref["source_publication"].binding_ref == "linear_workpad_review"
+    assert graph.roles_by_ref["proposed_change_cleanup"].binding_ref == "github_pr_cleanup"
+
+    dependency_edges =
+      MapSet.new(graph.dependencies, &{&1.from_role, &1.to_role, &1.relation})
+
+    assert dependency_edges ==
+             MapSet.new([
+               {"issue_tracker", "coding_agent_runtime", :blocks_on_success},
+               {"coding_agent_runtime", "issue_graphql_tool", :parallel_allowed},
+               {"coding_agent_runtime", "proposed_change_evidence", :parallel_allowed},
+               {"coding_agent_runtime", "source_publication", :blocks_on_success},
+               {"proposed_change_evidence", "source_publication", :blocks_on_review},
+               {"source_publication", "proposed_change_cleanup", :blocks_on_confirmation}
+             ])
+
+    workflow = compiled_pack.workflows_by_ref["coding_ops_workflow"]
+    assert workflow.source_role_ref == "issue_tracker"
+    assert workflow.runtime_role_ref == "coding_agent_runtime"
+    assert workflow.publication_role_ref == "source_publication"
+    assert workflow.evidence_role_refs == ["proposed_change_evidence"]
+    assert workflow.resource_effect_role_refs == ["proposed_change_cleanup"]
 
     recipe = compiled_pack.recipes_by_ref[ProductPack.execution_recipe_ref(config)]
 

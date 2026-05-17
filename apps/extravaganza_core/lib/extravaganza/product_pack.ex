@@ -10,16 +10,26 @@ defmodule Extravaganza.ProductPack do
   alias Mezzanine.Pack.{
     ContextSourceSpec,
     DecisionSpec,
+    EvidenceBinding,
     EvidenceSpec,
     ExecutionRecipeSpec,
     LifecycleSpec,
     Manifest,
+    OperationDependency,
+    OperationGraph,
+    OperationRole,
     OperatorActionSpec,
     ProjectionSpec,
+    ResourceEffectBinding,
+    RuntimeBinding,
+    SourceBinding,
     SourceBindingSpec,
     SourceKindSpec,
+    SourcePublicationBinding,
     SourcePublishSpec,
-    SubjectKindSpec
+    SubjectKindSpec,
+    ToolBinding,
+    WorkflowSpec
   }
 
   @subject_kinds %{"coding_task" => :coding_task}
@@ -27,6 +37,13 @@ defmodule Extravaganza.ProductPack do
   @source_binding_refs %{"linear" => :linear_primary}
   @recipe_refs %{"coding_operations" => :coding_operations}
   @placement_refs %{"local_default" => :local_default}
+  @binding_manifest_digest "sha256:extravaganza-coding-ops-generic-bindings-v1"
+  @linear_connector_ref "jido/connectors/linear"
+  @github_connector_ref "jido/connectors/github"
+  @codex_connector_ref "jido/connectors/codex_cli"
+  @linear_manifest_ref "manifest://jido/connectors/linear@local"
+  @github_manifest_ref "manifest://jido/connectors/github@local"
+  @codex_manifest_ref "manifest://jido/connectors/codex_cli@local"
 
   @impl true
   def manifest, do: manifest(Config.load())
@@ -57,6 +74,7 @@ defmodule Extravaganza.ProductPack do
           description: "Linear-backed coding task intake"
         }
       ],
+      binding_specs: binding_specs(config),
       source_binding_specs: [
         %SourceBindingSpec{
           binding_ref: source_binding_ref,
@@ -181,6 +199,8 @@ defmodule Extravaganza.ProductPack do
           applicable_to: [subject_kind]
         }
       ],
+      operation_graph_specs: operation_graph_specs(recipe_ref),
+      workflow_specs: workflow_specs(),
       decision_specs: [
         %DecisionSpec{
           decision_kind: :operator_review,
@@ -333,6 +353,336 @@ defmodule Extravaganza.ProductPack do
 
   defp placement_ref(%Config{} = config),
     do: fetch_ref!(@placement_refs, config.placement_profile_id, :placement_profile_id)
+
+  defp binding_specs(%Config{} = config) do
+    source_binding_ref = source_binding_ref(config)
+
+    [
+      %SourceBinding{
+        binding_ref: source_binding_ref,
+        source_kind: source_kind(config),
+        subject_kind: subject_kind(config),
+        connector_ref: @linear_connector_ref,
+        manifest_ref: @linear_manifest_ref,
+        operation_refs: %{
+          fetch_candidates: "linear.issues.list",
+          current_states: "linear.issues.list",
+          refresh_item: "linear.issues.retrieve",
+          viewer: "linear.users.get_self"
+        },
+        credential_binding_ref: :linear_primary,
+        adapter_ref: :linear,
+        connection_ref: :linear_primary,
+        candidate_filter_ref: :linear_coding_task_filter,
+        cursor_policy_ref: :linear_issue_polling,
+        projection_profile_ref: :coding_ops_projection_v1,
+        retry_policy_ref: :linear_read_retry,
+        metadata:
+          binding_metadata(
+            %{
+              fetch_candidates: :source_read,
+              current_states: :source_read,
+              refresh_item: :source_read,
+              viewer: :source_read
+            },
+            %{fetch_candidates: :read, current_states: :read, refresh_item: :read, viewer: :read},
+            %{
+              fetch_candidates: ["read"],
+              current_states: ["read"],
+              refresh_item: ["read"],
+              viewer: ["read"]
+            }
+          )
+      },
+      %SourcePublicationBinding{
+        binding_ref: :linear_workpad_review,
+        source_binding_ref: source_binding_ref,
+        connector_ref: @linear_connector_ref,
+        manifest_ref: @linear_manifest_ref,
+        operation_refs: %{
+          create_comment: "linear.comments.create",
+          update_comment: "linear.comments.update",
+          update_state: "linear.issues.update",
+          list_states: "linear.workflow_states.list"
+        },
+        credential_binding_ref: :linear_primary,
+        template_ref: :operator_review_workpad,
+        publication_profile_ref: :linear_workpad_review,
+        retry_policy_ref: :linear_write_retry,
+        metadata:
+          binding_metadata(
+            %{
+              create_comment: :source_write,
+              update_comment: :source_write,
+              update_state: :source_write,
+              list_states: :source_read
+            },
+            %{
+              create_comment: :write,
+              update_comment: :write,
+              update_state: :write,
+              list_states: :read
+            },
+            %{
+              create_comment: ["write"],
+              update_comment: ["write"],
+              update_state: ["write"],
+              list_states: ["read"]
+            }
+          )
+      },
+      %RuntimeBinding{
+        binding_ref: :codex_session,
+        runtime_family: :session,
+        connector_ref: @codex_connector_ref,
+        manifest_ref: @codex_manifest_ref,
+        operation_refs: %{
+          session_turn: "codex.session.turn",
+          session_start: "codex.session.start",
+          session_stop: "codex.session.stop",
+          session_status: "codex.session.status",
+          session_stream: "codex.session.stream",
+          session_cancel: "codex.session.cancel"
+        },
+        credential_binding_ref: :codex_session,
+        session_policy_ref: :codex_app_server_session,
+        tool_catalog_ref: :coding_ops_v1,
+        retry_policy_ref: :codex_session_retry,
+        metadata:
+          binding_metadata(
+            %{
+              session_turn: :runtime_operation,
+              session_start: :runtime_operation,
+              session_stop: :runtime_operation,
+              session_status: :runtime_operation,
+              session_stream: :runtime_operation,
+              session_cancel: :runtime_operation
+            },
+            %{
+              session_turn: :write,
+              session_start: :write,
+              session_stop: :write,
+              session_status: :read,
+              session_stream: :write,
+              session_cancel: :write
+            },
+            %{
+              session_turn: ["session:execute"],
+              session_start: ["session:execute"],
+              session_stop: ["session:control"],
+              session_status: ["session:control"],
+              session_stream: ["session:execute"],
+              session_cancel: ["session:control"]
+            }
+          )
+      },
+      %ToolBinding{
+        binding_ref: :linear_graphql,
+        runtime_binding_ref: :codex_session,
+        connector_ref: @linear_connector_ref,
+        manifest_ref: @linear_manifest_ref,
+        operation_refs: %{execute_graphql: "linear.graphql.execute"},
+        authorization_class: :runtime_tool_invocation,
+        credential_binding_ref: :linear_primary,
+        tool_schema_ref: :linear_graphql_tool,
+        input_policy_ref: :linear_graphql_input_policy,
+        retry_policy_ref: :linear_read_retry,
+        metadata:
+          binding_metadata(
+            %{execute_graphql: :runtime_tool_invocation},
+            %{execute_graphql: :read},
+            %{execute_graphql: ["read"]}
+          )
+      },
+      %EvidenceBinding{
+        binding_ref: :github_pr,
+        evidence_kind: :github_pr,
+        connector_ref: @github_connector_ref,
+        manifest_ref: @github_manifest_ref,
+        operation_refs: %{
+          fetch: "github.pr.fetch",
+          reviews: "github.pr.reviews.list",
+          review_comments: "github.pr.review_comments.list",
+          combined_status: "github.commit.statuses.get_combined",
+          check_runs: "github.check_runs.list_for_ref"
+        },
+        credential_binding_ref: :github_primary,
+        collection_policy_ref: :github_pr_evidence_policy,
+        retry_policy_ref: :github_read_retry,
+        metadata:
+          binding_metadata(
+            %{
+              fetch: :evidence_collection,
+              reviews: :evidence_collection,
+              review_comments: :evidence_collection,
+              combined_status: :evidence_collection,
+              check_runs: :evidence_collection
+            },
+            %{
+              fetch: :read,
+              reviews: :read,
+              review_comments: :read,
+              combined_status: :read,
+              check_runs: :read
+            },
+            %{
+              fetch: ["repo"],
+              reviews: ["repo"],
+              review_comments: ["repo"],
+              combined_status: ["repo"],
+              check_runs: ["repo"]
+            }
+          )
+      },
+      %ResourceEffectBinding{
+        binding_ref: :github_pr_cleanup,
+        effect_kind: :github_pr_branch_cleanup,
+        connector_ref: @github_connector_ref,
+        manifest_ref: @github_manifest_ref,
+        operation_refs: %{
+          list: "github.pr.list",
+          comment: "github.comment.create",
+          close: "github.pr.update"
+        },
+        operation_group_ref: :github_pr_branch_cleanup_group,
+        credential_binding_ref: :github_primary,
+        confirmation_policy_ref: :github_pr_cleanup_confirmation,
+        retry_policy_ref: :github_write_retry,
+        metadata:
+          binding_metadata(
+            %{list: :resource_effect, comment: :resource_effect, close: :resource_effect},
+            %{list: :read, comment: :write, close: :write},
+            %{list: ["repo"], comment: ["repo"], close: ["repo"]}
+          )
+      }
+    ]
+  end
+
+  defp operation_graph_specs(recipe_ref) do
+    [
+      %OperationGraph{
+        graph_ref: :coding_ops_operation_graph,
+        workflow_ref: :coding_ops_workflow,
+        roles: [
+          %OperationRole{
+            role_ref: :issue_tracker,
+            binding_ref: :linear_primary,
+            operation_role: :fetch_candidates,
+            operation_class: :source_read,
+            projection_order_key: 1
+          },
+          %OperationRole{
+            role_ref: :coding_agent_runtime,
+            binding_ref: :codex_session,
+            operation_role: :session_turn,
+            operation_class: :runtime_operation,
+            projection_order_key: 2,
+            metadata: %{recipe_ref: recipe_ref}
+          },
+          %OperationRole{
+            role_ref: :issue_graphql_tool,
+            binding_ref: :linear_graphql,
+            operation_role: :execute_graphql,
+            operation_class: :runtime_tool_invocation,
+            projection_order_key: 3,
+            completion_policy: :optional,
+            failure_policy: :degrade
+          },
+          %OperationRole{
+            role_ref: :proposed_change_evidence,
+            binding_ref: :github_pr,
+            operation_role: :fetch,
+            operation_class: :evidence_collection,
+            projection_order_key: 4,
+            completion_policy: :optional,
+            failure_policy: :degrade
+          },
+          %OperationRole{
+            role_ref: :source_publication,
+            binding_ref: :linear_workpad_review,
+            operation_role: :update_comment,
+            operation_class: :source_write,
+            projection_order_key: 5
+          },
+          %OperationRole{
+            role_ref: :proposed_change_cleanup,
+            binding_ref: :github_pr_cleanup,
+            operation_role: :list,
+            operation_class: :resource_effect,
+            projection_order_key: 6
+          }
+        ],
+        dependencies: operation_dependencies()
+      }
+    ]
+  end
+
+  defp operation_dependencies do
+    [
+      %OperationDependency{
+        from_role: :issue_tracker,
+        to_role: :coding_agent_runtime,
+        relation: :blocks_on_success
+      },
+      %OperationDependency{
+        from_role: :coding_agent_runtime,
+        to_role: :issue_graphql_tool,
+        relation: :parallel_allowed,
+        completion_policy: :optional,
+        failure_policy: :degrade
+      },
+      %OperationDependency{
+        from_role: :coding_agent_runtime,
+        to_role: :proposed_change_evidence,
+        relation: :parallel_allowed,
+        completion_policy: :optional,
+        failure_policy: :degrade
+      },
+      %OperationDependency{
+        from_role: :coding_agent_runtime,
+        to_role: :source_publication,
+        relation: :blocks_on_success
+      },
+      %OperationDependency{
+        from_role: :proposed_change_evidence,
+        to_role: :source_publication,
+        relation: :blocks_on_review,
+        completion_policy: :optional,
+        failure_policy: :degrade,
+        review_policy_ref: :operator_review
+      },
+      %OperationDependency{
+        from_role: :source_publication,
+        to_role: :proposed_change_cleanup,
+        relation: :blocks_on_confirmation,
+        confirmation_policy_ref: :github_pr_cleanup_confirmation
+      }
+    ]
+  end
+
+  defp workflow_specs do
+    [
+      %WorkflowSpec{
+        workflow_ref: :coding_ops_workflow,
+        source_role_ref: :issue_tracker,
+        runtime_role_ref: :coding_agent_runtime,
+        publication_role_ref: :source_publication,
+        evidence_role_refs: [:proposed_change_evidence],
+        resource_effect_role_refs: [:proposed_change_cleanup],
+        operation_graph_ref: :coding_ops_operation_graph,
+        metadata: %{tool_role_refs: [:issue_graphql_tool]}
+      }
+    ]
+  end
+
+  defp binding_metadata(operation_classes, side_effect_classes, required_scopes) do
+    %{
+      manifest_digest: @binding_manifest_digest,
+      operation_classes: operation_classes,
+      side_effect_classes: side_effect_classes,
+      required_scopes: required_scopes
+    }
+  end
 
   defp fetch_ref!(refs, value, field) do
     case Map.fetch(refs, value) do
