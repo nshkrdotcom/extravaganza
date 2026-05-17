@@ -46,8 +46,10 @@ defmodule Extravaganza.HeadlessJSONContractTest do
     assert envelope["schema"] == "extravaganza.headless.response.v1"
     assert envelope["operation"] == "run_detail"
     assert envelope["trace_id"] == "trace:test"
+    assert envelope["execution_route_ref"] == "generic_substrate:v1"
     assert envelope["idempotency_key"] == "idem:test"
     assert envelope["runtime_profile_ref"] == "runtime-profile:local-deterministic"
+    assert envelope["refs"]["execution_route_ref"] == "generic_substrate:v1"
     assert envelope["refs"]["run_ref"] == "run:fixture"
     assert envelope["refs"]["authority_ref"] == "authority:fixture"
     assert envelope["refs"]["connector_manifest_ref"] == "manifest:fixture"
@@ -172,6 +174,7 @@ defmodule Extravaganza.HeadlessJSONContractTest do
 
     assert Map.keys(envelope) |> Enum.sort() == [
              "data",
+             "execution_route_ref",
              "generated_at",
              "ok",
              "operation",
@@ -186,6 +189,7 @@ defmodule Extravaganza.HeadlessJSONContractTest do
              "capability_negotiation_ref",
              "connector_manifest_ref",
              "decision_ref",
+             "execution_route_ref",
              "lower_receipt_ref",
              "lower_request_ref",
              "run_ref",
@@ -481,6 +485,7 @@ defmodule Extravaganza.HeadlessJSONContractTest do
     assert envelope["ok"] == false
     assert envelope["schema"] == "extravaganza.headless.error.v1"
     assert envelope["operation"] == "run_detail"
+    assert envelope["execution_route_ref"] == "generic_substrate:v1"
     assert envelope["error"]["code"] == "projection_unavailable"
     assert envelope["error"]["class"] == "readback_unavailable"
     assert envelope["error"]["retryable"] == true

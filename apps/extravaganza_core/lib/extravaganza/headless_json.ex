@@ -5,6 +5,7 @@ defmodule Extravaganza.HeadlessJSON do
 
   @success_schema "extravaganza.headless.response.v1"
   @error_schema "extravaganza.headless.error.v1"
+  @execution_route_ref "generic_substrate:v1"
 
   @forbidden_keys ~w[
     api_key auth_json authorization_header provider_payload raw_secret raw_token
@@ -33,10 +34,11 @@ defmodule Extravaganza.HeadlessJSON do
       "schema" => @success_schema,
       "operation" => operation_name(operation),
       "trace_id" => trace_id(opts, refs),
+      "execution_route_ref" => @execution_route_ref,
       "idempotency_key" => Map.get(opts, :idempotency_key) || refs["idempotency_key"],
       "runtime_profile_ref" => runtime_profile_ref,
       "data" => data,
-      "refs" => refs,
+      "refs" => Map.put(refs, "execution_route_ref", @execution_route_ref),
       "warnings" => List.wrap(Map.get(opts, :warnings, [])),
       "generated_at" => generated_at(opts)
     }
@@ -54,6 +56,7 @@ defmodule Extravaganza.HeadlessJSON do
       "schema" => @error_schema,
       "operation" => operation_name(operation),
       "trace_id" => trace_id(opts, %{}),
+      "execution_route_ref" => @execution_route_ref,
       "error" => error,
       "generated_at" => generated_at(opts)
     }
