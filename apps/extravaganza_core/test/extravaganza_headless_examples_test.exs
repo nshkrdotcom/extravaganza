@@ -508,7 +508,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
 
     refute_received {:fetch_source_candidates, _, _, _, _}
     refute_received {:current_source_states, _, _, _, _, _}
-    refute_received {:publish_linear_source, _, _, _}
+    refute_received {:publish_source, _, _, _, _}
     refute_received {:execute_linear_graphql_tool, _, _, _}
     refute_received {:start_agent_run, _, _, _}
     refute_received {:fetch_github_pr_evidence, _, _, _}
@@ -1297,7 +1297,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
 
     assert Keyword.fetch!(codex_readback_opts, :trace_id) == "trace:live-smoke-product"
 
-    assert_received {:publish_linear_source, _tenant_id, attrs, publication_opts}
+    assert_received {:publish_source, _tenant_id, :source_publication, attrs, publication_opts}
     assert attrs.issue_id == "lin-issue-321"
     assert Keyword.fetch!(publication_opts, :trace_id) == "trace:live-smoke-product"
     assert Keyword.fetch!(publication_opts, :linear_api_key) == secret
@@ -1384,7 +1384,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert String.starts_with?(tenant_id, "extravaganza-live-")
     assert source_binding.source_binding_id == "linear-primary"
 
-    assert_received {:publish_linear_source, tenant_id, attrs, opts}
+    assert_received {:publish_source, tenant_id, :source_publication, attrs, opts}
     assert String.starts_with?(tenant_id, "extravaganza-live-")
     assert attrs.source_binding_id == "linear-primary"
     assert attrs.issue_id == "lin-issue-321"
@@ -1423,7 +1423,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     refute Map.has_key?(decoded["data"]["provider_effect"], "linear_comment_id")
     refute output =~ secret
 
-    assert_received {:publish_linear_source, tenant_id, attrs, opts}
+    assert_received {:publish_source, tenant_id, :source_publication, attrs, opts}
     assert String.starts_with?(tenant_id, "extravaganza-live-")
     assert attrs.comment_id == "comment-1"
     assert attrs.body == "Updated by product path"
@@ -1464,7 +1464,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
 
     refute output =~ secret
 
-    assert_received {:publish_linear_source, tenant_id, attrs, _opts}
+    assert_received {:publish_source, tenant_id, :source_publication, attrs, _opts}
     assert String.starts_with?(tenant_id, "extravaganza-live-")
     assert attrs.comment_id == "stale-comment"
     assert attrs.allow_create_fallback? == true
@@ -1504,7 +1504,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert_authority_proof(decoded["data"]["provider_effect"], "linear", "issues-update")
     refute output =~ secret
 
-    assert_received {:publish_linear_source, tenant_id, attrs, opts}
+    assert_received {:publish_source, tenant_id, :source_publication, attrs, opts}
     assert String.starts_with?(tenant_id, "extravaganza-live-")
     assert attrs.issue_id == "lin-issue-321"
     assert attrs.state_name == "Done"
@@ -1548,7 +1548,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     refute Map.has_key?(decoded["refs"], "source_publication_ref")
     refute output =~ secret
 
-    assert_received {:publish_linear_source, tenant_id, attrs, opts}
+    assert_received {:publish_source, tenant_id, :source_publication, attrs, opts}
     assert String.starts_with?(tenant_id, "extravaganza-live-")
     assert attrs.issue_id == "lin-issue-321"
     assert Keyword.fetch!(opts, :dry_run?) == true
@@ -2439,9 +2439,9 @@ defmodule Extravaganza.HeadlessExamplesTest do
     end
 
     @impl true
-    def publish_linear_source(context, attrs, opts) do
+    def publish_source(context, publication_role_ref, attrs, opts) do
       if pid = Process.get(:headless_examples_test_pid) do
-        send(pid, {:publish_linear_source, context.tenant_ref.id, attrs, opts})
+        send(pid, {:publish_source, context.tenant_ref.id, publication_role_ref, attrs, opts})
       end
 
       receipt =

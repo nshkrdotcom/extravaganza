@@ -210,7 +210,7 @@ defmodule Extravaganza.HeadlessSurface do
   @spec publish_linear_source(map(), keyword()) :: {:ok, map()} | {:error, term()}
   def publish_linear_source(attrs, opts \\ []) when is_map(attrs) and is_list(opts) do
     with {:ok, %{context: context}} <- context_bundle(opts) do
-      AppKitSourceSurface.publish_linear_source(context, attrs, opts)
+      AppKitSourceSurface.publish(context, :source_publication, attrs, opts)
     end
   end
 

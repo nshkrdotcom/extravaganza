@@ -651,7 +651,7 @@ defmodule Extravaganza.HeadlessRuntimeSurfaceTest do
     end
 
     @impl true
-    def publish_linear_source(context, attrs, _opts) do
+    def publish_source(context, _publication_role_ref, attrs, _opts) do
       {:ok,
        %{
          "source_publication_receipt_ref" => "source-publication:fixture",

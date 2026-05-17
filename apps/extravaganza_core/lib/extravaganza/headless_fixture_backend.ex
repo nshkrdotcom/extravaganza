@@ -143,7 +143,7 @@ defmodule Extravaganza.HeadlessFixtureBackend do
   end
 
   @impl true
-  def publish_linear_source(_context, attrs, opts) do
+  def publish_source(_context, _publication_role_ref, attrs, opts) do
     source_binding_id = Map.get(attrs, :source_binding_id, "linear-primary")
     receipt = fixture_publication_receipt(source_binding_id, attrs, opts)
     denied? = Map.get(receipt, :status) in ["dry_run_denied", "denied"]
