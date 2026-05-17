@@ -9,12 +9,12 @@ defmodule Extravaganza.HeadlessSurface do
 
   alias AppKit.Core.RunRef
   alias AppKit.Core.RuntimeReadback.{CommandResult, ControlRequest, RuntimeStateSnapshot}
-  alias AppKit.Core.RuntimeSurface.{GitHubPrBranchCleanupReceipt, GitHubPrEvidenceReceipt}
   alias AppKit.HeadlessSurface, as: AppKitHeadlessSurface
   alias AppKit.RuntimeGateway, as: AppKitRuntimeGateway
   alias AppKit.RuntimeSurface, as: AppKitRuntimeSurface
   alias AppKit.SourceSurface, as: AppKitSourceSurface
   alias AppKit.WorkControl
+  alias Extravaganza.{GitHubPrBranchCleanupReceipt, GitHubPrEvidenceReceipt}
 
   alias Extravaganza.{
     AppKitContext,
@@ -386,9 +386,19 @@ defmodule Extravaganza.HeadlessSurface do
       runtime_binding_ref: "runtime-binding://extravaganza/coding-agent-runtime",
       runtime_role_ref: :coding_agent_runtime,
       adapter_ref: :codex_cli,
+      connector_ref: "jido/connectors/codex_cli",
+      connector_manifest_ref: "manifest://jido/connectors/codex_cli@deterministic",
       manifest_ref: "manifest://jido/connectors/codex_cli@local",
       operation_ref: "codex.session.turn",
-      allowed_operations: ["codex.session.turn"]
+      allowed_operations: ["codex.session.turn"],
+      requested_capability_ids: ["codex.session.turn", "linear.comments.update"],
+      requested_action_ids: ["codex.session.turn"],
+      declared_actions: ["codex.session.turn", "linear.comments.update", "github.pr.evidence"],
+      resource_scope_refs: ["source_binding://linear_primary"],
+      evidence_profile_ref: "github_pr_plus_workpad",
+      required_evidence: ["github_pr", "codex_session", "source_workpad"],
+      lower_runtime_kind: :codex_session,
+      script_ref: "script://codex/session-turn/deterministic"
     }
   end
 

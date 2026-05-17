@@ -11,7 +11,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     RuntimeRunDetail
   }
 
-  alias AppKit.Core.RuntimeSurface.{GitHubPrBranchCleanupReceipt, GitHubPrEvidenceReceipt}
+  alias Extravaganza.{GitHubPrBranchCleanupReceipt, GitHubPrEvidenceReceipt}
 
   alias Extravaganza.{HeadlessCLI, HeadlessFixtureBackend}
   alias Mix.Tasks.Extravaganza.Headless.TaskSupport

@@ -3,8 +3,8 @@ defmodule Extravaganza.HeadlessLiveExamples do
 
   alias AppKit.Core.AgentIntake.RunOutcomeFuture
   alias AppKit.Core.RuntimeReadback.RuntimeRunDetail
-  alias AppKit.Core.RuntimeSurface.{GitHubPrBranchCleanupReceipt, GitHubPrEvidenceReceipt}
   alias AppKit.HeadlessSurface, as: AppKitHeadlessSurface
+  alias Extravaganza.{GitHubPrBranchCleanupReceipt, GitHubPrEvidenceReceipt}
 
   alias Extravaganza.{
     AppKitContext,
