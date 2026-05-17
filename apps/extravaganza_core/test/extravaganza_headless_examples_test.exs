@@ -21,12 +21,13 @@ defmodule Extravaganza.HeadlessExamplesTest do
 
   setup do
     previous_backend = Application.get_env(:app_kit_core, :headless_backend)
-    previous_agent_intake_backend = Application.get_env(:app_kit_core, :agent_intake_backend)
+    previous_generic_backend = Application.get_env(:app_kit_core, :generic_backend)
     previous_runtime_backend = Application.get_env(:app_kit_core, :runtime_backend)
     previous_source_backend = Application.get_env(:app_kit_core, :source_backend)
     previous_fixture_context = Application.get_env(:extravaganza_core, :headless_fixture_context?)
     Process.put(:headless_examples_test_pid, self())
     Application.put_env(:app_kit_core, :headless_backend, HeadlessFixtureBackend)
+    Application.put_env(:app_kit_core, :generic_backend, __MODULE__.GenericRuntimeBackend)
     Application.put_env(:app_kit_core, :source_backend, __MODULE__.SourceBackend)
     Application.put_env(:extravaganza_core, :headless_fixture_context?, true)
 
@@ -42,10 +43,10 @@ defmodule Extravaganza.HeadlessExamplesTest do
         Application.delete_env(:app_kit_core, :headless_backend)
       end
 
-      if previous_agent_intake_backend do
-        Application.put_env(:app_kit_core, :agent_intake_backend, previous_agent_intake_backend)
+      if previous_generic_backend do
+        Application.put_env(:app_kit_core, :generic_backend, previous_generic_backend)
       else
-        Application.delete_env(:app_kit_core, :agent_intake_backend)
+        Application.delete_env(:app_kit_core, :generic_backend)
       end
 
       if previous_source_backend do
@@ -287,8 +288,6 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert task_decoded["operation"] == "live.codex-turn"
     assert task_decoded["error"]["code"] == "operator_ack_required"
 
-    Application.put_env(:app_kit_core, :agent_intake_backend, __MODULE__.CodexAgentBackend)
-
     output =
       capture_io(fn ->
         assert :ok =
@@ -509,7 +508,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     refute_received {:fetch_source_candidates, _, _, _, _}
     refute_received {:current_source_states, _, _, _, _, _}
     refute_received {:publish_source, _, _, _, _}
-    refute_received {:execute_linear_graphql_tool, _, _, _}
+    refute_received {:invoke_runtime_tool, _, _, _, _, _}
     refute_received {:start_agent_run, _, _, _}
     refute_received {:fetch_github_pr_evidence, _, _, _}
     refute_received {:cleanup_github_pr_branch, _, _, _}
@@ -881,8 +880,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
   end
 
   @tag :live_provider
-  test "codex turn live product path enters AgentIntake and confirms run-detail readback" do
-    Application.put_env(:app_kit_core, :agent_intake_backend, __MODULE__.CodexAgentBackend)
+  test "codex turn live product path enters RuntimeGateway and confirms run-detail readback" do
     Application.put_env(:app_kit_core, :headless_backend, __MODULE__.CodexAgentBackend)
 
     output =
@@ -912,7 +910,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert preflight["secret_material_redacted?"] == true
 
     assert data["product_path"]["appkit_surfaces"] == [
-             "AppKit.AgentIntake",
+             "AppKit.RuntimeGateway",
              "AppKit.HeadlessSurface"
            ]
 
@@ -1208,7 +1206,6 @@ defmodule Extravaganza.HeadlessExamplesTest do
 
   @tag :live_provider
   test "aggregate live smoke product path completes only with all provider effects on one trace" do
-    Application.put_env(:app_kit_core, :agent_intake_backend, __MODULE__.CodexAgentBackend)
     Application.put_env(:app_kit_core, :headless_backend, __MODULE__.CodexAgentBackend)
     Application.put_env(:app_kit_core, :runtime_backend, __MODULE__.GitHubEvidenceBackend)
 
@@ -1302,7 +1299,9 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert Keyword.fetch!(publication_opts, :trace_id) == "trace:live-smoke-product"
     assert Keyword.fetch!(publication_opts, :linear_api_key) == secret
 
-    assert_received {:execute_linear_graphql_tool, _tenant_id, graphql_attrs, graphql_opts}
+    assert_received {:invoke_runtime_tool, _tenant_id, :issue_graphql_tool, :execute_query,
+                     graphql_attrs, graphql_opts}
+
     assert graphql_attrs.query == "query Viewer { viewer { id } }"
     assert Keyword.fetch!(graphql_opts, :trace_id) == "trace:live-smoke-product"
     assert Keyword.fetch!(graphql_opts, :linear_api_key) == secret
@@ -1591,6 +1590,12 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert provider_effect["provider_request_sent?"] == true
     assert provider_effect["provider_response_received?"] == true
     assert provider_effect["receipt_recorded?"] == true
+
+    assert provider_effect["appkit_surfaces"] == [
+             "AppKit.RuntimeGateway",
+             "AppKit.HeadlessSurface"
+           ]
+
     assert_authority_proof(provider_effect, "linear", "graphql-execute")
     assert dynamic_response["success"] == true
 
@@ -1598,7 +1603,9 @@ defmodule Extravaganza.HeadlessExamplesTest do
              "data" => %{"viewer" => %{"id" => "usr-linear-viewer"}}
            }
 
-    assert_received {:execute_linear_graphql_tool, tenant_id, attrs, opts}
+    assert_received {:invoke_runtime_tool, tenant_id, :issue_graphql_tool, :execute_query, attrs,
+                     opts}
+
     assert String.starts_with?(tenant_id, "extravaganza-live-")
     assert attrs.query == "query Viewer { viewer { id } }"
     assert attrs.variables == %{"includeTeams" => false}
@@ -2538,10 +2545,13 @@ defmodule Extravaganza.HeadlessExamplesTest do
        |> Map.merge(publication_authority_handoff(receipt))}
     end
 
-    @impl true
-    def execute_linear_graphql_tool(context, attrs, opts) do
+    def invoke_runtime_tool(context, tool_role_ref, operation_role_ref, attrs, opts) do
       if pid = Process.get(:headless_examples_test_pid) do
-        send(pid, {:execute_linear_graphql_tool, context.tenant_ref.id, attrs, opts})
+        send(
+          pid,
+          {:invoke_runtime_tool, context.tenant_ref.id, tool_role_ref, operation_role_ref, attrs,
+           opts}
+        )
       end
 
       output = ~s({"data":{"viewer":{"id":"usr-linear-viewer"}}})
@@ -2590,6 +2600,17 @@ defmodule Extravaganza.HeadlessExamplesTest do
         credential_lease_ref: "credential-lease://linear/primary",
         authority_raw_material_present?: false
       }
+    end
+  end
+
+  defmodule GenericRuntimeBackend do
+    def invoke_runtime_operation(context, runtime_role_ref, operation_role_ref, request, opts)
+        when runtime_role_ref == :coding_agent_runtime and operation_role_ref == :session_turn do
+      CodexAgentBackend.start_agent_run(context, request, opts)
+    end
+
+    def invoke_runtime_tool(context, tool_role_ref, operation_role_ref, attrs, opts) do
+      SourceBackend.invoke_runtime_tool(context, tool_role_ref, operation_role_ref, attrs, opts)
     end
   end
 end

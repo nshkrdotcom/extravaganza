@@ -10,6 +10,7 @@ defmodule Extravaganza.HeadlessSurface do
   alias AppKit.Core.RunRef
   alias AppKit.Core.RuntimeReadback.{CommandResult, ControlRequest, RuntimeStateSnapshot}
   alias AppKit.HeadlessSurface, as: AppKitHeadlessSurface
+  alias AppKit.RuntimeGateway, as: AppKitRuntimeGateway
   alias AppKit.RuntimeSurface, as: AppKitRuntimeSurface
   alias AppKit.SourceSurface, as: AppKitSourceSurface
   alias AppKit.WorkControl
@@ -217,7 +218,26 @@ defmodule Extravaganza.HeadlessSurface do
   @spec execute_linear_graphql_tool(map(), keyword()) :: {:ok, map()} | {:error, term()}
   def execute_linear_graphql_tool(attrs, opts \\ []) when is_map(attrs) and is_list(opts) do
     with {:ok, %{context: context}} <- context_bundle(opts) do
-      AppKitSourceSurface.execute_linear_graphql_tool(context, attrs, opts)
+      AppKitRuntimeGateway.invoke_runtime_tool(
+        context,
+        :issue_graphql_tool,
+        :execute_query,
+        attrs |> Map.new() |> Map.put_new(:tool_binding, linear_graphql_tool_binding()),
+        runtime_gateway_opts(opts)
+      )
+    end
+  end
+
+  @spec invoke_coding_agent_runtime(map(), keyword()) :: {:ok, map()} | {:error, term()}
+  def invoke_coding_agent_runtime(request, opts \\ []) when is_map(request) and is_list(opts) do
+    with {:ok, %{context: context}} <- context_bundle(opts) do
+      AppKitRuntimeGateway.invoke_runtime_operation(
+        context,
+        :coding_agent_runtime,
+        :session_turn,
+        request |> Map.new() |> put_runtime_binding(),
+        runtime_gateway_opts(opts)
+      )
     end
   end
 
@@ -302,6 +322,52 @@ defmodule Extravaganza.HeadlessSurface do
       "retry" -> request_retry_control(config, context, subject_id, attrs, opts)
       _other -> Operators.apply_action(subject_id, action, attrs, opts)
     end
+  end
+
+  defp runtime_gateway_opts(opts) do
+    default_backend =
+      Keyword.get(opts, :generic_backend) ||
+        Application.get_env(:app_kit_core, :generic_backend) ||
+        Keyword.get(opts, :source_backend) ||
+        Application.get_env(:app_kit_core, :source_backend) ||
+        AppKit.Bridges.MezzanineBridge
+
+    Keyword.put(opts, :generic_backend, default_backend)
+  end
+
+  defp put_runtime_binding(request) do
+    params =
+      request
+      |> map_value(:params)
+      |> case do
+        %{} = params -> Map.put_new(params, :runtime_binding, coding_agent_runtime_binding())
+        _other -> %{runtime_binding: coding_agent_runtime_binding()}
+      end
+
+    Map.put(request, :params, params)
+  end
+
+  defp coding_agent_runtime_binding do
+    %{
+      runtime_binding_ref: "runtime-binding://extravaganza/coding-agent-runtime",
+      runtime_role_ref: :coding_agent_runtime,
+      adapter_ref: :codex_cli,
+      manifest_ref: "manifest://jido/connectors/codex_cli@local",
+      operation_ref: "codex.session.turn",
+      allowed_operations: ["codex.session.turn"]
+    }
+  end
+
+  defp linear_graphql_tool_binding do
+    %{
+      tool_binding_ref: "tool-binding://extravaganza/issue-graphql-tool",
+      tool_role_ref: :issue_graphql_tool,
+      adapter_ref: :linear,
+      connector_ref: "jido/connectors/linear",
+      operation_ref: "linear.graphql.execute",
+      tool_name: "linear_graphql",
+      allowed_operations: ["linear.graphql.execute"]
+    }
   end
 
   defp request_retry_control(config, context, subject_id, attrs, opts) do

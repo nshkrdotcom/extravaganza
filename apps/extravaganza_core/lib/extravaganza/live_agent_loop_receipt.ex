@@ -3,13 +3,14 @@ defmodule Extravaganza.LiveAgentLoopReceipt do
   Phase 7 Profile A M2 composition harness.
 
   Extravaganza owns the profile defaults and receipt shape. The actual M2 run is
-  admitted through `AppKit.AgentIntake`, and public readback comes back through
-  `AppKit.HeadlessSurface`.
+  admitted through `AppKit.RuntimeGateway`, and public readback comes back
+  through `AppKit.HeadlessSurface`.
   """
 
   alias AppKit.Core.AgentIntake.RunOutcomeFuture
   alias AppKit.Core.RuntimeReadback.RuntimeRunDetail
   alias AppKit.HeadlessSurface, as: AppKitHeadlessSurface
+  alias AppKit.RuntimeGateway, as: AppKitRuntimeGateway
   alias Extravaganza.Presenters.RunPresenter
 
   alias Extravaganza.{
@@ -45,7 +46,13 @@ defmodule Extravaganza.LiveAgentLoopReceipt do
       request = agent_run_request(config, attrs)
 
       with {:ok, %RunOutcomeFuture{} = future} <-
-             AppKit.AgentIntake.start_agent_run(context, request, opts),
+             AppKitRuntimeGateway.invoke_runtime_operation(
+               context,
+               :coding_agent_runtime,
+               :session_turn,
+               put_runtime_binding(request),
+               runtime_gateway_opts(opts)
+             ),
            {:ok, %RuntimeRunDetail{} = run_detail} <-
              AppKitHeadlessSurface.run_detail(context, future.run_ref, %{}, opts),
            {:ok, receipt} <- build_receipt(config, future, run_detail, attrs),
@@ -140,7 +147,7 @@ defmodule Extravaganza.LiveAgentLoopReceipt do
         "github_used?" => true,
         "codex_used?" => true,
         "appkit_surface" => "AppKit.HeadlessSurface",
-        "appkit_surfaces" => ["AppKit.AgentIntake", "AppKit.HeadlessSurface"],
+        "appkit_surfaces" => ["AppKit.RuntimeGateway", "AppKit.HeadlessSurface"],
         "headless_readback_hash" => stable_hash(readback_payload),
         "browser_presenter_hash" => stable_hash(browser_payload),
         "trace_id" => map_value(attrs, :trace_id, "trace://extravaganza/profile-a-live"),
@@ -286,6 +293,36 @@ defmodule Extravaganza.LiveAgentLoopReceipt do
   defp json_safe(value), do: value
 
   defp tenant_ref(%Config{} = config), do: "tenant://#{config.tenant_id}"
+
+  defp runtime_gateway_opts(opts) do
+    backend =
+      Keyword.get(opts, :generic_backend) ||
+        Keyword.get(opts, :runtime_gateway_backend) ||
+        Keyword.get(opts, :backend) ||
+        AppKit.Bridges.MezzanineBridge
+
+    Keyword.put(opts, :generic_backend, backend)
+  end
+
+  defp put_runtime_binding(request) do
+    params =
+      request
+      |> map_value(:params, %{})
+      |> Map.put_new(:runtime_binding, coding_agent_runtime_binding())
+
+    Map.put(request, :params, params)
+  end
+
+  defp coding_agent_runtime_binding do
+    %{
+      runtime_binding_ref: "runtime-binding://extravaganza/profile-a-coding-runtime",
+      runtime_role_ref: :coding_agent_runtime,
+      adapter_ref: :codex_cli,
+      manifest_ref: "manifest://jido/connectors/codex_cli@local",
+      operation_ref: "codex.session.turn",
+      allowed_operations: ["codex.session.turn"]
+    }
+  end
 
   defp map_value(map, key, default) when is_map(map) do
     Map.get(map, key) || Map.get(map, Atom.to_string(key)) || default

@@ -390,7 +390,7 @@ defmodule ExtravaganzaWeb.HeadlessServerTest do
        }}
     end
 
-    @impl true
-    def execute_linear_graphql_tool(_context, _attrs, _opts), do: {:error, :not_used}
+    def invoke_runtime_tool(_context, _tool_role_ref, _operation_role_ref, _attrs, _opts),
+      do: {:error, :not_used}
   end
 end

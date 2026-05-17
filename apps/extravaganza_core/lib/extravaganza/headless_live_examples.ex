@@ -428,7 +428,7 @@ defmodule Extravaganza.HeadlessLiveExamples do
                 truthy?(value(result, :provider_response_received?)),
               "receipt_recorded?" => success? and present?(lower_receipt_ref),
               "product_readback_confirmed?" => product_readback_confirmed?(proof),
-              "appkit_surfaces" => ["AppKit.SourceSurface", "AppKit.HeadlessSurface"],
+              "appkit_surfaces" => ["AppKit.RuntimeGateway", "AppKit.HeadlessSurface"],
               "lower_request_ref" => value(result, :lower_request_ref),
               "lower_receipt_ref" => lower_receipt_ref
             }
@@ -583,7 +583,7 @@ defmodule Extravaganza.HeadlessLiveExamples do
     surface_opts = surface_opts(opts)
 
     with {:ok, %RunOutcomeFuture{} = future} <-
-           AppKit.AgentIntake.start_agent_run(context, request, surface_opts),
+           HeadlessSurface.invoke_coding_agent_runtime(request, surface_opts),
          {:ok, %RuntimeRunDetail{} = run_detail} <-
            AppKitHeadlessSurface.run_detail(
              context,
@@ -618,7 +618,7 @@ defmodule Extravaganza.HeadlessLiveExamples do
         "provider_response_received?" => provider_response_received?,
         "receipt_recorded?" => present?(lower_receipt_ref),
         "product_readback_confirmed?" => runtime_readback_confirmed?(run_detail),
-        "appkit_surfaces" => ["AppKit.AgentIntake", "AppKit.HeadlessSurface"],
+        "appkit_surfaces" => ["AppKit.RuntimeGateway", "AppKit.HeadlessSurface"],
         "run_ref" => future.run_ref,
         "workflow_ref" => future.workflow_ref,
         "session_ref" => value(turn, :session_ref) || runtime_session_ref(run_detail),

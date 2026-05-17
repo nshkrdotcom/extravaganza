@@ -13,7 +13,9 @@ defmodule ExtravaganzaCore.MixProject do
     :mezzanine_pack_model,
     :app_kit_installation_surface,
     :app_kit_prompt_surface,
+    :app_kit_runtime_gateway,
     :app_kit_work_surface,
+    :app_kit_mezzanine_bridge,
     :app_kit_work_control,
     :app_kit_review_surface,
     :app_kit_operator_surface

@@ -31,6 +31,10 @@ defmodule Extravaganza.LiveAgentLoopReceiptTest do
       })
     end
 
+    def invoke_runtime_operation(_context, :coding_agent_runtime, :session_turn, request, opts) do
+      start_agent_run(nil, request, opts)
+    end
+
     @impl true
     def submit_agent_turn(_context, _submission, _opts), do: {:error, :not_used}
 
@@ -122,7 +126,7 @@ defmodule Extravaganza.LiveAgentLoopReceiptTest do
     assert live["flavor"] == "live"
     assert live["mechanisms"] == ["M1", "M2"]
     assert live["appkit_surface"] == offline["appkit_surface"]
-    assert "AppKit.AgentIntake" in live["appkit_surfaces"]
+    assert "AppKit.RuntimeGateway" in live["appkit_surfaces"]
     assert :ok = LiveAgentLoopReceipt.validate_receipt(live)
 
     encoded = Jason.encode!(live)

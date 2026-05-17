@@ -36,6 +36,7 @@ end
     app_kit_replay_viewer: dep.("app_kit", "web/replay_viewer", "~> 0.1.0"),
     app_kit_review_surface: dep.("app_kit", "core/review_surface", "~> 0.1.0"),
     app_kit_run_governance: dep.("app_kit", "core/run_governance", "~> 0.1.0"),
+    app_kit_runtime_gateway: dep.("app_kit", "core/runtime_gateway", "~> 0.1.0"),
     app_kit_scope_objects: dep.("app_kit", "core/scope_objects", "~> 0.1.0"),
     app_kit_web_components: dep.("app_kit", "web/components", "~> 0.1.0"),
     app_kit_work_control: dep.("app_kit", "core/work_control", "~> 0.1.0"),

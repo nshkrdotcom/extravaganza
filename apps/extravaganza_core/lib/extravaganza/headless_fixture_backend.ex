@@ -158,8 +158,7 @@ defmodule Extravaganza.HeadlessFixtureBackend do
      }}
   end
 
-  @impl true
-  def execute_linear_graphql_tool(_context, _attrs, _opts) do
+  def invoke_runtime_tool(_context, _tool_role_ref, _operation_role_ref, _attrs, _opts) do
     output = ~s({"data":{"viewer":{"id":"usr-linear-viewer"}}})
 
     {:ok,

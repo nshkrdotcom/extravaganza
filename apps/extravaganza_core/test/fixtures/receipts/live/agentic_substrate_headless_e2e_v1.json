@@ -51,7 +51,7 @@
   "codex_used?": true,
   "appkit_surface": "AppKit.HeadlessSurface",
   "appkit_surfaces": [
-    "AppKit.AgentIntake",
+    "AppKit.RuntimeGateway",
     "AppKit.HeadlessSurface"
   ],
   "headless_readback_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
