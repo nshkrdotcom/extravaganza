@@ -219,11 +219,14 @@ defmodule Extravaganza.HeadlessFixtureBackend do
         })
 
       Map.get(attrs, :comment_id) ->
+        comment_ref = "linear-comment://#{Map.fetch!(attrs, :comment_id)}"
+
         Map.merge(base, %{
           capability_id: "linear.comments.update",
           lower_request_ref: "lower-request://fixture/linear/publication-update",
           lower_receipt_ref: "lower-receipt://fixture/linear/publication-update",
-          workpad_refs: ["linear-comment://#{Map.fetch!(attrs, :comment_id)}"]
+          comment_ref: comment_ref,
+          workpad_refs: [comment_ref]
         })
 
       true ->
@@ -231,6 +234,7 @@ defmodule Extravaganza.HeadlessFixtureBackend do
           capability_id: "linear.comments.create",
           lower_request_ref: "lower-request://fixture/linear/publication",
           lower_receipt_ref: "lower-receipt://fixture/linear/publication",
+          comment_ref: "linear-comment://fixture/comment-1",
           workpad_refs: ["linear-comment://fixture/comment-1"]
         })
     end

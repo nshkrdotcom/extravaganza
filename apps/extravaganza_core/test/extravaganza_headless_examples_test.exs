@@ -984,6 +984,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
 
     assert provider_effect["provider_session_id"] == "codex-provider-thread-live-product"
     assert provider_effect["provider_turn_id"] == "codex-provider-turn-live-product"
+    refute Map.has_key?(provider_effect, "codex_session_id")
     assert provider_effect["event_stream_confirmed?"] == true
     assert provider_effect["event_count"] == 12
     assert provider_effect["event_terminal_status"] == "completed"
@@ -1106,6 +1107,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
            ]
 
     assert provider_effect["status"] == "receipt_recorded"
+    assert provider_effect["effect"] == "github_pr_evidence"
     assert provider_effect["operation"] == "github.pr.evidence"
     assert provider_effect["credential_present?"] == true
     assert provider_effect["credential_redeemed?"] == true
@@ -1122,6 +1124,13 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert provider_effect["provider_ids"]["review_comments"] == ["11"]
     assert provider_effect["provider_ids"]["check_runs"] == ["100"]
     assert provider_effect["provider_refs"]["pull_request"] =~ "/pull/17"
+
+    assert provider_effect["receipt_refs"]["evidence_ref"] ==
+             "evidence://github-pr/nshkrdotcom/extravaganza/17/test"
+
+    assert [%{"lower_receipt_ref" => "lower-receipt://github/pr-fetch/succeeded"}] =
+             provider_effect["operation_receipts"]
+
     assert provider_effect["write_operations"] == []
     assert provider_effect["fixture_setup_required?"] == false
     assert data["lower_request_ref"] == "lower-request://github/pr-fetch"
@@ -1360,6 +1369,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert decoded["data"]["provider_effect"]["provider_request_sent?"] == true
     assert decoded["data"]["provider_effect"]["provider_response_received?"] == true
     assert_authority_proof(decoded["data"]["provider_effect"], "linear", "comments-create")
+    assert decoded["data"]["provider_effect"]["comment_ref"] == "linear-comment://comment-1"
     assert decoded["refs"]["source_publication_ref"] == "source-publication://linear-primary/test"
     refute output =~ secret
     refute output =~ "live_provider_effect_deferred"
@@ -1402,7 +1412,9 @@ defmodule Extravaganza.HeadlessExamplesTest do
 
     assert decoded["ok"] == true
     assert decoded["data"]["provider_effect"]["operation"] == "linear.comments.update"
+    assert decoded["data"]["provider_effect"]["comment_ref"] == "linear-comment://comment-1"
     assert decoded["data"]["provider_effect"]["workpad_refs"] == ["linear-comment://comment-1"]
+    refute Map.has_key?(decoded["data"]["provider_effect"], "linear_comment_id")
     refute output =~ secret
 
     assert_received {:publish_linear_source, tenant_id, attrs, opts}
@@ -2426,10 +2438,13 @@ defmodule Extravaganza.HeadlessExamplesTest do
               fallback_from: "linear.comments.update",
               lower_request_ref: "lower-request://linear/publication-fallback",
               lower_receipt_ref: "lower-receipt://linear/publication-fallback",
+              comment_ref: "linear-comment://comment-created",
               workpad_refs: ["linear-comment://comment-created"]
             }
 
           Map.get(attrs, :comment_id) ->
+            comment_ref = "linear-comment://#{attrs.comment_id}"
+
             %{
               source_publication_receipt_ref: "source-publication://linear-primary/update",
               source_publish_ref: attrs.source_publish_ref,
@@ -2439,7 +2454,8 @@ defmodule Extravaganza.HeadlessExamplesTest do
               capability_id: "linear.comments.update",
               lower_request_ref: "lower-request://linear/publication-update",
               lower_receipt_ref: "lower-receipt://linear/publication-update",
-              workpad_refs: ["linear-comment://#{attrs.comment_id}"]
+              comment_ref: comment_ref,
+              workpad_refs: [comment_ref]
             }
 
           true ->
@@ -2452,6 +2468,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
               capability_id: "linear.comments.create",
               lower_request_ref: "lower-request://linear/publication",
               lower_receipt_ref: "lower-receipt://linear/publication",
+              comment_ref: "linear-comment://comment-1",
               workpad_refs: ["linear-comment://comment-1"]
             }
         end
