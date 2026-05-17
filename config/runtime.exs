@@ -19,11 +19,13 @@ config :app_kit_mezzanine_bridge,
 github_access_token = System.get_env("GH_TOKEN") || System.get_env("GITHUB_TOKEN")
 
 if is_binary(github_access_token) and String.trim(github_access_token) != "" do
-  config :mezzanine_integration_bridge, Mezzanine.IntegrationBridge.GitHubPrEvidenceRuntime,
-    access_token: String.trim(github_access_token)
+  config :mezzanine_integration_bridge,
+         Mezzanine.IntegrationBridge.ProviderAdapters.GitHub.PrEvidenceRuntime,
+         access_token: String.trim(github_access_token)
 
-  config :mezzanine_integration_bridge, Mezzanine.IntegrationBridge.GitHubPrBranchCleanupRuntime,
-    access_token: String.trim(github_access_token)
+  config :mezzanine_integration_bridge,
+         Mezzanine.IntegrationBridge.ProviderAdapters.GitHub.PrBranchCleanupRuntime,
+         access_token: String.trim(github_access_token)
 end
 
 config :jido_integration_v2_github, Jido.Integration.V2.Connectors.GitHub.ClientFactory,
