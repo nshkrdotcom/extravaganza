@@ -184,7 +184,12 @@ defmodule Extravaganza.HeadlessSurface do
   def fetch_linear_candidates(source_binding, opts \\ [])
       when is_map(source_binding) and is_list(opts) do
     with {:ok, %{context: context}} <- context_bundle(opts) do
-      AppKitSourceSurface.fetch_linear_candidates(context, source_binding, opts)
+      AppKitSourceSurface.fetch_candidates(
+        context,
+        :issue_tracker,
+        %{source_binding: source_binding},
+        opts
+      )
     end
   end
 
@@ -193,7 +198,12 @@ defmodule Extravaganza.HeadlessSurface do
   def current_linear_issue_states(issue_ids, source_binding, opts \\ [])
       when is_list(issue_ids) and is_map(source_binding) and is_list(opts) do
     with {:ok, %{context: context}} <- context_bundle(opts) do
-      AppKitSourceSurface.current_linear_issue_states(context, issue_ids, source_binding, opts)
+      AppKitSourceSurface.current_states(
+        context,
+        :issue_tracker,
+        %{issue_ids: issue_ids, source_binding: source_binding},
+        opts
+      )
     end
   end
 

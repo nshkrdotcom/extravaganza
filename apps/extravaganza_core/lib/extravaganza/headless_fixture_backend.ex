@@ -70,9 +70,10 @@ defmodule Extravaganza.HeadlessFixtureBackend do
   end
 
   @impl true
-  def sync_linear_issues(_context, source_page, _opts) do
+  def sync_source(_context, source_role_ref, source_page, _opts) do
     {:ok,
      %{
+       source_role_ref: source_role_ref,
        source_binding_id: Map.get(source_page, :source_binding_id, "linear-primary"),
        synced_issue_count: 1,
        subject_refs: ["subject:fixture"],
@@ -82,9 +83,12 @@ defmodule Extravaganza.HeadlessFixtureBackend do
   end
 
   @impl true
-  def current_linear_issue_states(_context, issue_ids, _source_binding, _opts) do
+  def current_states(_context, source_role_ref, request, _opts) do
+    issue_ids = Map.fetch!(request, :issue_ids)
+
     {:ok,
      %{
+       source_role_ref: source_role_ref,
        requested_issue_ids: issue_ids,
        states: Enum.into(issue_ids, %{}, &{&1, "Todo"}),
        missing_issue_ids: [],
@@ -104,13 +108,15 @@ defmodule Extravaganza.HeadlessFixtureBackend do
   end
 
   @impl true
-  def fetch_linear_candidates(_context, source_binding, opts) do
+  def fetch_candidates(_context, source_role_ref, request, opts) do
+    source_binding = Map.fetch!(request, :source_binding)
     source_binding_id = Map.get(source_binding, :source_binding_id, "linear-primary")
     subjects = fixture_linear_subjects(source_binding) |> filter_fixture_subjects(source_binding)
     page_subjects = page_fixture_subjects(subjects, opts)
 
     {:ok,
      %{
+       source_role_ref: source_role_ref,
        source_binding_id: source_binding_id,
        credential_redeemed?: true,
        provider_request_sent?: true,

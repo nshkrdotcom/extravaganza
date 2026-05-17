@@ -506,8 +506,8 @@ defmodule Extravaganza.HeadlessExamplesTest do
       refute output =~ "credential-value"
     end
 
-    refute_received {:fetch_linear_candidates, _, _, _}
-    refute_received {:current_linear_issue_states, _, _, _, _}
+    refute_received {:fetch_source_candidates, _, _, _, _}
+    refute_received {:current_source_states, _, _, _, _, _}
     refute_received {:publish_linear_source, _, _, _}
     refute_received {:execute_linear_graphql_tool, _, _, _}
     refute_received {:start_agent_run, _, _, _}
@@ -577,7 +577,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     refute output =~ secret
     refute output =~ "live_provider_effect_deferred"
 
-    assert_received {:fetch_linear_candidates, tenant_id, source_binding, _opts}
+    assert_received {:fetch_source_candidates, tenant_id, :issue_tracker, source_binding, _opts}
     assert String.starts_with?(tenant_id, "extravaganza-live-")
     assert source_binding.source_binding_id == "linear-primary"
   end
@@ -620,7 +620,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert decoded["data"]["provider_effect"]["team_id"] == "team-linear"
     refute output =~ secret
 
-    assert_received {:fetch_linear_candidates, tenant_id, source_binding, opts}
+    assert_received {:fetch_source_candidates, tenant_id, :issue_tracker, source_binding, opts}
     assert String.starts_with?(tenant_id, "extravaganza-live-")
     assert source_binding.candidate_filters.state_names == ["Todo", "Backlog"]
     assert source_binding.candidate_filters.project_slug == "ENG"
@@ -651,7 +651,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
 
     assert decoded["ok"] == true
     assert decoded["data"]["status"] == "completed"
-    assert_received {:fetch_linear_candidates, tenant_id, _source_binding, opts}
+    assert_received {:fetch_source_candidates, tenant_id, :issue_tracker, _source_binding, opts}
     assert String.starts_with?(tenant_id, "extravaganza-live-")
     assert opts |> Keyword.fetch!(:pack_version) |> String.starts_with?("1.0.0-live.")
     assert Keyword.fetch!(opts, :linear_api_key) == secret
@@ -691,7 +691,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert preflight["secret_material_present?"] == false
     assert preflight["secret_material_redacted?"] == true
 
-    assert_received {:fetch_linear_candidates, tenant_id, _source_binding, opts}
+    assert_received {:fetch_source_candidates, tenant_id, :issue_tracker, _source_binding, opts}
     assert String.starts_with?(tenant_id, "extravaganza-live-")
     assert Keyword.fetch!(opts, :connection_id) == "connection-linear-existing"
     assert Keyword.fetch!(opts, :credential_ref) == "credential-ref-linear-existing"
@@ -725,7 +725,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert preflight["status"] == "missing_dispatch_binding"
     assert preflight["credential_ref"] == "credential-ref-linear-existing"
     assert preflight["secret_material_present?"] == false
-    refute_received {:fetch_linear_candidates, _, _, _}
+    refute_received {:fetch_source_candidates, _, _, _, _}
   end
 
   @tag :live_provider
@@ -753,7 +753,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert decoded["data"]["status"] == "completed"
     assert decoded["data"]["provider_effect"]["assignee"] == "all"
 
-    assert_received {:fetch_linear_candidates, tenant_id, source_binding, opts}
+    assert_received {:fetch_source_candidates, tenant_id, :issue_tracker, source_binding, opts}
     assert String.starts_with?(tenant_id, "extravaganza-live-")
     refute Map.has_key?(source_binding.candidate_filters, :assignee)
     assert Keyword.fetch!(opts, :linear_api_key) == secret
@@ -870,7 +870,9 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert provider_effect["lower_request_ref"] =~ "lower-request://linear/current-states"
     refute output =~ secret
 
-    assert_received {:current_linear_issue_states, tenant_id, issue_ids, source_binding, opts}
+    assert_received {:current_source_states, tenant_id, :issue_tracker, issue_ids, source_binding,
+                     opts}
+
     assert String.starts_with?(tenant_id, "extravaganza-live-")
     assert issue_ids == ["lin-issue-321", "lin-missing"]
     assert source_binding.candidate_filters.assignee == "me"
@@ -1272,12 +1274,14 @@ defmodule Extravaganza.HeadlessExamplesTest do
     refute output =~ secret
     refute output =~ "live_provider_effect_deferred"
 
-    assert_received {:fetch_linear_candidates, tenant_id, _source_binding, source_opts}
+    assert_received {:fetch_source_candidates, tenant_id, :issue_tracker, _source_binding,
+                     source_opts}
+
     assert String.starts_with?(tenant_id, "extravaganza-live-")
     assert Keyword.fetch!(source_opts, :trace_id) == "trace:live-smoke-product"
     assert Keyword.fetch!(source_opts, :linear_api_key) == secret
 
-    assert_received {:current_linear_issue_states, _tenant_id, ["lin-issue-321"],
+    assert_received {:current_source_states, _tenant_id, :issue_tracker, ["lin-issue-321"],
                      current_source_binding, current_opts}
 
     assert current_source_binding.candidate_filters.assignee == "me"
@@ -1336,7 +1340,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert decoded["data"]["provider_effect"]["skip_reason"]["code"] ==
              "live_product_path_required"
 
-    refute_received {:fetch_linear_candidates, _, _, _}
+    refute_received {:fetch_source_candidates, _, _, _, _}
     refute output =~ secret
     refute output =~ "missing_authorized_source_invocation"
   end
@@ -1374,7 +1378,9 @@ defmodule Extravaganza.HeadlessExamplesTest do
     refute output =~ secret
     refute output =~ "live_provider_effect_deferred"
 
-    assert_received {:fetch_linear_candidates, tenant_id, source_binding, _source_opts}
+    assert_received {:fetch_source_candidates, tenant_id, :issue_tracker, source_binding,
+                     _source_opts}
+
     assert String.starts_with?(tenant_id, "extravaganza-live-")
     assert source_binding.source_binding_id == "linear-primary"
 
@@ -2336,18 +2342,24 @@ defmodule Extravaganza.HeadlessExamplesTest do
     @behaviour AppKit.Core.Backends.SourceBackend
 
     @impl true
-    def sync_linear_issues(_context, _source_page, _opts), do: {:ok, %{}}
+    def sync_source(_context, source_role_ref, _source_page, _opts),
+      do: {:ok, %{source_role_ref: source_role_ref}}
 
     @impl true
-    def current_linear_issue_states(context, issue_ids, source_binding, opts) do
+    def current_states(context, source_role_ref, request, opts) do
+      issue_ids = Map.fetch!(request, :issue_ids)
+      source_binding = Map.fetch!(request, :source_binding)
+
       if pid = Process.get(:headless_examples_test_pid) do
         send(
           pid,
-          {:current_linear_issue_states, context.tenant_ref.id, issue_ids, source_binding, opts}
+          {:current_source_states, context.tenant_ref.id, source_role_ref, issue_ids,
+           source_binding, opts}
         )
       end
 
       result = %{
+        source_role_ref: source_role_ref,
         requested_issue_ids: issue_ids,
         credential_redeemed?: true,
         provider_request_sent?: true,
@@ -2378,20 +2390,26 @@ defmodule Extravaganza.HeadlessExamplesTest do
     end
 
     @impl true
-    def fetch_linear_candidates(context, source_binding, opts) do
+    def fetch_candidates(context, source_role_ref, request, opts) do
+      source_binding = Map.fetch!(request, :source_binding)
+
       if pid = Process.get(:headless_examples_test_pid) do
-        send(pid, {:fetch_linear_candidates, context.tenant_ref.id, source_binding, opts})
+        send(
+          pid,
+          {:fetch_source_candidates, context.tenant_ref.id, source_role_ref, source_binding, opts}
+        )
       end
 
       if response = Process.get(:headless_examples_source_response) do
         response
       else
-        default_fetch_linear_candidates(source_binding)
+        default_fetch_linear_candidates(source_role_ref, source_binding)
       end
     end
 
-    defp default_fetch_linear_candidates(source_binding) do
+    defp default_fetch_linear_candidates(source_role_ref, source_binding) do
       result = %{
+        source_role_ref: source_role_ref,
         source_binding_id: source_binding.source_binding_id,
         source_intake: %{
           operation: "linear.issues.list",

@@ -984,16 +984,20 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
     @behaviour AppKit.Core.Backends.SourceBackend
 
     @impl true
-    def sync_linear_issues(_context, _source_page, _opts), do: {:ok, %{}}
+    def sync_source(_context, source_role_ref, _source_page, _opts),
+      do: {:ok, %{source_role_ref: source_role_ref}}
 
     @impl true
-    def current_linear_issue_states(_context, _issue_ids, _source_binding, _opts),
-      do: {:ok, %{}}
+    def current_states(_context, source_role_ref, _request, _opts),
+      do: {:ok, %{source_role_ref: source_role_ref}}
 
     @impl true
-    def fetch_linear_candidates(_context, source_binding, _opts) do
+    def fetch_candidates(_context, source_role_ref, request, _opts) do
+      source_binding = Map.fetch!(request, :source_binding)
+
       {:ok,
        %{
+         source_role_ref: source_role_ref,
          source_binding_id: Map.get(source_binding, :source_binding_id) || "linear-primary",
          source_intake: %{operation: "linear.issues.list", subject_attrs: []},
          provider_request_sent?: true,

@@ -19,12 +19,14 @@ defmodule Extravaganza.Sources do
     "completed" => ["Done", "Completed"],
     "rejected" => ["Canceled", "Cancelled", "Duplicate"]
   }
+  @source_role_ref :issue_tracker
 
   @spec sync_linear_issues(map(), keyword()) :: {:ok, map()} | {:error, term()}
   def sync_linear_issues(source_page, opts \\ []) when is_map(source_page) and is_list(opts) do
     with {:ok, %{config: config, context: context}} <- ProductSurface.bootstrapped_context(opts) do
-      SourceSurface.sync_linear_issues(
+      SourceSurface.sync_source(
         context,
+        @source_role_ref,
         product_source_page(source_page, config),
         ProductSurface.work_query_opts(config, opts)
       )
@@ -37,8 +39,9 @@ defmodule Extravaganza.Sources do
     with {:ok, %{config: config, context: context}} <- ProductSurface.bootstrapped_context(opts),
          page <- product_source_page(%{issues: [issue]}, config),
          {:ok, result} <-
-           SourceSurface.sync_linear_issues(
+           SourceSurface.sync_source(
              context,
+             @source_role_ref,
              page,
              ProductSurface.work_query_opts(config, opts)
            ),
