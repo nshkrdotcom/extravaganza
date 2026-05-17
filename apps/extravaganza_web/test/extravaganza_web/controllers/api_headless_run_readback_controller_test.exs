@@ -52,7 +52,24 @@ defmodule ExtravaganzaWeb.Api.HeadlessRunReadbackControllerTest do
     assert coverage["last_codex_event"]["event_kinds"] == ["codex.agent_message.updated"]
     assert coverage["receipts"]["lower_receipt_refs"] == ["lower-receipt:fixture"]
 
+    data = body["data"]["data"]
+
+    assert data["runtime_row"]["extensions"]["provider_request_response"]["provider"] == "linear"
+
+    assert data["runtime_row"]["extensions"]["provider_request_response"]["operation"] ==
+             "linear.comments.create"
+
+    assert data["runtime_row"]["extensions"]["source_publication"]["comment_ref"] ==
+             "linear-comment:fixture"
+
+    assert [turn] = data["turns"]
+    assert turn["provider_session_id"] == "thread-1"
+    assert turn["provider_turn_id"] == "turn-1"
+    refute Map.has_key?(turn, "codex_session_id")
+
     encoded = Jason.encode!(body)
+    refute String.contains?(encoded, "linear_comment_id")
+    refute String.contains?(encoded, "codex_session_id")
     refute String.contains?(encoded, "workspace_path")
     refute String.contains?(encoded, "/tmp/")
     refute String.contains?(encoded, "/home/")

@@ -639,6 +639,40 @@ defmodule Extravaganza.HeadlessSurfaceTest do
     refute String.contains?(encoded, "api_key")
   end
 
+  test "run presenter preserves product-visible provider facts through readback projection" do
+    assert {:ok, %RuntimeRunDetail{} = run} = HeadlessSurface.run_detail("run:fixture")
+    rendered = RunPresenter.present(run, correlation_id: "corr:provider-facts")
+    data = rendered["data"]
+
+    provider_request_response =
+      data["runtime_row"]["extensions"]["provider_request_response"]
+
+    assert provider_request_response["provider"] == "linear"
+    assert provider_request_response["operation"] == "linear.comments.create"
+    assert provider_request_response["provider_request_ref"] == "provider-request:fixture"
+    assert provider_request_response["provider_response_ref"] == "provider-response:fixture"
+    assert provider_request_response["provider_request_sent?"] == true
+    assert provider_request_response["provider_response_received?"] == true
+    assert provider_request_response["receipt_recorded?"] == true
+
+    source_publication = data["runtime_row"]["extensions"]["source_publication"]
+    assert source_publication["source_publication_receipt_ref"] == "source-publication:fixture"
+    assert source_publication["source_ref"] == "linear-comment:fixture"
+    assert source_publication["comment_ref"] == "linear-comment:fixture"
+    assert source_publication["workpad_refs"] == ["linear-comment:fixture"]
+
+    assert [turn] = data["turns"]
+    assert turn["provider_session_id"] == "thread-1"
+    assert turn["provider_turn_id"] == "turn-1"
+    refute Map.has_key?(turn, "codex_session_id")
+
+    encoded = Jason.encode!(data)
+    refute String.contains?(encoded, "linear_comment_id")
+    refute String.contains?(encoded, "codex_session_id")
+    refute String.contains?(encoded, "workspace_path")
+    refute String.contains?(encoded, "api_key")
+  end
+
   test "refresh and control commands return typed command results" do
     assert {:ok, %CommandResult{} = refresh} =
              HeadlessSurface.request_refresh(%{"idempotency_key" => "idem:refresh"})

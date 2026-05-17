@@ -83,6 +83,8 @@
       "source_publication": {
         "source_publication_receipt_ref": "source-publication:fixture",
         "source_ref": "linear-comment:fixture",
+        "comment_ref": "linear-comment:fixture",
+        "workpad_refs": ["linear-comment:fixture"],
         "mode": "deterministic_preview"
       },
       "review_decision": {
