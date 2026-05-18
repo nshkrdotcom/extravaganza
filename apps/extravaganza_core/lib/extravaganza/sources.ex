@@ -13,12 +13,6 @@ defmodule Extravaganza.Sources do
     ProductSurface
   }
 
-  @linear_state_mapping %{
-    "submitted" => ["Todo", "Backlog"],
-    "retry_submission" => ["Todo"],
-    "completed" => ["Done", "Completed"],
-    "rejected" => ["Canceled", "Cancelled", "Duplicate"]
-  }
   @source_role_ref :issue_tracker
 
   @spec sync_linear_issues(map(), keyword()) :: {:ok, map()} | {:error, term()}
@@ -68,19 +62,17 @@ defmodule Extravaganza.Sources do
   end
 
   defp source_binding(source_page, %Config{} = config) do
-    default_binding = %{
-      source_binding_id: ProductPack.source_binding_key(config),
-      installation_id: config.tenant_id,
-      provider: "linear",
-      connection_ref: ProductPack.source_binding_key(config),
-      state_mapping: @linear_state_mapping
-    }
-
     source_page
     |> value(:source_binding)
     |> case do
-      %{} = binding -> Map.merge(default_binding, Map.new(binding))
-      _missing -> default_binding
+      %{} = binding ->
+        ProductPack.source_binding_snapshot(
+          config,
+          Map.merge(%{installation_id: config.tenant_id}, Map.new(binding))
+        )
+
+      _missing ->
+        ProductPack.source_binding_snapshot(config, %{installation_id: config.tenant_id})
     end
   end
 

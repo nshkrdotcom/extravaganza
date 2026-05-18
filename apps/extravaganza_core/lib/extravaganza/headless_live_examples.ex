@@ -851,6 +851,8 @@ defmodule Extravaganza.HeadlessLiveExamples do
   end
 
   defp linear_source_binding(opts) do
+    config = Config.load(config_overrides(opts))
+
     filters =
       %{}
       |> maybe_put(:assignee, linear_source_assignee_filter(opts))
@@ -858,28 +860,21 @@ defmodule Extravaganza.HeadlessLiveExamples do
       |> maybe_put(:project_slug, string_value(opts, :project_slug))
       |> maybe_put(:team_id, string_value(opts, :team_id))
 
-    %{
+    ProductPack.source_binding_snapshot(config, %{
       source_binding_id: "linear-primary",
-      provider: "linear",
       connection_ref: "linear-primary",
-      candidate_filters: filters,
-      state_mapping: %{
-        "submitted" => ["Todo", "Backlog"],
-        "retry_submission" => ["Todo"],
-        "completed" => ["Done", "Completed"],
-        "rejected" => ["Canceled", "Cancelled", "Duplicate"]
-      }
-    }
+      candidate_filters: filters
+    })
   end
 
-  defp linear_publication_source_binding(_opts) do
-    %{
+  defp linear_publication_source_binding(opts) do
+    opts
+    |> config_overrides()
+    |> ProductPack.source_binding_snapshot(%{
       source_binding_id: "linear-primary",
-      provider: "linear",
       connection_ref: "linear-primary",
-      candidate_filters: %{},
-      state_mapping: %{}
-    }
+      candidate_filters: %{}
+    })
   end
 
   defp linear_source_assignee_filter(opts) do

@@ -313,6 +313,42 @@ defmodule Extravaganza.ProductPack do
 
   def source_binding_key(overrides), do: overrides |> Config.load() |> source_binding_key()
 
+  @spec source_binding_snapshot(Config.t() | keyword() | map(), map() | keyword()) :: map()
+  def source_binding_snapshot(config_or_overrides, overrides \\ %{})
+
+  def source_binding_snapshot(%Config{} = config, overrides) do
+    source_binding_ref = source_binding_ref(config)
+    source_binding_id = Atom.to_string(source_binding_ref)
+
+    %{
+      source_binding_id: source_binding_id,
+      binding_ref: source_binding_id,
+      compiled_binding_ref: "compiled-binding://#{pack_slug(config)}/#{source_binding_id}",
+      adapter_ref: "linear",
+      provider: "linear",
+      connection_ref: source_binding_id,
+      operation_refs: %{
+        fetch_candidates: "linear.issues.list",
+        current_states: "linear.issues.list",
+        refresh_item: "linear.issues.retrieve",
+        viewer: "linear.users.get_self"
+      },
+      state_mapping: %{
+        "submitted" => ["Todo", "Backlog"],
+        "retry_submission" => ["Todo"],
+        "completed" => ["Done", "Completed"],
+        "rejected" => ["Canceled", "Cancelled", "Duplicate"]
+      }
+    }
+    |> Map.merge(Map.new(overrides))
+  end
+
+  def source_binding_snapshot(overrides, binding_overrides) do
+    overrides
+    |> Config.load()
+    |> source_binding_snapshot(binding_overrides)
+  end
+
   @spec profile_slots(Config.t() | keyword() | map()) :: map()
   def profile_slots(%Config{}) do
     %{
