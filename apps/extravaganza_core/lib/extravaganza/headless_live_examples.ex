@@ -901,9 +901,12 @@ defmodule Extravaganza.HeadlessLiveExamples do
   end
 
   defp linear_publication_attrs!(opts, issue_id, source_ref \\ nil) do
+    source_binding = linear_publication_source_binding(opts)
+
     %{
       source_publish_ref: "linear_live_publication",
-      source_binding_id: "linear-primary",
+      source_binding: source_binding,
+      source_binding_id: Map.fetch!(source_binding, :source_binding_id),
       source_ref: source_ref || "linear://primary/issue/#{issue_id}",
       issue_id: issue_id,
       body: string_value(opts, :message) || "Extravaganza headless live publication proof",

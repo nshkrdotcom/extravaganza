@@ -1306,6 +1306,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
 
     assert_received {:publish_source, _tenant_id, :source_publication, attrs, publication_opts}
     assert attrs.issue_id == "lin-issue-321"
+    assert attrs.source_binding.source_binding_id == "linear-primary"
     assert Keyword.fetch!(publication_opts, :trace_id) == "trace:live-smoke-product"
     assert Keyword.fetch!(publication_opts, :linear_api_key) == secret
 
@@ -1397,6 +1398,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
 
     assert_received {:publish_source, tenant_id, :source_publication, attrs, opts}
     assert String.starts_with?(tenant_id, "extravaganza-live-")
+    assert attrs.source_binding.source_binding_id == "linear-primary"
     assert attrs.source_binding_id == "linear-primary"
     assert attrs.issue_id == "lin-issue-321"
     assert Keyword.fetch!(opts, :linear_api_key) == secret
@@ -1562,6 +1564,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert_received {:publish_source, tenant_id, :source_publication, attrs, opts}
     assert String.starts_with?(tenant_id, "extravaganza-live-")
     assert attrs.issue_id == "lin-issue-321"
+    assert attrs.source_binding.source_binding_id == "linear-primary"
     assert Keyword.fetch!(opts, :dry_run?) == true
     assert Keyword.fetch!(opts, :linear_api_key) == secret
   end
