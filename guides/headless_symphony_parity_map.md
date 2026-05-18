@@ -1,8 +1,11 @@
-# Symphony Headless Gap Analysis
+# Symphony Headless Parity Map
 
-Purpose: document where Extravaganza currently implements the headless part of
-the Symphony specification through either mix tasks, the programmatic API, or
-examples, and where that implementation is still partial.
+Purpose: document how Extravaganza implements the headless part of the Symphony
+specification through mix tasks, the programmatic API, examples, and the live
+provider proof path. This is a parity map, not a current cutover blocker list:
+items marked partial or out-of-scope are explicit product-surface decisions
+against optional Symphony behavior, while the coding-ops live provider lanes
+are covered by the current generic-stack route proof.
 
 References:
 
@@ -14,6 +17,8 @@ References:
 - `apps/extravaganza_web/lib/extravaganza_web/router.ex`
 - `apps/extravaganza_web/lib/extravaganza_web/controllers/api/headless_controller.ex`
 - `scripts/headless/*.exs`
+- cutover proof: `MIX_ENV=test mix extravaganza.headless.smoke --deterministic --same-run --json`
+  and `~/scripts/with_bash_secrets ... mix extravaganza.headless.live.smoke --live-product-path --ack-headless-guardrails --json ...`
 
 ## Scope and review method
 
@@ -60,8 +65,8 @@ References:
 | Symphony workflow profile validate/reload | `mix extravaganza.headless.profile_validate --workflow WORKFLOW.md --json`, `mix extravaganza.headless.profile_reload --workflow WORKFLOW.md --ack-headless-guardrails --json` | `POST /api/v1/profile/validate`, `POST /api/v1/profile/reload`, `GET /api/v1/profile` | `scripts/headless/profile_validate.exs`, `scripts/headless/profile_reload.exs` | Done |
 | Subject read lease + stream attach lease (operational helper methods) | N/A as direct mix command | `GET` equivalent in API: `/api/v1/subjects/:subject_id/read-lease`, `/api/v1/subjects/:subject_id/stream-attach-lease` | no script today, but API and module paths exist | Partial |
 | Start run command | `mix extravaganza.headless.start --ack-headless-guardrails --json` for non-fixture start; fixture start remains `mix extravaganza.headless.start --fixture headless_m1 --json` | `ProductHost.start_run/2` + `ExtravaganzaWeb` browser route surface uses same presenters | `scripts/headless/assert_non_fixture_start.exs`, `scripts/headless/start_fixture_run.exs` | Done |
-| Same-run deterministic proof chain | `mix extravaganza.headless.smoke --deterministic --same-run --json` | `ProductHost.same_run_smoke/1` and same underlying readbacks | no dedicated example script; endpoint coverage via tests | Partial |
-| Live example command matrix (linear source, codex turn, linear publication, github evidence) | `mix extravaganza.headless.live.linear_source|codex_turn|linear_publication|github_evidence --json` and `mix extravaganza.headless.live.smoke --json` | no direct API for live example command path; this is command only by design | `scripts/headless/live_*.exs` wrappers | Done |
+| Same-run deterministic proof chain | `mix extravaganza.headless.smoke --deterministic --same-run --json` | `ProductHost.same_run_smoke/1` and same underlying readbacks | StackLab external acceptance validates the product from outside this repo | Done |
+| Live example command matrix (linear source, codex turn, linear publication, github evidence) | `mix extravaganza.headless.live.linear_source|codex_turn|linear_publication|github_evidence --json` and `mix extravaganza.headless.live.smoke --json` | no direct API for live example command path; this is command only by design | `scripts/headless/live_*.exs` wrappers; 2026-05-18 live proof covered Linear read/write/query, Codex turn, GitHub evidence, GitHub cleanup, and aggregate smoke | Done |
 
 ## Symphony behavior that is intentionally out of command/API scope
 
@@ -87,12 +92,13 @@ but are not currently user-operable through `Extravaganza` mix command API.
 - Live matrix command wrappers (`live_*`, `live_smoke`) with deterministic skip
   behavior when provider credentials are absent
 
-### Missing as direct example artifacts
+### Not exposed as direct script artifacts
 
 - Queue and refresh/control invocation wrappers (`queue`, `refresh`, `control`)
 - Read-lease/stream-attach-lease examples
 - Source publication preview
-- A dedicated same-run smoke replay example script
+- A dedicated same-run smoke replay example script; the same-run proof is
+  covered by the Mix task and StackLab external acceptance
 
 ## Evidence anchors (for audit)
 
@@ -104,12 +110,12 @@ but are not currently user-operable through `Extravaganza` mix command API.
   `apps/extravaganza_core/lib/extravaganza/product_host.ex`
 - Example script inventory and expected paths: `scripts/headless/*.exs`, `examples/headless/*.json`
 
-## Practical remediation notes
+## Practical extension notes
 
 1. Add mix task coverage if the team wants command parity for lease operations
    (`read-lease`, `stream-attach-lease`) and `source_preview`.
 2. Add explicit issue-identifier examples for API read paths if onboarding requires
    command-first parity.
-3. Continue validating live examples when provider-level bridges are enabled by default;
-   current command responses are valid and explicitly tagged when provider effects are
-   skipped.
+3. Continue validating live examples with `~/scripts/with_bash_secrets` at
+   release boundaries. Current live proof requires route evidence, receipts,
+   provider request/response facts, and no leaked secrets.

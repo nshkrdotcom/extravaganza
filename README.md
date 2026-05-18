@@ -140,7 +140,9 @@ What this means in practice:
   is the local fixture-backed product proof.
 - `printf "%s" "$LINEAR_API_KEY" | mix extravaganza.headless.live.smoke --live-product-path --ack-headless-guardrails --json --api-key-stdin --assignee all --issue-id LINEAR_ISSUE_UUID --issue-ids LINEAR_ISSUE_UUID --repo OWNER/REPO --pull-number PR_NUMBER --ref HEAD_SHA`
   exercises the same product command surface against live provider paths when
-  credentials and concrete provider targets are present.
+  credentials and concrete provider targets are present. The 2026-05-18 cutover
+  proof completed all six aggregate live lanes plus standalone GitHub cleanup
+  through this route.
 - `mix phx.server` exposes the API routes used by operator tooling and browser
   shells: state, status, logs, profile validate/reload, source publication,
   subjects, runs, evidence, events, refresh, action controls, reviews, review
@@ -151,8 +153,12 @@ What this means in practice:
 
 The usable feature today is therefore a full headless product proof and an API
 operator shell for governed coding-agent work. It is not yet a polished browser
-application, and it does not claim live provider acceptance unless the live
-command path is run with real credentials and the lower stack substrate is up.
+application. Live provider acceptance is claimed only for runs that use
+`--live-product-path`, `--ack-headless-guardrails`, real provider credentials,
+and concrete provider targets; the current release proof completed Linear
+source/current-state/GraphQL/publication create/update-fallback/same-state
+update, Codex turn, GitHub evidence, GitHub safe cleanup, GitHub disposable
+cleanup, and aggregate smoke through that path.
 
 ## What this repo owns
 
@@ -368,7 +374,7 @@ modules directly from product business code.
 
 - [Headless Live Demo Onboarding](guides/headless_live_demo.md)
 - [Headless API Reference](guides/headless_api_reference.md)
-- [Headless Symphony Gap Analysis](guides/headless_symphony_headless_gap_analysis.md)
+- [Symphony Headless Parity Map](guides/headless_symphony_parity_map.md)
 - [Headless Provider Credentials and Verification](guides/headless_provider_credentials.md)
 
 ## Persistence Documentation

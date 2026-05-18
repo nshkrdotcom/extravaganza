@@ -55,7 +55,7 @@ live commands themselves.
 Set provider credentials in your shell before live runs:
 
 - Linear example paths: `LINEAR_API_KEY`  
-- Codex example paths: `OPENAI_API_KEY` and `CODEX_API_KEY`  
+- Codex example paths: `OPENAI_API_KEY`; include `CODEX_API_KEY` only when the configured Codex connector profile requires it
 - GitHub example paths: `GH_TOKEN` or `GITHUB_TOKEN`
 
 If needed for local ergonomics, linear examples also accept `--api-key-stdin`
