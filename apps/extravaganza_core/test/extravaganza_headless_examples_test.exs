@@ -1182,6 +1182,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert preflight["dispatch_binding"] == "app_config"
     assert provider_effect["status"] == "receipt_recorded"
     assert provider_effect["operation"] == "github.pr.branch_cleanup"
+    assert provider_effect["resource_effect_role_ref"] == "proposed_change_cleanup"
     assert provider_effect["repo"] == "nshkrdotcom/extravaganza"
     assert provider_effect["branch"] == "cleanup-branch"
     assert provider_effect["pull_numbers"] == [17]

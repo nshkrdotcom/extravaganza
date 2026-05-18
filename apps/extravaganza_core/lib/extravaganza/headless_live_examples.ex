@@ -780,6 +780,7 @@ defmodule Extravaganza.HeadlessLiveExamples do
         %{
           "provider" => example.provider,
           "effect" => example.provider_effect,
+          "resource_effect_role_ref" => "proposed_change_cleanup",
           "capability_ids" => receipt.capability_ids,
           "status" => Atom.to_string(receipt.status),
           "operation" => "github.pr.branch_cleanup",
