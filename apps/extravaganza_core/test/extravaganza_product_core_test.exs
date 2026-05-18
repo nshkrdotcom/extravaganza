@@ -2329,6 +2329,7 @@ defmodule ExtravaganzaProductCoreTest do
              "subject",
              "run",
              "evidence",
+             "route_evidence",
              "events",
              "reviews",
              "review_decision",
@@ -2357,6 +2358,22 @@ defmodule ExtravaganzaProductCoreTest do
     assert get_in(readbacks_by_name, ["profile_reload", "status"]) == "reloaded"
     assert get_in(readbacks_by_name, ["status", "schema_ref"]) == "headless_runtime_status.v1"
     assert get_in(readbacks_by_name, ["logs", "schema_ref"]) == "headless_runtime_logs.v1"
+
+    assert readbacks_by_name["route_evidence"]["product_role_ref"] ==
+             "runtime-role://extravaganza/coding-agent-runtime"
+
+    assert readbacks_by_name["route_evidence"]["binding_ref"] ==
+             "runtime-binding://extravaganza/coding-agent-runtime"
+
+    assert readbacks_by_name["route_evidence"]["connector_binding_ref"] ==
+             "connector-binding://deterministic/same-run"
+
+    assert readbacks_by_name["route_evidence"]["credential_lease_ref"] ==
+             "credential-lease://deterministic/same-run"
+
+    assert readbacks_by_name["route_evidence"]["receipt_ref"] == proof["lower_receipt_ref"]
+    assert readbacks_by_name["route_evidence"]["evidence_ref"] == proof["evidence_chain_ref"]
+    assert readbacks_by_name["route_evidence"]["trace_replay"]["status"] == "not_emitted"
 
     assert readbacks_by_name["command_coverage"]["operations"] ==
              Enum.map(HeadlessCLI.operations(), &Atom.to_string/1)

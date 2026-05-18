@@ -20,6 +20,7 @@ defmodule Extravaganza.HeadlessSameRunSmoke do
     {"subject", :subject},
     {"run", :run},
     {"evidence", :evidence},
+    {"route_evidence", :route_evidence},
     {"events", :events},
     {"reviews", :reviews},
     {"review_decision", :review_decision},
@@ -250,6 +251,7 @@ defmodule Extravaganza.HeadlessSameRunSmoke do
             profile_reload: profile_reload,
             status: status,
             logs: logs,
+            route_evidence: route_evidence(refs),
             live_preflight_denial: live_preflight_denial,
             command_coverage: command_coverage,
             route_coverage: route_coverage,
@@ -261,6 +263,7 @@ defmodule Extravaganza.HeadlessSameRunSmoke do
         {:ok,
          %{
            "proof" => proof,
+           "route_evidence" => proof["route_evidence"],
            "start" => start_summary(refs, start_result),
            "readbacks" => proof["readbacks"]
          }}
@@ -378,6 +381,7 @@ defmodule Extravaganza.HeadlessSameRunSmoke do
       "source_publication_ref" => refs.source_publication_ref,
       "evidence_chain_ref" => refs.evidence_chain_ref,
       "event_page_ref" => refs.event_page_ref,
+      "route_evidence" => route_evidence(refs),
       "all_readbacks_share_refs" => true,
       "steps" => [
         "profile_loaded",
@@ -522,7 +526,39 @@ defmodule Extravaganza.HeadlessSameRunSmoke do
   defp compact_smoke_data("events", events),
     do: Map.take(events, ["event_page_ref", "run_ref", "page"])
 
+  defp compact_smoke_data("route_evidence", route_evidence), do: route_evidence
+
   defp compact_smoke_data(_name, value), do: HeadlessJSON.sanitize(value)
+
+  defp route_evidence(refs) do
+    trace_ref = refs.trace_id || "trace://extravaganza/same-run/#{refs.run_ref}"
+
+    %{
+      "product_role_ref" => "runtime-role://extravaganza/coding-agent-runtime",
+      "binding_ref" => "runtime-binding://extravaganza/coding-agent-runtime",
+      "manifest_ref" => refs.connector_manifest_ref,
+      "connector_manifest_ref" => refs.connector_manifest_ref,
+      "authority_ref" => refs.authority_ref,
+      "decision_ref" => refs.decision_ref,
+      "connector_binding_ref" => "connector-binding://deterministic/same-run",
+      "credential_lease_ref" => "credential-lease://deterministic/same-run",
+      "lower_request_ref" => refs.lower_request_ref,
+      "lower_receipt_ref" => refs.lower_receipt_ref,
+      "receipt_ref" => refs.lower_receipt_ref,
+      "source_publication_ref" => refs.source_publication_ref,
+      "projection_ref" => "projection://extravaganza/same-run/#{refs.run_ref}",
+      "evidence_ref" => refs.evidence_chain_ref,
+      "operation_ref" => "codex.session.turn",
+      "operation_receipt_refs" => [refs.lower_receipt_ref],
+      "trace_ref" => trace_ref,
+      "trace_replay" => %{
+        "status" => "not_emitted",
+        "replay_system_ref" => "ai_trace",
+        "trace_ref" => trace_ref,
+        "reason" => "same_run_smoke_does_not_export_trace_replay_event"
+      }
+    }
+  end
 
   defp same_run_context(refs, start_result, subject_attrs, runtime_projection) do
     %{
