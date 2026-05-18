@@ -522,9 +522,32 @@ defmodule Extravaganza.HeadlessSurfaceTest do
              "prompt_profile_refs",
              "receipts",
              "retry_metadata",
+             "route_evidence",
              "turn_limits",
              "workspace_identity"
            ]
+
+    assert coverage["route_evidence"] == %{
+             "authority_refs" => ["authority:fixture"],
+             "binding_refs" => ["runtime-binding://extravaganza/coding-agent-runtime"],
+             "connector_binding_refs" => ["connector-binding://codex/primary"],
+             "credential_lease_refs" => ["credential-lease:fixture"],
+             "evidence_refs" => ["evidence://extravaganza/run:fixture"],
+             "fields" => [
+               "runtime_row.extensions.governance",
+               "runtime_row.extensions.credential_preflight",
+               "runtime_row.extensions.lower_envelope",
+               "runtime_row.extensions.lower_receipt",
+               "runtime_row.extensions.source_publication"
+             ],
+             "lower_request_refs" => ["lower-request:fixture"],
+             "manifest_refs" => ["manifest://jido/connectors/codex_cli@local"],
+             "product_role_refs" => ["runtime-role://extravaganza/coding-agent-runtime"],
+             "projection_refs" => ["projection://extravaganza/run:fixture"],
+             "receipt_refs" => ["lower-receipt:fixture"],
+             "trace_refs" => ["trace://extravaganza/run:fixture"],
+             "trace_replay_statuses" => ["not_emitted"]
+           }
 
     assert coverage["lower_run_handle"] == %{
              "execution_refs" => ["execution:fixture"],

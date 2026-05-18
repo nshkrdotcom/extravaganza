@@ -85,6 +85,7 @@ defmodule Extravaganza.HeadlessJSONContractTest do
              "memory_proof_refs",
              "persistence_posture",
              "retries",
+             "route_evidence",
              "run_readback_coverage",
              "run_readback_coverage_gaps",
              "run_ref",
@@ -93,6 +94,25 @@ defmodule Extravaganza.HeadlessJSONContractTest do
              "schema_version",
              "turns"
            ]
+
+    assert data["route_evidence"]["product_role_ref"] ==
+             "runtime-role://extravaganza/coding-agent-runtime"
+
+    assert data["route_evidence"]["binding_ref"] ==
+             "runtime-binding://extravaganza/coding-agent-runtime"
+
+    assert data["route_evidence"]["manifest_ref"] ==
+             "manifest://jido/connectors/codex_cli@local"
+
+    assert data["route_evidence"]["authority_ref"] == "authority:fixture"
+    assert data["route_evidence"]["connector_binding_ref"] == "connector-binding://codex/primary"
+    assert data["route_evidence"]["credential_lease_ref"] == "credential-lease:fixture"
+    assert data["route_evidence"]["lower_request_ref"] == "lower-request:fixture"
+    assert data["route_evidence"]["receipt_ref"] == "lower-receipt:fixture"
+    assert data["route_evidence"]["projection_ref"] == "projection://extravaganza/run:fixture"
+    assert data["route_evidence"]["evidence_ref"] == "evidence://extravaganza/run:fixture"
+    assert data["route_evidence"]["trace_ref"] == "trace://extravaganza/run:fixture"
+    assert data["route_evidence"]["trace_replay"]["status"] == "not_emitted"
 
     assert Map.keys(runtime_row) |> Enum.sort() == [
              "execution_ref",
@@ -186,16 +206,25 @@ defmodule Extravaganza.HeadlessJSONContractTest do
 
     assert Map.keys(envelope["refs"]) |> Enum.sort() == [
              "authority_ref",
+             "binding_ref",
              "capability_negotiation_ref",
+             "connector_binding_ref",
              "connector_manifest_ref",
+             "credential_lease_ref",
              "decision_ref",
+             "evidence_ref",
              "execution_route_ref",
              "lower_receipt_ref",
              "lower_request_ref",
+             "manifest_ref",
+             "product_role_ref",
+             "projection_ref",
+             "receipt_ref",
              "run_ref",
              "runtime_profile_ref",
              "source_publication_ref",
              "subject_ref",
+             "trace_ref",
              "workflow_ref"
            ]
   end
@@ -376,9 +405,33 @@ defmodule Extravaganza.HeadlessJSONContractTest do
              "lower_run",
              "provider_request_response",
              "review_decision",
+             "route_evidence",
              "source_publication",
              "workspace_action"
            ]
+
+    assert coverage["route_evidence"]["product_role_ref"] ==
+             "runtime-role://extravaganza/coding-agent-runtime"
+
+    assert coverage["route_evidence"]["binding_ref"] ==
+             "runtime-binding://extravaganza/coding-agent-runtime"
+
+    assert coverage["route_evidence"]["manifest_ref"] ==
+             "manifest://jido/connectors/codex_cli@local"
+
+    assert coverage["route_evidence"]["authority_ref"] == "authority:fixture"
+
+    assert coverage["route_evidence"]["connector_binding_ref"] ==
+             "connector-binding://codex/primary"
+
+    assert coverage["route_evidence"]["credential_lease_ref"] == "credential-lease:fixture"
+    assert coverage["route_evidence"]["lower_request_ref"] == "lower-request:fixture"
+    assert coverage["route_evidence"]["receipt_ref"] == "lower-receipt:fixture"
+    assert coverage["route_evidence"]["projection_ref"] == "projection://extravaganza/run:fixture"
+    assert coverage["route_evidence"]["evidence_ref"] == "evidence://extravaganza/run:fixture"
+    assert coverage["route_evidence"]["trace_ref"] == "trace://extravaganza/run:fixture"
+    assert coverage["route_evidence"]["trace_replay"]["replay_system_ref"] == "ai_trace"
+    assert coverage["route_evidence"]["trace_replay"]["status"] == "not_emitted"
 
     assert coverage["dispatch"]["refs"] == [
              "run:fixture",

@@ -85,16 +85,25 @@ defmodule Extravaganza.HeadlessJSON do
     |> put_ref("run_ref", first_path(data, run_paths()))
     |> put_ref("workflow_ref", first_path(data, workflow_paths()))
     |> put_ref("runtime_profile_ref", first_path(data, runtime_profile_paths()))
+    |> put_ref("product_role_ref", first_path(data, product_role_paths()))
+    |> put_ref("binding_ref", first_path(data, binding_paths()))
+    |> put_ref("manifest_ref", first_path(data, manifest_ref_paths()))
     |> put_ref("authority_ref", first_path(data, authority_paths()))
     |> put_ref("decision_ref", first_path(data, decision_paths()))
     |> put_ref("connector_manifest_ref", first_path(data, manifest_paths()))
+    |> put_ref("connector_binding_ref", first_path(data, connector_binding_paths()))
     |> put_ref("capability_negotiation_ref", first_path(data, negotiation_paths()))
+    |> put_ref("credential_lease_ref", first_path(data, credential_lease_paths()))
     |> put_ref("lower_request_ref", first_path(data, lower_request_paths()))
     |> put_ref("lower_receipt_ref", first_path(data, lower_receipt_paths()))
     |> put_ref("lower_denial_ref", first_path(data, lower_denial_paths()))
+    |> put_ref("receipt_ref", first_path(data, receipt_paths()))
+    |> put_ref("projection_ref", first_path(data, projection_paths()))
     |> put_ref("source_publication_ref", first_path(data, source_publication_paths()))
+    |> put_ref("evidence_ref", first_path(data, evidence_paths()))
     |> put_ref("evidence_chain_ref", first_path(data, evidence_chain_paths()))
     |> put_ref("event_page_ref", first_path(data, event_page_paths()))
+    |> put_ref("trace_ref", first_path(data, trace_ref_paths()))
     |> put_ref("idempotency_key", first_path(data, idempotency_paths()))
   end
 
@@ -191,8 +200,45 @@ defmodule Extravaganza.HeadlessJSON do
     ]
   end
 
+  defp product_role_paths do
+    [
+      ["data", "route_evidence", "product_role_ref"],
+      ["route_evidence", "product_role_ref"],
+      ["data", "provider_effect", "route_evidence", "product_role_ref"],
+      ["provider_effect", "route_evidence", "product_role_ref"],
+      ["data", "runtime_row", "extensions", "governance", "product_role_ref"],
+      ["runtime_row", "extensions", "governance", "product_role_ref"]
+    ]
+  end
+
+  defp binding_paths do
+    [
+      ["data", "route_evidence", "binding_ref"],
+      ["route_evidence", "binding_ref"],
+      ["data", "provider_effect", "route_evidence", "binding_ref"],
+      ["provider_effect", "route_evidence", "binding_ref"],
+      ["data", "runtime_row", "extensions", "governance", "binding_ref"],
+      ["runtime_row", "extensions", "governance", "binding_ref"]
+    ]
+  end
+
+  defp manifest_ref_paths do
+    [
+      ["data", "route_evidence", "manifest_ref"],
+      ["route_evidence", "manifest_ref"],
+      ["data", "provider_effect", "route_evidence", "manifest_ref"],
+      ["provider_effect", "route_evidence", "manifest_ref"],
+      ["data", "runtime_row", "extensions", "governance", "manifest_ref"],
+      ["runtime_row", "extensions", "governance", "manifest_ref"]
+    ]
+  end
+
   defp authority_paths do
     [
+      ["data", "route_evidence", "authority_ref"],
+      ["route_evidence", "authority_ref"],
+      ["data", "provider_effect", "route_evidence", "authority_ref"],
+      ["provider_effect", "route_evidence", "authority_ref"],
       ["data", "proof", "authority_ref"],
       ["proof", "authority_ref"],
       ["data", "governance", "authority_ref"],
@@ -204,6 +250,8 @@ defmodule Extravaganza.HeadlessJSON do
 
   defp decision_paths do
     [
+      ["data", "route_evidence", "decision_ref"],
+      ["route_evidence", "decision_ref"],
       ["data", "proof", "decision_ref"],
       ["proof", "decision_ref"],
       ["data", "governance", "decision_ref"],
@@ -215,12 +263,27 @@ defmodule Extravaganza.HeadlessJSON do
 
   defp manifest_paths do
     [
+      ["data", "route_evidence", "connector_manifest_ref"],
+      ["route_evidence", "connector_manifest_ref"],
+      ["data", "provider_effect", "route_evidence", "connector_manifest_ref"],
+      ["provider_effect", "route_evidence", "connector_manifest_ref"],
       ["data", "proof", "connector_manifest_ref"],
       ["proof", "connector_manifest_ref"],
       ["data", "governance", "connector_manifest_ref"],
       ["governance", "connector_manifest_ref"],
       ["data", "runtime_row", "extensions", "governance", "connector_manifest_ref"],
       ["runtime_row", "extensions", "governance", "connector_manifest_ref"]
+    ]
+  end
+
+  defp connector_binding_paths do
+    [
+      ["data", "route_evidence", "connector_binding_ref"],
+      ["route_evidence", "connector_binding_ref"],
+      ["data", "provider_effect", "route_evidence", "connector_binding_ref"],
+      ["provider_effect", "route_evidence", "connector_binding_ref"],
+      ["data", "runtime_row", "extensions", "governance", "connector_binding_ref"],
+      ["runtime_row", "extensions", "governance", "connector_binding_ref"]
     ]
   end
 
@@ -235,8 +298,25 @@ defmodule Extravaganza.HeadlessJSON do
     ]
   end
 
+  defp credential_lease_paths do
+    [
+      ["data", "route_evidence", "credential_lease_ref"],
+      ["route_evidence", "credential_lease_ref"],
+      ["data", "provider_effect", "route_evidence", "credential_lease_ref"],
+      ["provider_effect", "route_evidence", "credential_lease_ref"],
+      ["data", "credential_preflight", "credential_lease_ref"],
+      ["credential_preflight", "credential_lease_ref"],
+      ["data", "runtime_row", "extensions", "credential_preflight", "credential_lease_ref"],
+      ["runtime_row", "extensions", "credential_preflight", "credential_lease_ref"]
+    ]
+  end
+
   defp lower_request_paths do
     [
+      ["data", "route_evidence", "lower_request_ref"],
+      ["route_evidence", "lower_request_ref"],
+      ["data", "provider_effect", "route_evidence", "lower_request_ref"],
+      ["provider_effect", "route_evidence", "lower_request_ref"],
       ["data", "proof", "lower_request_ref"],
       ["proof", "lower_request_ref"],
       ["data", "lower", "lower_request_ref"],
@@ -248,6 +328,10 @@ defmodule Extravaganza.HeadlessJSON do
 
   defp lower_receipt_paths do
     [
+      ["data", "route_evidence", "lower_receipt_ref"],
+      ["route_evidence", "lower_receipt_ref"],
+      ["data", "provider_effect", "route_evidence", "lower_receipt_ref"],
+      ["provider_effect", "route_evidence", "lower_receipt_ref"],
       ["data", "proof", "lower_receipt_ref"],
       ["proof", "lower_receipt_ref"],
       ["data", "lower_receipt", "lower_receipt_ref"],
@@ -259,6 +343,10 @@ defmodule Extravaganza.HeadlessJSON do
 
   defp lower_denial_paths do
     [
+      ["data", "route_evidence", "lower_denial_ref"],
+      ["route_evidence", "lower_denial_ref"],
+      ["data", "provider_effect", "route_evidence", "lower_denial_ref"],
+      ["provider_effect", "route_evidence", "lower_denial_ref"],
       ["data", "lower", "lower_denial_ref"],
       ["lower", "lower_denial_ref"],
       ["data", "runtime_row", "extensions", "lower_envelope", "lower_denial_ref"],
@@ -266,8 +354,34 @@ defmodule Extravaganza.HeadlessJSON do
     ]
   end
 
+  defp receipt_paths do
+    [
+      ["data", "route_evidence", "receipt_ref"],
+      ["route_evidence", "receipt_ref"],
+      ["data", "provider_effect", "route_evidence", "receipt_ref"],
+      ["provider_effect", "route_evidence", "receipt_ref"],
+      ["data", "runtime_row", "extensions", "lower_receipt", "lower_receipt_ref"],
+      ["runtime_row", "extensions", "lower_receipt", "lower_receipt_ref"]
+    ]
+  end
+
+  defp projection_paths do
+    [
+      ["data", "route_evidence", "projection_ref"],
+      ["route_evidence", "projection_ref"],
+      ["data", "provider_effect", "route_evidence", "projection_ref"],
+      ["provider_effect", "route_evidence", "projection_ref"],
+      ["data", "runtime_row", "extensions", "source_publication", "projection_ref"],
+      ["runtime_row", "extensions", "source_publication", "projection_ref"]
+    ]
+  end
+
   defp source_publication_paths do
     [
+      ["data", "route_evidence", "source_publication_ref"],
+      ["route_evidence", "source_publication_ref"],
+      ["data", "provider_effect", "route_evidence", "source_publication_ref"],
+      ["provider_effect", "route_evidence", "source_publication_ref"],
       ["data", "proof", "source_publication_ref"],
       ["proof", "source_publication_ref"],
       ["data", "source_publication_receipt_ref"],
@@ -288,12 +402,34 @@ defmodule Extravaganza.HeadlessJSON do
     ]
   end
 
+  defp evidence_paths do
+    [
+      ["data", "route_evidence", "evidence_ref"],
+      ["route_evidence", "evidence_ref"],
+      ["data", "provider_effect", "route_evidence", "evidence_ref"],
+      ["provider_effect", "route_evidence", "evidence_ref"],
+      ["data", "evidence_ref"],
+      ["evidence_ref"]
+    ]
+  end
+
   defp evidence_chain_paths do
     [
       ["data", "proof", "evidence_chain_ref"],
       ["proof", "evidence_chain_ref"],
       ["data", "evidence_chain_ref"],
       ["evidence_chain_ref"]
+    ]
+  end
+
+  defp trace_ref_paths do
+    [
+      ["data", "route_evidence", "trace_ref"],
+      ["route_evidence", "trace_ref"],
+      ["data", "provider_effect", "route_evidence", "trace_ref"],
+      ["provider_effect", "route_evidence", "trace_ref"],
+      ["data", "trace_ref"],
+      ["trace_ref"]
     ]
   end
 

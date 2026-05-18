@@ -5,12 +5,43 @@
   "trace_id": "trace:example:evidence",
   "runtime_profile_ref": "runtime-profile:local-deterministic",
   "data": {
-    "schema_ref": "headless_evidence_chain.v1"
+    "schema_ref": "headless_evidence_chain.v1",
+    "route_evidence": {
+      "product_role_ref": "runtime-role://extravaganza/coding-agent-runtime",
+      "binding_ref": "runtime-binding://extravaganza/coding-agent-runtime",
+      "manifest_ref": "manifest://jido/connectors/codex_cli@local",
+      "connector_manifest_ref": "manifest:fixture",
+      "authority_ref": "authority:fixture",
+      "connector_binding_ref": "connector-binding://codex/primary",
+      "credential_lease_ref": "credential-lease:fixture",
+      "lower_request_ref": "lower-request:fixture",
+      "lower_receipt_ref": "lower-receipt:fixture",
+      "receipt_ref": "lower-receipt:fixture",
+      "source_publication_ref": "source-publication:fixture",
+      "projection_ref": "projection://extravaganza/run:fixture",
+      "evidence_ref": "evidence://extravaganza/run:fixture",
+      "trace_ref": "trace://extravaganza/run:fixture",
+      "trace_replay": {
+        "status": "not_emitted",
+        "replay_system_ref": "ai_trace"
+      }
+    }
   },
   "refs": {
     "run_ref": "run:fixture",
+    "product_role_ref": "runtime-role://extravaganza/coding-agent-runtime",
+    "binding_ref": "runtime-binding://extravaganza/coding-agent-runtime",
+    "manifest_ref": "manifest://jido/connectors/codex_cli@local",
     "authority_ref": "authority:fixture",
-    "source_publication_ref": "source-publication:fixture"
+    "connector_binding_ref": "connector-binding://codex/primary",
+    "credential_lease_ref": "credential-lease:fixture",
+    "lower_request_ref": "lower-request:fixture",
+    "lower_receipt_ref": "lower-receipt:fixture",
+    "receipt_ref": "lower-receipt:fixture",
+    "source_publication_ref": "source-publication:fixture",
+    "projection_ref": "projection://extravaganza/run:fixture",
+    "evidence_ref": "evidence://extravaganza/run:fixture",
+    "trace_ref": "trace://extravaganza/run:fixture"
   },
   "warnings": []
 }

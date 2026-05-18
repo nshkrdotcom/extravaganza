@@ -2,8 +2,10 @@ defmodule Extravaganza.HeadlessReadback do
   @moduledoc false
 
   alias AppKit.Core.RuntimeReadback.RuntimeRunDetail
+  alias Extravaganza.RouteEvidence
 
   @evidence_coverage_kinds ~w[
+    route_evidence
     dispatch
     credential_preflight
     authority_decision
@@ -37,6 +39,7 @@ defmodule Extravaganza.HeadlessReadback do
     extensions = Map.get(runtime_row, "extensions", %{})
     run_ref = Map.get(run_data, "run_ref")
     evidence_coverage = evidence_coverage(run_data, runtime_row, extensions)
+    route_evidence = RouteEvidence.from_run_detail(run_data)
 
     %{
       "schema_ref" => "headless_evidence_chain.v1",
@@ -46,6 +49,7 @@ defmodule Extravaganza.HeadlessReadback do
       "subject_ref" => Map.get(runtime_row, "subject_ref"),
       "runtime_profile_ref" => get_in(extensions, ["governance", "runtime_profile_ref"]),
       "governance" => Map.get(extensions, "governance", %{}),
+      "route_evidence" => route_evidence,
       "lower" => Map.get(extensions, "lower_envelope", %{}),
       "lower_receipt" => Map.get(extensions, "lower_receipt", %{}),
       "retry_receipts" => Map.get(extensions, "retry_receipts", []),
@@ -89,6 +93,7 @@ defmodule Extravaganza.HeadlessReadback do
 
   defp evidence_coverage(run_data, runtime_row, extensions) do
     %{
+      "route_evidence" => RouteEvidence.from_run_detail(run_data),
       "dispatch" => dispatch_evidence(run_data, runtime_row),
       "credential_preflight" => Map.get(extensions, "credential_preflight"),
       "authority_decision" => authority_decision_evidence(extensions),

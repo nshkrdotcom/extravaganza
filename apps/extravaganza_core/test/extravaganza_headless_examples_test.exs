@@ -1832,6 +1832,22 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert provider_effect["connector_binding_ref"] == "connector-binding://#{provider}/primary"
     assert provider_effect["credential_lease_ref"] == "credential-lease://#{provider}/primary"
     assert provider_effect["authority_raw_material_present?"] == false
+
+    route_evidence = Map.fetch!(provider_effect, "route_evidence")
+    assert is_binary(route_evidence["product_role_ref"])
+    assert is_binary(route_evidence["binding_ref"])
+    assert is_binary(route_evidence["manifest_ref"])
+    assert route_evidence["authority_ref"] == provider_effect["authority_handoff_ref"]
+    assert route_evidence["authority_packet_ref"] == provider_effect["authority_packet_ref"]
+    assert route_evidence["connector_binding_ref"] == provider_effect["connector_binding_ref"]
+    assert route_evidence["credential_lease_ref"] == provider_effect["credential_lease_ref"]
+    assert is_binary(route_evidence["lower_request_ref"])
+    assert is_binary(route_evidence["receipt_ref"])
+    assert is_binary(route_evidence["projection_ref"])
+    assert is_binary(route_evidence["trace_ref"])
+    assert route_evidence["trace_replay"]["replay_system_ref"] == "ai_trace"
+    assert route_evidence["trace_replay"]["status"] == "not_emitted"
+    assert [_ | _] = provider_effect["operation_receipts"]
   end
 
   defmodule CodexAgentBackend do

@@ -17,9 +17,13 @@
       "governance": {
         "runtime_profile_ref": "runtime-profile:local-deterministic",
         "runtime_profile_kind": "mickey_mouse",
+        "product_role_ref": "runtime-role://extravaganza/coding-agent-runtime",
+        "binding_ref": "runtime-binding://extravaganza/coding-agent-runtime",
         "authority_ref": "authority:fixture",
         "decision_ref": "authority-decision:fixture",
+        "manifest_ref": "manifest://jido/connectors/codex_cli@local",
         "connector_manifest_ref": "manifest:fixture",
+        "connector_binding_ref": "connector-binding://codex/primary",
         "connector_manifest_state": "active",
         "capability_negotiation_ref": "capability-negotiation:fixture"
       },

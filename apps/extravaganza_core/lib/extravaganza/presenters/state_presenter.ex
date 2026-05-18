@@ -1282,8 +1282,10 @@ defmodule Extravaganza.Presenters.RunPresenter do
   alias AppKit.Core.RuntimeReadback.{Presenter, RuntimeRunDetail}
   alias Extravaganza.Presenters.JSONSupport
   alias Extravaganza.Presenters.StatePresenter
+  alias Extravaganza.RouteEvidence
 
   @run_readback_coverage_kinds ~w[
+    route_evidence
     lower_run_handle
     workspace_identity
     prompt_profile_refs
@@ -1383,8 +1385,10 @@ defmodule Extravaganza.Presenters.RunPresenter do
   defp with_run_readback(data) when is_map(data) do
     data = Map.merge(StatePresenter.future_m2_slots(), data)
     coverage = run_readback_coverage(data)
+    route_evidence = RouteEvidence.from_run_detail(data)
 
     data
+    |> Map.put("route_evidence", route_evidence)
     |> Map.put("run_readback_coverage", coverage)
     |> Map.put("run_readback_coverage_gaps", run_readback_coverage_gaps(coverage))
   end
@@ -1397,6 +1401,7 @@ defmodule Extravaganza.Presenters.RunPresenter do
     turns = list_value(data, "turns")
 
     %{
+      "route_evidence" => route_evidence_coverage(data),
       "lower_run_handle" => lower_run_handle_coverage(data, runtime_row, extensions, turns),
       "workspace_identity" => workspace_identity_coverage(runtime_row),
       "prompt_profile_refs" => prompt_profile_refs_coverage(extensions, events, turns),
@@ -1406,6 +1411,36 @@ defmodule Extravaganza.Presenters.RunPresenter do
       "continuation_decision" => continuation_decision_coverage(extensions, retries),
       "last_codex_event" => last_codex_event_coverage(runtime_row, events),
       "receipts" => receipts_coverage(extensions)
+    }
+    |> compact_map()
+  end
+
+  defp route_evidence_coverage(data) do
+    route_evidence = RouteEvidence.from_run_detail(data)
+
+    %{
+      "fields" => [
+        "runtime_row.extensions.governance",
+        "runtime_row.extensions.credential_preflight",
+        "runtime_row.extensions.lower_envelope",
+        "runtime_row.extensions.lower_receipt",
+        "runtime_row.extensions.source_publication"
+      ],
+      "product_role_refs" => singleton_string_value(route_evidence, "product_role_ref"),
+      "binding_refs" => singleton_string_value(route_evidence, "binding_ref"),
+      "manifest_refs" => singleton_string_value(route_evidence, "manifest_ref"),
+      "authority_refs" => singleton_string_value(route_evidence, "authority_ref"),
+      "connector_binding_refs" => singleton_string_value(route_evidence, "connector_binding_ref"),
+      "credential_lease_refs" => singleton_string_value(route_evidence, "credential_lease_ref"),
+      "lower_request_refs" => singleton_string_value(route_evidence, "lower_request_ref"),
+      "receipt_refs" => singleton_string_value(route_evidence, "receipt_ref"),
+      "projection_refs" => singleton_string_value(route_evidence, "projection_ref"),
+      "evidence_refs" => singleton_string_value(route_evidence, "evidence_ref"),
+      "trace_refs" => singleton_string_value(route_evidence, "trace_ref"),
+      "trace_replay_statuses" =>
+        route_evidence
+        |> map_value("trace_replay")
+        |> singleton_string_value("status")
     }
     |> compact_map()
   end

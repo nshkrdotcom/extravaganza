@@ -13,7 +13,8 @@ defmodule Extravaganza.HeadlessLiveExamples do
     HeadlessFixtureBackend,
     HeadlessSurface,
     ProductHost,
-    ProductPack
+    ProductPack,
+    RouteEvidence
   }
 
   @provider_examples %{
@@ -156,6 +157,7 @@ defmodule Extravaganza.HeadlessLiveExamples do
           "product_path_exercised?" => true,
           "product_readback_confirmed?" => product_readback_confirmed?(proof),
           "product_path" => product_path(proof, "Extravaganza.ProductHost.live_smoke"),
+          "route_evidence" => RouteEvidence.from_live_smoke(examples, %{trace_ref: trace_id}),
           "examples" => examples,
           "deterministic_memory_tracker_matrix" => deterministic_memory_tracker_matrix(opts)
         })
@@ -197,6 +199,7 @@ defmodule Extravaganza.HeadlessLiveExamples do
         "command" => example.command,
         "product_path_exercised?" => true,
         "product_path" => product_path(proof, example.product_entrypoint, provider_effect),
+        "route_evidence" => Map.get(provider_effect, "route_evidence"),
         "provider_effect" => provider_effect
       })
       |> Map.merge(example_mode_fields(opts, provider_effect))
@@ -211,6 +214,20 @@ defmodule Extravaganza.HeadlessLiveExamples do
     kind
     |> provider_effect_for(example, proof, opts)
     |> annotate_provider_effect(opts)
+    |> RouteEvidence.put_operation_receipts()
+    |> put_route_evidence(kind, example, proof, opts)
+  end
+
+  defp put_route_evidence(provider_effect, kind, example, proof, opts) do
+    trace_ref = live_trace_id(opts, example.operation)
+
+    Map.put(
+      provider_effect,
+      "route_evidence",
+      RouteEvidence.from_provider_effect(kind, example, proof, provider_effect, %{
+        trace_ref: trace_ref
+      })
+    )
   end
 
   defp provider_effect_for(kind, example, proof, opts) do

@@ -174,7 +174,13 @@ and a `provider_effect` payload that includes `credential_present?`,
 `provider_response_received?`, `receipt_recorded?`,
 `product_readback_confirmed?`, `authority_handoff_ref`,
 `authority_packet_ref`, `connector_binding_ref`, `credential_lease_ref`,
-`lower_request_ref`, and `lower_receipt_ref`.
+`lower_request_ref`, and `lower_receipt_ref`. Each completed lane also exposes
+`operation_receipts` and a `route_evidence` block with `product_role_ref`,
+`binding_ref`, `manifest_ref`, `authority_ref`, `connector_binding_ref`,
+`credential_lease_ref`, `lower_request_ref`, `receipt_ref`, `projection_ref`,
+`trace_ref`, and `trace_replay.status`. A `trace_replay.status` of
+`not_emitted` means the command returned a complete route receipt but did not
+export a replay event to the trace replay collector.
 
 | Lane | Exact command | Required refs and variables | Live side effect | Provider object and evidence fields |
 |---|---|---|---|---|
@@ -186,6 +192,33 @@ and a `provider_effect` payload that includes `credential_present?`,
 | `live.github-evidence` | `~/scripts/with_bash_secrets mix extravaganza.headless.live.github_evidence --live-product-path --ack-headless-guardrails --json --repo nshkrdotcom/extravaganza --pull-number 17 --ref <head-sha>` | `GH_TOKEN` or `GITHUB_TOKEN`; `--repo`; optional `--pull-number`; optional `--ref` for status/check-run lookup. | Reads GitHub PR evidence through `github.pr.evidence`, including PR fetch, reviews, review comments, combined status, and check runs; no provider write. | Identify provider objects through `repo`, `pull_number`, `head_sha`, `evidence_ref`, `provider_ids`, `provider_refs`, `counts`, `receipt_refs`, `operation_receipts`, `lower_request_ref`, and `lower_receipt_ref`. |
 | `live.github-pr-cleanup` | `~/scripts/with_bash_secrets mix extravaganza.headless.live.github_pr_cleanup --live-product-path --ack-headless-guardrails --json --repo nshkrdotcom/extravaganza --branch cleanup-branch --confirm-close` | `GH_TOKEN` or `GITHUB_TOKEN`; `--repo`; `--branch`; explicit `--confirm-close`; optional `--pull-number`; optional `--closing-comment`. | Writes GitHub PR cleanup through governed `github.pr.list`, `github.comment.create`, and `github.pr.update`; the command comments on and closes matching open PRs for the branch. This standalone destructive lane is intentionally excluded from `live.smoke`. | Identify provider objects and receipts through `repo`, `branch`, `pull_numbers`, `closed_pull_numbers`, `write_operations`, `provider_ids`, `provider_refs`, `counts`, `receipt_refs`, `operation_receipts`, `lower_request_ref`, and `lower_receipt_ref`. |
 | `live.smoke` | `~/scripts/with_bash_secrets bash -lc 'printf "%s" "$LINEAR_API_KEY" \| mix extravaganza.headless.live.smoke --live-product-path --ack-headless-guardrails --json --api-key-stdin --assignee all --issue-id LINEAR_ISSUE_UUID --issue-ids LINEAR_ISSUE_UUID --repo OWNER/REPO --pull-number PR_NUMBER --ref HEAD_SHA'` | All variables required by the six non-destructive provider lanes above; `LINEAR_API_KEY` must be piped through `--api-key-stdin` unless using a lower connection binding; pass `--repo`, `--pull-number`, and `--ref` when the default GitHub repo has no PR target; pass a Linear issue UUID for current-state and publication lanes. | Runs the aggregate product live proof for Linear source, Linear current states, Codex turn, Linear publication, Linear GraphQL, and GitHub evidence. It does not close GitHub PRs. | Identify completion through `required_operations`, `completed_operations`, `skipped_operations`, `failed_operations`, `provider_effect_count`, `all_provider_effects_completed?`, `correlation_ref`, `examples`, and each nested example's provider evidence fields. |
+
+## Route evidence interpretation
+
+Route evidence is the product-visible proof that a live or deterministic command
+entered the generic substrate. Treat provider names in this block as data values,
+not as proof of provider-specific branching. The required route evidence fields
+are:
+
+- `product_role_ref`: the product role requested by Extravaganza, such as the
+  issue tracker source role, coding-agent runtime role, or proposed-change
+  evidence role.
+- `binding_ref`: the binding selected for that role.
+- `manifest_ref` and `connector_manifest_ref`: the connector manifest identity
+  used by the lower adapter.
+- `authority_ref`, `authority_packet_ref`, and `connector_binding_ref`: the
+  authority handoff used before provider dispatch.
+- `credential_lease_ref`: the credential lease reference, never raw credential
+  material.
+- `lower_request_ref`, `lower_receipt_ref`, `lower_denial_ref`, and
+  `receipt_ref`: the lower request and terminal receipt or denial identity.
+- `projection_ref` and `evidence_ref`: the product readback/proof objects that
+  make the provider effect observable after dispatch.
+- `operation_receipt_refs`: per-operation lower receipt refs for multi-call
+  provider lanes such as GitHub evidence.
+- `trace_ref` and `trace_replay`: the trace identity and replay export status.
+  Current headless commands return `trace_replay.status: "not_emitted"` when
+  the route receipt is complete but no trace replay event was exported.
 
 ## Provider-by-provider confidence checks
 
