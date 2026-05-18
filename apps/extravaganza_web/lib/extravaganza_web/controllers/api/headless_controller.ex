@@ -284,7 +284,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
 
   @spec source_publish(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def source_publish(conn, params) do
-    case HeadlessSurface.publish_linear_source(source_publish_attrs(params)) do
+    case HeadlessSurface.publish_source_update(source_publish_attrs(params)) do
       {:ok, result} ->
         presented = SourcePresenter.present_publication_preview(result, presenter_opts(conn))
 

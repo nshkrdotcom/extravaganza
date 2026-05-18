@@ -202,7 +202,7 @@ defmodule Extravaganza.HeadlessSameRunSmoke do
            {:ok, source_preview} <-
              ProductHost.source_publication_preview(refs.subject_ref, readback_opts),
            {:ok, source_publish} <-
-             HeadlessSurface.publish_linear_source(source_publish_attrs(refs), source_opts),
+             HeadlessSurface.publish_source_update(source_publish_attrs(refs), source_opts),
            {:ok, refresh} <-
              ProductHost.request_refresh(
                %{"idempotency_key" => "same-run-refresh:#{refs.run_ref}"},

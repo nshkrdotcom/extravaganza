@@ -91,15 +91,16 @@ defmodule Extravaganza.ProductHost do
     HeadlessSurface.source_publication_preview(subject_id, opts)
   end
 
-  @spec sync_linear_source(map(), keyword()) :: {:ok, map()} | {:error, term()}
-  def sync_linear_source(source_page, opts \\ []) when is_map(source_page) and is_list(opts) do
-    Sources.sync_linear_issues(source_page, opts)
+  @spec sync_issue_tracker_source(map(), keyword()) :: {:ok, map()} | {:error, term()}
+  def sync_issue_tracker_source(source_page, opts \\ [])
+      when is_map(source_page) and is_list(opts) do
+    Sources.sync_issue_tracker_items(source_page, opts)
   end
 
-  @spec sync_linear_issue(map(), keyword()) ::
+  @spec sync_issue_tracker_item(map(), keyword()) ::
           {:ok, AppKit.Core.SubjectDetail.t()} | {:error, term()}
-  def sync_linear_issue(issue, opts \\ []) when is_map(issue) and is_list(opts) do
-    Sources.sync_linear_issue(issue, opts)
+  def sync_issue_tracker_item(issue, opts \\ []) when is_map(issue) and is_list(opts) do
+    Sources.sync_issue_tracker_item(issue, opts)
   end
 
   @spec live_linear_source_example(keyword() | map()) :: {:ok, map()} | {:error, term()}

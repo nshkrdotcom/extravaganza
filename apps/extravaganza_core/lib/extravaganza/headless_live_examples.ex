@@ -262,7 +262,7 @@ defmodule Extravaganza.HeadlessLiveExamples do
   end
 
   defp linear_source_effect(example, proof, opts) do
-    case HeadlessSurface.fetch_linear_candidates(linear_source_binding(opts), surface_opts(opts)) do
+    case HeadlessSurface.fetch_source_candidates(linear_source_binding(opts), surface_opts(opts)) do
       {:ok, result} ->
         %{
           "provider" => example.provider,
@@ -308,7 +308,7 @@ defmodule Extravaganza.HeadlessLiveExamples do
   defp linear_current_states_effect(example, proof, opts) do
     with {:ok, issue_ids} <- current_state_issue_ids(opts),
          {:ok, result} <-
-           HeadlessSurface.current_linear_issue_states(
+           HeadlessSurface.current_source_states(
              issue_ids,
              linear_source_binding(opts),
              surface_opts(opts)
@@ -356,7 +356,7 @@ defmodule Extravaganza.HeadlessLiveExamples do
   defp linear_publication_effect(example, proof, opts) do
     case linear_publication_attrs(opts) do
       {:ok, attrs} ->
-        case HeadlessSurface.publish_linear_source(attrs, surface_opts(opts)) do
+        case HeadlessSurface.publish_source_update(attrs, surface_opts(opts)) do
           {:ok, result} ->
             receipt = value(result, :source_publication_receipt) || result
             denial? = source_publication_denial?(receipt)
@@ -408,7 +408,7 @@ defmodule Extravaganza.HeadlessLiveExamples do
   defp linear_graphql_tool_effect(example, proof, opts) do
     case linear_graphql_tool_request(opts) do
       {:ok, attrs} ->
-        case HeadlessSurface.execute_linear_graphql_tool(attrs, surface_opts(opts)) do
+        case HeadlessSurface.execute_issue_tracker_query_tool(attrs, surface_opts(opts)) do
           {:ok, result} ->
             success? = truthy?(value(result, :success?))
             lower_receipt_ref = value(result, :lower_receipt_ref)
@@ -449,22 +449,22 @@ defmodule Extravaganza.HeadlessLiveExamples do
     states_binding = memory_tracker_source_binding(["Todo"])
     matrix_opts = memory_tracker_fixture_opts(opts)
 
-    with {:ok, candidates} <- HeadlessSurface.fetch_linear_candidates(source_binding, matrix_opts),
+    with {:ok, candidates} <- HeadlessSurface.fetch_source_candidates(source_binding, matrix_opts),
          {:ok, state_candidates} <-
-           HeadlessSurface.fetch_linear_candidates(states_binding, matrix_opts),
+           HeadlessSurface.fetch_source_candidates(states_binding, matrix_opts),
          {:ok, current_states} <-
-           HeadlessSurface.current_linear_issue_states(
+           HeadlessSurface.current_source_states(
              ["lin-issue-321"],
              source_binding,
              matrix_opts
            ),
          {:ok, comment_create} <-
-           HeadlessSurface.publish_linear_source(
+           HeadlessSurface.publish_source_update(
              memory_tracker_publication_attrs(:comment_create),
              matrix_opts
            ),
          {:ok, state_update} <-
-           HeadlessSurface.publish_linear_source(
+           HeadlessSurface.publish_source_update(
              memory_tracker_publication_attrs(:state_update),
              matrix_opts
            ) do
@@ -730,7 +730,7 @@ defmodule Extravaganza.HeadlessLiveExamples do
   end
 
   defp github_evidence_effect(example, _proof, opts) do
-    case HeadlessSurface.fetch_github_pr_evidence(
+    case HeadlessSurface.collect_proposed_change_evidence(
            github_evidence_request(opts),
            surface_opts(opts)
          ) do
@@ -772,7 +772,7 @@ defmodule Extravaganza.HeadlessLiveExamples do
   end
 
   defp github_pr_cleanup_effect(example, _proof, opts) do
-    case HeadlessSurface.cleanup_github_pr_branch(
+    case HeadlessSurface.cleanup_proposed_change_branch(
            github_pr_cleanup_request(opts),
            surface_opts(opts)
          ) do
@@ -935,7 +935,7 @@ defmodule Extravaganza.HeadlessLiveExamples do
   defp resolve_live_publication_issue(opts) do
     source_opts = surface_opts(opts) |> Keyword.put_new(:first, 1)
 
-    case HeadlessSurface.fetch_linear_candidates(
+    case HeadlessSurface.fetch_source_candidates(
            linear_publication_source_binding(opts),
            source_opts
          ) do

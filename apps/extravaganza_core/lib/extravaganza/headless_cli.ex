@@ -259,7 +259,10 @@ defmodule Extravaganza.HeadlessCLI do
   defp dispatch(:source_sync, opts) do
     HeadlessJSON.wrap(
       :source_sync,
-      ProductHost.sync_linear_source(%{issues: [default_linear_issue(opts)]}, product_opts(opts)),
+      ProductHost.sync_issue_tracker_source(
+        %{issues: [default_linear_issue(opts)]},
+        product_opts(opts)
+      ),
       fn value -> value end,
       opts
     )
@@ -277,7 +280,7 @@ defmodule Extravaganza.HeadlessCLI do
 
     HeadlessJSON.wrap(
       :source_publish,
-      HeadlessSurface.publish_linear_source(attrs, surface_opts(opts)),
+      HeadlessSurface.publish_source_update(attrs, surface_opts(opts)),
       &SourcePresenter.present_publication_preview/1,
       opts
     )

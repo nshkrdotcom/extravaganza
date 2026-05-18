@@ -15,8 +15,9 @@ defmodule Extravaganza.Sources do
 
   @source_role_ref :issue_tracker
 
-  @spec sync_linear_issues(map(), keyword()) :: {:ok, map()} | {:error, term()}
-  def sync_linear_issues(source_page, opts \\ []) when is_map(source_page) and is_list(opts) do
+  @spec sync_issue_tracker_items(map(), keyword()) :: {:ok, map()} | {:error, term()}
+  def sync_issue_tracker_items(source_page, opts \\ [])
+      when is_map(source_page) and is_list(opts) do
     with {:ok, %{config: config, context: context}} <- ProductSurface.bootstrapped_context(opts) do
       SourceSurface.sync_source(
         context,
@@ -27,9 +28,9 @@ defmodule Extravaganza.Sources do
     end
   end
 
-  @spec sync_linear_issue(map(), keyword()) ::
+  @spec sync_issue_tracker_item(map(), keyword()) ::
           {:ok, AppKit.Core.SubjectDetail.t()} | {:error, term()}
-  def sync_linear_issue(issue, opts \\ []) when is_map(issue) and is_list(opts) do
+  def sync_issue_tracker_item(issue, opts \\ []) when is_map(issue) and is_list(opts) do
     with {:ok, %{config: config, context: context}} <- ProductSurface.bootstrapped_context(opts),
          page <- product_source_page(%{issues: [issue]}, config),
          {:ok, result} <-

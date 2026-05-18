@@ -5,7 +5,7 @@ defmodule Extravaganza.TestSupport.LinearIssueFixture do
 
   @spec ingest_issue(map(), keyword()) :: {:ok, AppKit.Core.SubjectDetail.t()} | {:error, term()}
   def ingest_issue(issue, opts \\ []) when is_map(issue) do
-    Sources.sync_linear_issue(issue, opts)
+    Sources.sync_issue_tracker_item(issue, opts)
   end
 
   @spec build_subject_attrs(map(), Config.t()) :: map()

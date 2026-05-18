@@ -176,14 +176,14 @@ defmodule Extravaganza.HeadlessSurface do
     end
   end
 
-  @spec sync_linear_source(map(), keyword()) :: {:ok, map()} | {:error, term()}
-  def sync_linear_source(source_page, opts \\ [])
+  @spec sync_issue_tracker_source(map(), keyword()) :: {:ok, map()} | {:error, term()}
+  def sync_issue_tracker_source(source_page, opts \\ [])
       when is_map(source_page) and is_list(opts) do
-    Sources.sync_linear_issues(source_page, opts)
+    Sources.sync_issue_tracker_items(source_page, opts)
   end
 
-  @spec fetch_linear_candidates(map(), keyword()) :: {:ok, map()} | {:error, term()}
-  def fetch_linear_candidates(source_binding, opts \\ [])
+  @spec fetch_source_candidates(map(), keyword()) :: {:ok, map()} | {:error, term()}
+  def fetch_source_candidates(source_binding, opts \\ [])
       when is_map(source_binding) and is_list(opts) do
     with {:ok, %{context: context}} <- context_bundle(opts) do
       AppKitSourceSurface.fetch_candidates(
@@ -195,9 +195,9 @@ defmodule Extravaganza.HeadlessSurface do
     end
   end
 
-  @spec current_linear_issue_states([String.t()], map(), keyword()) ::
+  @spec current_source_states([String.t()], map(), keyword()) ::
           {:ok, map()} | {:error, term()}
-  def current_linear_issue_states(issue_ids, source_binding, opts \\ [])
+  def current_source_states(issue_ids, source_binding, opts \\ [])
       when is_list(issue_ids) and is_map(source_binding) and is_list(opts) do
     with {:ok, %{context: context}} <- context_bundle(opts) do
       AppKitSourceSurface.current_states(
@@ -209,15 +209,15 @@ defmodule Extravaganza.HeadlessSurface do
     end
   end
 
-  @spec publish_linear_source(map(), keyword()) :: {:ok, map()} | {:error, term()}
-  def publish_linear_source(attrs, opts \\ []) when is_map(attrs) and is_list(opts) do
+  @spec publish_source_update(map(), keyword()) :: {:ok, map()} | {:error, term()}
+  def publish_source_update(attrs, opts \\ []) when is_map(attrs) and is_list(opts) do
     with {:ok, %{context: context}} <- context_bundle(opts) do
       AppKitSourceSurface.publish(context, :source_publication, attrs, opts)
     end
   end
 
-  @spec execute_linear_graphql_tool(map(), keyword()) :: {:ok, map()} | {:error, term()}
-  def execute_linear_graphql_tool(attrs, opts \\ []) when is_map(attrs) and is_list(opts) do
+  @spec execute_issue_tracker_query_tool(map(), keyword()) :: {:ok, map()} | {:error, term()}
+  def execute_issue_tracker_query_tool(attrs, opts \\ []) when is_map(attrs) and is_list(opts) do
     with {:ok, %{context: context}} <- context_bundle(opts) do
       AppKitRuntimeGateway.invoke_runtime_tool(
         context,
@@ -242,8 +242,8 @@ defmodule Extravaganza.HeadlessSurface do
     end
   end
 
-  @spec fetch_github_pr_evidence(map(), keyword()) :: {:ok, struct()} | {:error, term()}
-  def fetch_github_pr_evidence(attrs, opts \\ []) when is_map(attrs) and is_list(opts) do
+  @spec collect_proposed_change_evidence(map(), keyword()) :: {:ok, struct()} | {:error, term()}
+  def collect_proposed_change_evidence(attrs, opts \\ []) when is_map(attrs) and is_list(opts) do
     with {:ok, %{context: context}} <- context_bundle(opts) do
       case AppKitRuntimeGateway.collect_evidence(
              context,
@@ -263,8 +263,8 @@ defmodule Extravaganza.HeadlessSurface do
     end
   end
 
-  @spec cleanup_github_pr_branch(map(), keyword()) :: {:ok, struct()} | {:error, term()}
-  def cleanup_github_pr_branch(attrs, opts \\ []) when is_map(attrs) and is_list(opts) do
+  @spec cleanup_proposed_change_branch(map(), keyword()) :: {:ok, struct()} | {:error, term()}
+  def cleanup_proposed_change_branch(attrs, opts \\ []) when is_map(attrs) and is_list(opts) do
     with {:ok, %{context: context}} <- context_bundle(opts) do
       case AppKitRuntimeGateway.invoke_resource_effect(
              context,

@@ -419,7 +419,7 @@ defmodule Extravaganza.HeadlessRuntimeSurfaceTest do
     assert Enum.any?(logs.entries, &(&1.event_kind == "startup.terminal_cleanup.completed"))
 
     assert {:ok, published} =
-             HeadlessSurface.publish_linear_source(%{
+             HeadlessSurface.publish_source_update(%{
                subject_ref: "subject:fixture",
                effect: "comment"
              })

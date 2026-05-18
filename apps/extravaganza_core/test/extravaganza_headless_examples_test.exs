@@ -2427,11 +2427,11 @@ defmodule Extravaganza.HeadlessExamplesTest do
       if response = Process.get(:headless_examples_source_response) do
         response
       else
-        default_fetch_linear_candidates(source_role_ref, source_binding)
+        default_fetch_source_candidates(source_role_ref, source_binding)
       end
     end
 
-    defp default_fetch_linear_candidates(source_role_ref, source_binding) do
+    defp default_fetch_source_candidates(source_role_ref, source_binding) do
       result = %{
         source_role_ref: source_role_ref,
         source_binding_id: source_binding.source_binding_id,
