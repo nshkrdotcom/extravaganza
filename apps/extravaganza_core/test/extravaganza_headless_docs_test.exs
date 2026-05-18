@@ -67,7 +67,7 @@ defmodule Extravaganza.HeadlessDocsTest do
     assert live_guide =~ "ExtravaganzaWeb.static_paths() == []"
 
     assert credentials_guide =~
-             "~/scripts/with_bash_secrets mix extravaganza.headless.live.linear_source --live-product-path --ack-headless-guardrails --json"
+             "~/scripts/with_bash_secrets bash -lc 'printf \"%s\" \"$LINEAR_API_KEY\" | mix extravaganza.headless.live.linear_source --live-product-path --ack-headless-guardrails --json --api-key-stdin'"
 
     assert credentials_guide =~
              "~/scripts/with_bash_secrets mix extravaganza.headless.live.codex_turn --live-product-path --ack-headless-guardrails --json"
@@ -88,7 +88,7 @@ defmodule Extravaganza.HeadlessDocsTest do
     for fragment <- [
           "## Provider Acceptance Matrix",
           "live.linear-source",
-          "~/scripts/with_bash_secrets mix extravaganza.headless.live.linear_source --live-product-path --ack-headless-guardrails --json",
+          "~/scripts/with_bash_secrets bash -lc 'printf \"%s\" \"$LINEAR_API_KEY\" \\| mix extravaganza.headless.live.linear_source --live-product-path --ack-headless-guardrails --json --api-key-stdin",
           "`LINEAR_API_KEY`",
           "`--source-states`",
           "`--project-slug`",
@@ -99,7 +99,7 @@ defmodule Extravaganza.HeadlessDocsTest do
           "`subjects[].source_ref`",
           "`viewer_lower_request_ref`",
           "live.linear-current-states",
-          "~/scripts/with_bash_secrets mix extravaganza.headless.live.linear_current_states --live-product-path --ack-headless-guardrails --json --issue-ids",
+          "~/scripts/with_bash_secrets bash -lc 'printf \"%s\" \"$LINEAR_API_KEY\" \\| mix extravaganza.headless.live.linear_current_states --live-product-path --ack-headless-guardrails --json --api-key-stdin --issue-ids",
           "`requested_issue_ids`",
           "`missing_issue_ids`",
           "`current_state_count`",
@@ -118,7 +118,7 @@ defmodule Extravaganza.HeadlessDocsTest do
           "`token_accounting_confirmed?`",
           "`session_stop_confirmed?`",
           "live.linear-publication",
-          "~/scripts/with_bash_secrets mix extravaganza.headless.live.linear_publication --live-product-path --ack-headless-guardrails --json --issue-id",
+          "~/scripts/with_bash_secrets bash -lc 'printf \"%s\" \"$LINEAR_API_KEY\" \\| mix extravaganza.headless.live.linear_publication --live-product-path --ack-headless-guardrails --json --api-key-stdin --issue-id",
           "`--comment-id`",
           "`--message`",
           "`--state-name`",
@@ -131,7 +131,7 @@ defmodule Extravaganza.HeadlessDocsTest do
           "`state_id`",
           "`state_name`",
           "live.linear-graphql-tool",
-          "~/scripts/with_bash_secrets mix extravaganza.headless.live.linear_graphql_tool --live-product-path --ack-headless-guardrails --json --query",
+          "~/scripts/with_bash_secrets bash -lc 'printf \"%s\" \"$LINEAR_API_KEY\" \\| mix extravaganza.headless.live.linear_graphql_tool --live-product-path --ack-headless-guardrails --json --api-key-stdin --query",
           "`--variables-json`",
           "`linear.graphql.execute`",
           "`tool_name`",
@@ -240,11 +240,11 @@ defmodule Extravaganza.HeadlessDocsTest do
           "`mix extravaganza.headless.smoke --deterministic --same-run --json`",
           "`mix extravaganza.headless.web --port 4000 --json`",
           "`mix extravaganza.headless.specs.check`",
-          "`mix extravaganza.headless.live.linear_source --live-product-path --ack-headless-guardrails --json`",
-          "`mix extravaganza.headless.live.linear_current_states --live-product-path --ack-headless-guardrails --json`",
+          "`mix extravaganza.headless.live.linear_source --live-product-path --ack-headless-guardrails --json --api-key-stdin`",
+          "`mix extravaganza.headless.live.linear_current_states --live-product-path --ack-headless-guardrails --json --api-key-stdin`",
           "`mix extravaganza.headless.live.codex_turn --live-product-path --ack-headless-guardrails --json`",
-          "`mix extravaganza.headless.live.linear_publication --live-product-path --ack-headless-guardrails --json`",
-          "`mix extravaganza.headless.live.linear_graphql_tool --live-product-path --ack-headless-guardrails --json`",
+          "`mix extravaganza.headless.live.linear_publication --live-product-path --ack-headless-guardrails --json --api-key-stdin`",
+          "`mix extravaganza.headless.live.linear_graphql_tool --live-product-path --ack-headless-guardrails --json --api-key-stdin`",
           "`mix extravaganza.headless.live.github_evidence --live-product-path --ack-headless-guardrails --json`",
           "`mix extravaganza.headless.live.github_pr_cleanup --live-product-path --ack-headless-guardrails --json --confirm-close`",
           "`mix extravaganza.headless.live.smoke --live-product-path --ack-headless-guardrails --json --api-key-stdin --assignee all --issue-id LINEAR_ISSUE_UUID --issue-ids LINEAR_ISSUE_UUID --repo OWNER/REPO --pull-number PR_NUMBER --ref HEAD_SHA`",
@@ -308,6 +308,39 @@ defmodule Extravaganza.HeadlessDocsTest do
           "`product_host_unavailable`",
           "`operator_ack_required`",
           "`raw_provider_credential_param_not_supported`"
+        ] do
+      assert guide =~ fragment
+    end
+  end
+
+  test "full functionality verification guide lists deterministic HTTP script and live gates" do
+    guide_path =
+      Path.expand("../../../guides/headless_full_functionality_verification.md", __DIR__)
+
+    readme_path = Path.expand("../../../README.md", __DIR__)
+
+    assert {:ok, guide} = File.read(guide_path)
+    assert {:ok, readme} = File.read(readme_path)
+
+    assert readme =~ "guides/headless_full_functionality_verification.md"
+
+    for fragment <- [
+          "# Headless Full Functionality Verification",
+          "mix extravaganza.headless.state --fixture headless_m1 --json",
+          "mix extravaganza.headless.queue --fixture headless_m1 --json",
+          "mix extravaganza.headless.source.sync --ack-headless-guardrails --json",
+          "mix extravaganza.headless.web --port 0 --json --once",
+          "scripts/headless/live_linear_graphql_tool.exs",
+          "GET /operator-console",
+          "POST /api/v1/live/linear-graphql-tool",
+          "~/scripts/with_bash_secrets bash -lc 'printf \"%s\" \"$LINEAR_API_KEY\" | mix extravaganza.headless.live.linear_source --live-product-path --ack-headless-guardrails --json --api-key-stdin'",
+          "~/scripts/with_bash_secrets mix extravaganza.headless.live.github_pr_cleanup --live-product-path --ack-headless-guardrails --json",
+          "GitHub cleanup",
+          "disposable branch and PR",
+          "route evidence",
+          "lower request",
+          "lower receipt",
+          "mix ci"
         ] do
       assert guide =~ fragment
     end

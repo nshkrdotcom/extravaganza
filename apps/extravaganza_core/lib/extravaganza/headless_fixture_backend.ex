@@ -7,6 +7,7 @@ defmodule Extravaganza.HeadlessFixtureBackend do
   """
 
   @behaviour AppKit.Core.Backends.HeadlessBackend
+  @behaviour AppKit.Core.Backends.RuntimeBackend
   @behaviour AppKit.Core.Backends.SourceBackend
 
   alias AppKit.Core.RuntimeReadback.{
@@ -14,6 +15,13 @@ defmodule Extravaganza.HeadlessFixtureBackend do
     RuntimeRunDetail,
     RuntimeStateSnapshot,
     RuntimeSubjectDetail
+  }
+
+  alias AppKit.Core.RuntimeSurface.{
+    LiveEffectReceipt,
+    RuntimeLogPage,
+    RuntimeProfileApplyResult,
+    RuntimeStatusSnapshot
   }
 
   @source_fixture_root Path.expand("../../test/fixtures/headless_m1", __DIR__)
@@ -40,6 +48,120 @@ defmodule Extravaganza.HeadlessFixtureBackend do
     |> fixture()
     |> Map.put("run_ref", to_string(run_ref))
     |> RuntimeRunDetail.new()
+  end
+
+  @impl true
+  def apply_runtime_profile(context, runtime_profile, _opts) do
+    run_profile = get_in(runtime_profile, ["work_class", "default_run_profile"]) || %{}
+    program_slug = get_in(runtime_profile, ["program", "slug"]) || "extravaganza-headless-fixture"
+
+    RuntimeProfileApplyResult.new(%{
+      status: :updated,
+      tenant_ref: context.tenant_ref.id,
+      profile_ref:
+        runtime_ref(
+          Map.get(run_profile, "runtime_profile_ref") ||
+            Map.get(runtime_profile, "runtime_profile_ref")
+        ),
+      program_ref: "program://#{program_slug}",
+      policy_bundle_ref:
+        "policy-bundle://#{get_in(runtime_profile, ["policy_bundle", "name"]) || "fixture"}",
+      work_class_ref:
+        "work-class://#{get_in(runtime_profile, ["work_class", "name"]) || "fixture"}",
+      placement_profile_ref:
+        "placement-profile://#{get_in(runtime_profile, ["placement_profile", "profile_id"]) || "local"}",
+      metadata: %{
+        "proof_class" => "headless_fixture_backend",
+        "runtime_fixture?" => true
+      }
+    })
+  end
+
+  @impl true
+  def runtime_status(context, _request, _opts) do
+    RuntimeStatusSnapshot.new(%{
+      tenant_ref: context.tenant_ref.id,
+      program_ref: "program://extravaganza-headless-fixture",
+      health: %{
+        "runtime" => "ok",
+        "fixture_backend" => inspect(__MODULE__),
+        "startup_terminal_cleanup" => %{
+          "last_cleanup_at" => "2026-05-13T00:29:00Z",
+          "cleaned_count" => 2,
+          "failed_count" => 0
+        }
+      },
+      preflight: %{
+        "profile_import" => "fixture",
+        "live_provider_dispatch" => "gated"
+      },
+      metadata: %{
+        "proof_class" => "headless_fixture_backend",
+        "runtime_profile_ref" => "runtime-profile://fixture/headless"
+      }
+    })
+  end
+
+  @impl true
+  def runtime_logs(context, request, _opts) do
+    RuntimeLogPage.new(%{
+      entries: [
+        %{
+          ref: "runtime-log://fixture/profile-applied",
+          event_kind: "runtime_profile_applied",
+          occurred_at: "2026-05-13T00:28:00Z",
+          summary: "Fixture runtime profile applied",
+          payload: %{
+            "tenant_ref" => context.tenant_ref.id,
+            "runtime_profile_ref" => "runtime-profile://fixture/headless"
+          }
+        },
+        %{
+          ref: "runtime-log://fixture/startup-cleanup",
+          event_kind: "startup.terminal_cleanup.completed",
+          occurred_at: "2026-05-13T00:29:00Z",
+          summary: "Fixture terminal cleanup completed",
+          payload: %{
+            "attempt_count" => 2,
+            "cleaned_count" => 2,
+            "failed_count" => 0,
+            "logs_root" => redacted_path(Map.get(request, "logs_root"))
+          }
+        }
+      ],
+      total_count: 2,
+      has_more?: false,
+      metadata: %{
+        "proof_class" => "headless_fixture_backend",
+        "logs_root" => redacted_path(Map.get(request, "logs_root"))
+      }
+    })
+  end
+
+  @impl true
+  def record_live_effect(context, attrs, _opts) do
+    provider = value(attrs, :provider) || "fixture"
+    effect = value(attrs, :effect) || value(attrs, :operation) || "fixture_effect"
+
+    LiveEffectReceipt.new(%{
+      effect_ref: "live-effect://fixture/#{effect}",
+      tenant_ref: context.tenant_ref.id,
+      provider: provider,
+      effect: effect,
+      status: :skipped,
+      capability_ids: value(attrs, :capability_ids) || [],
+      credential_present?: false,
+      credential_redeemed?: false,
+      provider_request_sent?: false,
+      provider_response_received?: false,
+      receipt_recorded?: false,
+      product_readback_confirmed?: true,
+      receipt_refs: %{},
+      metadata: %{
+        "proof_class" => "headless_fixture_backend",
+        "live_provider_effect?" => false
+      }
+    })
   end
 
   @impl true
@@ -366,6 +488,14 @@ defmodule Extravaganza.HeadlessFixtureBackend do
     do: value |> Atom.to_string() |> normalize_string()
 
   defp normalize_string(_value), do: ""
+
+  defp runtime_ref(nil), do: "runtime-profile://fixture/headless"
+  defp runtime_ref("runtime-profile://" <> _rest = ref), do: ref
+  defp runtime_ref(ref) when is_binary(ref), do: "runtime-profile://#{ref}"
+
+  defp redacted_path(nil), do: nil
+  defp redacted_path(value) when is_binary(value), do: "[redacted-path]"
+  defp redacted_path(_value), do: nil
 
   defp fixture(name) do
     name

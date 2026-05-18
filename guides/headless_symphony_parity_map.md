@@ -1,121 +1,128 @@
 # Symphony Headless Parity Map
 
-Purpose: document how Extravaganza implements the headless part of the Symphony
-specification through mix tasks, the programmatic API, examples, and the live
-provider proof path. This is a parity map, not a current cutover blocker list:
-items marked partial or out-of-scope are explicit product-surface decisions
-against optional Symphony behavior, while the coding-ops live provider lanes
-are covered by the current generic-stack route proof.
+Purpose: document how Extravaganza implements the Symphony-style headless
+coding-agent product surface through Mix tasks, the Phoenix/API surface,
+scripts, examples, and live provider proofs.
 
-References:
+This is a current product-surface map. It is not a stale gap list. Items marked
+partial are intentional product-surface choices or places where one surface
+exists but another equivalent surface is not exposed.
 
-- `/home/home/p/g/n/symphony/SPEC.md`
-- `apps/extravaganza_core/lib/mix/tasks/extravaganza.headless.ex`
-- `apps/extravaganza_core/lib/extravaganza/headless_cli.ex`
-- `apps/extravaganza_core/lib/extravaganza/headless_surface.ex`
-- `apps/extravaganza_core/lib/extravaganza/product_host.ex`
-- `apps/extravaganza_web/lib/extravaganza_web/router.ex`
-- `apps/extravaganza_web/lib/extravaganza_web/controllers/api/headless_controller.ex`
-- `scripts/headless/*.exs`
-- cutover proof: `MIX_ENV=test mix extravaganza.headless.smoke --deterministic --same-run --json`
-  and `~/scripts/with_bash_secrets ... mix extravaganza.headless.live.smoke --live-product-path --ack-headless-guardrails --json ...`
+## Scope and Evidence Anchors
 
-## Scope and review method
+Evidence anchors:
 
-- **Symphony baseline**: this analysis focuses on the headless API contract in
-  `SPEC.md`, especially the optional HTTP extension (Section 13.7), command/mix
-  entrypoints, and orchestration-facing behavior that is surfaced as external readback
-  and operator actions.
-- **Coverage axes**:
-  - Mix command/API entrypoints in `Extravaganza.HeadlessCLI`
-  - Programmatic API via `Extravaganza.HeadlessSurface`, `Extravaganza.ProductHost`, and
-    `/api/v1` routes
-  - Example scripts in `scripts/headless/` and output fixtures under `examples/headless/`
-
-- **Status legend**:
-  - **Done**: implemented end-to-end on this repo and reachable from at least one
-    required operator path.
-  - **Partial**: command/API exists, but behavior differs from `SPEC` or is narrower
-    than specified.
-  - **Gap**: no implementation in this repo today.
-
-## Headless surface matrix vs SPEC
-
-| Symphony behavior | Mix command | Programmatic API (`/api` + modules) | Example | Status |
-| --- | --- | --- | --- | --- |
-| Start/enable optional HTTP server extension (`--port`, `server.port`) | **N/A in headless product CLI** | Phoenix app offers routes when started, but no CLI `--port`/`server.port` activation path in command layer | No dedicated example | Gap |
-| Human-readable dashboard at `/` (optional) | N/A | `ExtravaganzaWeb` renders app pages for operator web surface, not a symphony dashboard contract | N/A | Gap |
-| `GET /api/v1/state` | `mix extravaganza.headless.state --json` | `GET /api/v1/state` (maps to `HeadlessSurface.state_snapshot/2`) | `scripts/headless/state.exs` and fixture `examples/headless/state.json` | Done |
-| `GET /api/v1/<issue_identifier>` equivalent | `mix extravaganza.headless.subject --json` can target by subject id; issue-identifier style is API-only via `:issue_subject` route | `GET /api/v1/:issue_identifier`; also `GET /api/v1/subjects/:subject_id` | No dedicated issue-identifier script; API tested in controller spec | Partial |
-| `POST /api/v1/refresh` best-effort trigger | `mix extravaganza.headless.refresh --ack-headless-guardrails --json` | `POST /api/v1/refresh` (`HeadlessSurface.request_refresh/2`) | no script; no fixture example file | Done |
-| Unsupported methods return JSON 405 | N/A | `match/2` routes return 405 | API tests cover this path | Done |
-| Error envelopes for known failure modes | Envelope contract via `HeadlessJSON.error/2` | `HeadlessController` maps known errors to contract status codes | API tests cover all listed mapping points | Done |
-| State includes running/retry/token summary | `mix extravaganza.headless.state --json` | `state` presenter exposes rows, turns and future slots plus status fields from `AppKit` readback | `state` fixture output exists | Partial |
-| Subject-level runtime detail by issue id | `mix extravaganza.headless.subject --json` / positional subject id | `GET /api/v1/subjects/:subject_id` and `GET /api/v1/:issue_identifier` | no dedicated script per issue identifier; `subject` API coverage via tests | Partial |
-| Refresh/retry/controls as accepted command envelopes | `mix extravaganza.headless.refresh --ack-headless-guardrails --json`, `mix extravaganza.headless.control --ack-headless-guardrails --action ... --json` | `POST /api/v1/refresh`, `/subjects/:subject_id/actions/:action`, `/subjects/:subject_id/control/:action` | no direct script for control; review_decision/restart example exists | Done |
-| Review listing and decisioning | `mix extravaganza.headless.reviews --json`, `mix extravaganza.headless.review --ack-headless-guardrails --decision ... --json` | `GET /api/v1/reviews`, `POST /api/v1/reviews/:decision_id/decisions/:decision` | `scripts/headless/review_decision.exs`, fixture `review` output not stored | Done |
-| Queue/runtime-row readback | `mix extravaganza.headless.queue --json` | no dedicated `/api/v1/queue` route; queue included via state/readback projections | no queue script | Partial |
-| Run detail readback | `mix extravaganza.headless.run --json` | `GET /api/v1/runs/:run_id` | `scripts/headless/run_detail.exs`, `examples/headless/run.json` | Done |
-| Evidence chain readback | `mix extravaganza.headless.evidence --json` | `GET /api/v1/runs/:run_id/evidence` | `scripts/headless/evidence_chain.exs`, `examples/headless/evidence.json` | Done |
-| Events readback by run | `mix extravaganza.headless.events --json` | `GET /api/v1/events?run_id=...` | `examples/headless/events.json` (event page envelope) | Done |
-| Source publication preview | `mix extravaganza.headless.source_preview --json` | `GET /api/v1/subjects/:subject_id/source-publication` | source publication route coverage via tests | Done |
-| Governed source publication | `mix extravaganza.headless.source_publish --ack-headless-guardrails --json` | `POST /api/v1/source-publication`, `POST /api/v1/subjects/:subject_id/source-publication` | `scripts/headless/source_publish.exs` | Done |
-| Source sync/inbound shaping | `mix extravaganza.headless.source.sync --ack-headless-guardrails --json` | `ProductHost.sync_issue_tracker_source/2`, `HeadlessSurface.sync_issue_tracker_source/2` | `scripts/headless/source_sync.exs` | Done |
-| Runtime status/logs | `mix extravaganza.headless.status --json`, `mix extravaganza.headless.logs --json` | `GET /api/v1/status`, `GET /api/v1/logs` | `scripts/headless/status.exs`, `scripts/headless/logs.exs` | Done |
-| Symphony workflow profile validate/reload | `mix extravaganza.headless.profile_validate --workflow WORKFLOW.md --json`, `mix extravaganza.headless.profile_reload --workflow WORKFLOW.md --ack-headless-guardrails --json` | `POST /api/v1/profile/validate`, `POST /api/v1/profile/reload`, `GET /api/v1/profile` | `scripts/headless/profile_validate.exs`, `scripts/headless/profile_reload.exs` | Done |
-| Subject read lease + stream attach lease (operational helper methods) | N/A as direct mix command | `GET` equivalent in API: `/api/v1/subjects/:subject_id/read-lease`, `/api/v1/subjects/:subject_id/stream-attach-lease` | no script today, but API and module paths exist | Partial |
-| Start run command | `mix extravaganza.headless.start --ack-headless-guardrails --json` for non-fixture start; fixture start remains `mix extravaganza.headless.start --fixture headless_m1 --json` | `ProductHost.start_run/2` + `ExtravaganzaWeb` browser route surface uses same presenters | `scripts/headless/assert_non_fixture_start.exs`, `scripts/headless/start_fixture_run.exs` | Done |
-| Same-run deterministic proof chain | `mix extravaganza.headless.smoke --deterministic --same-run --json` | `ProductHost.same_run_smoke/1` and same underlying readbacks | StackLab external acceptance validates the product from outside this repo | Done |
-| Live example command matrix (linear source, codex turn, linear publication, github evidence) | `mix extravaganza.headless.live.linear_source|codex_turn|linear_publication|github_evidence --json` and `mix extravaganza.headless.live.smoke --json` | no direct API for live example command path; this is command only by design | `scripts/headless/live_*.exs` wrappers; 2026-05-18 live proof covered Linear read/write/query, Codex turn, GitHub evidence, GitHub cleanup, and aggregate smoke | Done |
-
-## Symphony behavior that is intentionally out of command/API scope
-
-These are orchestration behaviors present in `SPEC` but not currently the exposed
-product entrypoint contract in this repo:
-
-- CLI workflow-path semantics (`WORKFLOW.md` positional path and direct port mode)
-- Long-running daemon tick/retry/discovery lifecycle and live config hot reload
-- Explicit terminal-state cleanup policy assertions as first-class CLI options
-- Workspace hook execution and full scheduler queue mutation control from CLI
-
-Those are still being represented in the lower stack (`Mezzanine`/`AppKit`/`Citadel`)
-but are not currently user-operable through `Extravaganza` mix command API.
-
-## What exists in examples and what does not
-
-### Covered by examples
-
-- Base readback commands (`state`, `run`, `events`, `evidence`)
-- Run/start path checks (`start_fixture_run`, `assert_non_fixture_start`)
-- Review recording (`review_decision`)
-- Source intake command (`source_sync`)
-- Live matrix command wrappers (`live_*`, `live_smoke`) with deterministic skip
-  behavior when provider credentials are absent
-
-### Not exposed as direct script artifacts
-
-- Queue and refresh/control invocation wrappers (`queue`, `refresh`, `control`)
-- Read-lease/stream-attach-lease examples
-- Source publication preview
-- A dedicated same-run smoke replay example script; the same-run proof is
-  covered by the Mix task and StackLab external acceptance
-
-## Evidence anchors (for audit)
-
-- Mix command inventory: `apps/extravaganza_core/lib/mix/tasks/extravaganza.headless.ex`
-- CLI parser and operation dispatch: `apps/extravaganza_core/lib/extravaganza/headless_cli.ex`
-- API routes and method constraints: `apps/extravaganza_web/lib/extravaganza_web/router.ex`
-- API error/status mapping: `apps/extravaganza_web/lib/extravaganza_web/controllers/api/headless_controller.ex`
-- Headless programmatic surface: `apps/extravaganza_core/lib/extravaganza/headless_surface.ex`,
+- Mix task inventory:
+  `apps/extravaganza_core/lib/mix/tasks/extravaganza.headless.ex`
+- CLI parser and dispatch:
+  `apps/extravaganza_core/lib/extravaganza/headless_cli.ex`
+- Product host facade:
   `apps/extravaganza_core/lib/extravaganza/product_host.ex`
-- Example script inventory and expected paths: `scripts/headless/*.exs`, `examples/headless/*.json`
+- Headless programmatic surface:
+  `apps/extravaganza_core/lib/extravaganza/headless_surface.ex`
+- Live provider examples:
+  `apps/extravaganza_core/lib/extravaganza/headless_live_examples.ex`
+- HTTP routes:
+  `apps/extravaganza_web/lib/extravaganza_web/router.ex`
+- API controller:
+  `apps/extravaganza_web/lib/extravaganza_web/controllers/api/headless_controller.ex`
+- Scripts and examples:
+  `scripts/headless/*.exs` and `examples/headless/*.json`
+- Verification guide:
+  `guides/headless_full_functionality_verification.md`
 
-## Practical extension notes
+Status legend:
 
-1. Add mix task coverage if the team wants command parity for lease operations
-   (`read-lease`, `stream-attach-lease`) and `source_preview`.
-2. Add explicit issue-identifier examples for API read paths if onboarding requires
-   command-first parity.
-3. Continue validating live examples with `~/scripts/with_bash_secrets` at
-   release boundaries. Current live proof requires route evidence, receipts,
-   provider request/response facts, and no leaked secrets.
+- **Done**: implemented and reachable through a supported product path.
+- **Partial**: supported through one product path, but not exposed through every
+  possible command/API/browser equivalent.
+- **Out of scope**: intentionally not part of the Extravaganza product surface.
+
+## Current Surface Matrix
+
+| Behavior | Mix command | HTTP/browser/API surface | Script/example | Status |
+| --- | --- | --- | --- | --- |
+| Optional web shell with CLI `--port` and workflow `server.port` | `mix extravaganza.headless.web --port 4001 --json` and `--once` plan mode | Starts Phoenix endpoint and exposes browser/API routes | Covered by `headless_server_test.exs` | Done |
+| Browser home/dashboard | N/A | `GET /`, `GET /queue`, `GET /operator-console` | Browser tests and web shell proof | Done |
+| Operator update stream | N/A | `GET /operator-console/updates` | SSE route covered by web tests | Done |
+| State snapshot | `mix extravaganza.headless.state --json` | `GET /api/v1/state` | `scripts/headless/state.exs`, `examples/headless/state.json` | Done |
+| Queue readback | `mix extravaganza.headless.queue --json` | `GET /queue`; queue is also represented in state projections. There is intentionally no `/api/v1/queue` route. | No dedicated queue script | Partial |
+| Subject detail and issue compatibility lookup | `mix extravaganza.headless.subject SUBJECT_ID --json` | `GET /subjects/:subject_id`, `GET /api/v1/subjects/:subject_id`, `GET /api/v1/:issue_identifier` | API/controller tests | Done |
+| Subject operator actions | `mix extravaganza.headless.control SUBJECT_ID ACTION --ack-headless-guardrails --json` | Browser/API `POST /subjects/:subject_id/actions/:action`; API compatibility `POST /api/v1/subjects/:subject_id/control/:action` | Covered by controller tests | Done |
+| Read lease and stream attach lease | No direct Mix command | Browser/API `POST /subjects/:subject_id/read-lease` and `POST /subjects/:subject_id/stream-attach-lease` | Covered by controller tests | Partial |
+| Refresh trigger | `mix extravaganza.headless.refresh --ack-headless-guardrails --json` | `POST /api/v1/refresh` | API/controller tests | Done |
+| Review listing and decisions | `mix extravaganza.headless.reviews --json`, `mix extravaganza.headless.review DECISION_ID --decision accept --ack-headless-guardrails --json` | Browser/API `GET /reviews`, `POST /reviews/:decision_id/decisions/:decision` | `scripts/headless/review_decision.exs` | Done |
+| Run detail | `mix extravaganza.headless.run RUN_ID --json` | `GET /api/v1/runs/:run_id` | `scripts/headless/run_detail.exs`, `examples/headless/run.json` | Done |
+| Evidence chain | `mix extravaganza.headless.evidence RUN_ID --json` | `GET /api/v1/runs/:run_id/evidence` | `scripts/headless/evidence_chain.exs`, `examples/headless/evidence.json` | Done |
+| Event page | `mix extravaganza.headless.events RUN_ID --json` | `GET /api/v1/events` | `examples/headless/events.json` | Done |
+| Source publication preview | `mix extravaganza.headless.source_preview SUBJECT_ID --json` | `GET /api/v1/subjects/:subject_id/source-publication` | Controller tests | Done |
+| Governed source publication | `mix extravaganza.headless.source_publish SUBJECT_ID --ack-headless-guardrails --json` | `POST /api/v1/source-publication`, `POST /api/v1/subjects/:subject_id/source-publication` | `scripts/headless/source_publish.exs` | Done |
+| Source sync/inbound issue shaping | `mix extravaganza.headless.source.sync --ack-headless-guardrails --json` and `mix extravaganza.headless.source_sync --ack-headless-guardrails --json` | `ProductHost.sync_issue_tracker_source/2` and `HeadlessSurface.sync_issue_tracker_source/2` | `scripts/headless/source_sync.exs` | Done |
+| Runtime status/logs | `mix extravaganza.headless.status --json`, `mix extravaganza.headless.logs --json` | `GET /api/v1/status`, `GET /api/v1/logs` | `scripts/headless/status.exs`, `scripts/headless/logs.exs` | Done |
+| Preflight and shutdown | `mix extravaganza.headless.preflight --json`, `mix extravaganza.headless.stop --confirm-no-active-lower-runs --ack-headless-guardrails --json` | `GET /api/v1/preflight`, `POST /api/v1/shutdown` | `scripts/headless/preflight.exs`, `scripts/headless/stop.exs` | Done |
+| Symphony workflow profile import | `mix extravaganza.headless.profile --json`, `profile_validate`, `profile_reload` | `GET /api/v1/profile`, `POST /api/v1/profile/validate`, `POST /api/v1/profile/reload` | `scripts/headless/profile_validate.exs`, `scripts/headless/profile_reload.exs` | Done |
+| Start run command | `mix extravaganza.headless.start --ack-headless-guardrails --json`; fixture start uses `--fixture headless_m1` | Product host and browser surfaces use the same presenters/readbacks | `scripts/headless/assert_non_fixture_start.exs`, `scripts/headless/start_fixture_run.exs` | Done |
+| Deterministic same-run proof | `MIX_ENV=test mix extravaganza.headless.smoke --deterministic --same-run --json` | `ProductHost.same_run_smoke/1` | StackLab external acceptance and deterministic command proof | Done |
+| Live Linear source | `mix extravaganza.headless.live.linear_source --live-product-path --ack-headless-guardrails --json` | `POST /api/v1/live/linear-source` for API contract; real provider effects verified through Mix task | `scripts/headless/live_linear_source.exs` | Done |
+| Live Linear current states | `mix extravaganza.headless.live.linear_current_states --live-product-path --ack-headless-guardrails --json --issue-id LINEAR_ISSUE_UUID` | `POST /api/v1/live/linear-current-states` for API contract | `scripts/headless/live_linear_current_states.exs` | Done |
+| Live Codex turn | `mix extravaganza.headless.live.codex_turn --live-product-path --ack-headless-guardrails --json` | `POST /api/v1/live/codex-turn` for API contract | `scripts/headless/live_codex_turn.exs` | Done |
+| Live Linear publication | `mix extravaganza.headless.live.linear_publication --live-product-path --ack-headless-guardrails --json --issue-id LINEAR_ISSUE_UUID` | `POST /api/v1/live/linear-publication` for API contract | `scripts/headless/live_linear_publication.exs` | Done |
+| Live Linear GraphQL dynamic tool | `mix extravaganza.headless.live.linear_graphql_tool --live-product-path --ack-headless-guardrails --json --query "query Viewer { viewer { id } }"` | `POST /api/v1/live/linear-graphql-tool` for API contract | `scripts/headless/live_linear_graphql_tool.exs` | Done |
+| Live GitHub evidence | `mix extravaganza.headless.live.github_evidence --live-product-path --ack-headless-guardrails --json --repo OWNER/REPO --pull-number PR_NUMBER --ref HEAD_SHA` | `POST /api/v1/live/github-evidence` for API contract | `scripts/headless/live_github_evidence.exs` | Done |
+| Live GitHub PR cleanup | `mix extravaganza.headless.live.github_pr_cleanup --live-product-path --ack-headless-guardrails --json --repo OWNER/REPO --branch DISPOSABLE_BRANCH --confirm-close` | `POST /api/v1/live/github-pr-cleanup` for API contract | `scripts/headless/live_github_pr_cleanup.exs` | Done |
+| Aggregate live smoke | `mix extravaganza.headless.live.smoke --live-product-path --ack-headless-guardrails --json --api-key-stdin ...` | `POST /api/v1/live/smoke` for API contract | `scripts/headless/live_smoke.exs` | Done |
+| Static asset compatibility routes from Symphony's old dashboard implementation | N/A | N/A; Extravaganza renders product-owned Phoenix templates and SSE updates | N/A | Out of scope |
+| Direct lower runtime/provider module access from product code | N/A | N/A | Enforced by no-bypass/static tests | Out of scope |
+
+## Live API Route Posture
+
+HTTP live routes are part of the product API contract. They require
+`ack_headless_guardrails=true` or `guardrails_ack=true`, reject raw credential
+params, and accept refs/flags such as `connection_id`, `credential_ref`,
+`credential_lease_ref`, `live_product_path`, `repo`, `pull_number`, `ref`,
+`issue_id`, `issue_ids`, `query`, and `variables_json`.
+
+Real provider credential injection for local verification is intentionally
+exercised through the Mix task surface with `~/scripts/with_bash_secrets`, not
+through raw HTTP credential params.
+
+## Script Inventory
+
+Current public scripts:
+
+- `scripts/headless/assert_non_fixture_start.exs`
+- `scripts/headless/state.exs`
+- `scripts/headless/start_fixture_run.exs`
+- `scripts/headless/run_detail.exs`
+- `scripts/headless/evidence_chain.exs`
+- `scripts/headless/review_decision.exs`
+- `scripts/headless/source_sync.exs`
+- `scripts/headless/source_publish.exs`
+- `scripts/headless/status.exs`
+- `scripts/headless/logs.exs`
+- `scripts/headless/preflight.exs`
+- `scripts/headless/profile_validate.exs`
+- `scripts/headless/profile_reload.exs`
+- `scripts/headless/stop.exs`
+- `scripts/headless/live_linear_source.exs`
+- `scripts/headless/live_linear_current_states.exs`
+- `scripts/headless/live_codex_turn.exs`
+- `scripts/headless/live_linear_publication.exs`
+- `scripts/headless/live_linear_graphql_tool.exs`
+- `scripts/headless/live_github_evidence.exs`
+- `scripts/headless/live_github_pr_cleanup.exs`
+- `scripts/headless/live_smoke.exs`
+
+## Practical Verification Notes
+
+Use `guides/headless_full_functionality_verification.md` for the full command
+sequence. Current release verification must prove:
+
+- deterministic Mix tasks and scripts return valid envelopes;
+- browser/API routes and wrong-method/not-found errors are covered by tests;
+- every live provider lane runs through `--live-product-path` with
+  `~/scripts/with_bash_secrets`;
+- GitHub cleanup is tested only against a disposable PR;
+- output contains route evidence, authority refs, credential lease refs, lower
+  request refs, lower receipt refs, and no raw secrets;
+- `mix ci` is green before release.

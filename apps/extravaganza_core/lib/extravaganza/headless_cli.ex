@@ -727,6 +727,10 @@ defmodule Extravaganza.HeadlessCLI do
       Application.put_env(:app_kit_core, :source_backend, HeadlessFixtureBackend)
     end
 
+    unless Application.get_env(:app_kit_core, :runtime_backend) do
+      Application.put_env(:app_kit_core, :runtime_backend, HeadlessFixtureBackend)
+    end
+
     Application.put_env(:extravaganza_core, :headless_fixture_context?, true)
   end
 

@@ -196,6 +196,27 @@ defmodule Extravaganza.HeadlessExamplesTest do
     end
   end
 
+  test "fixture flag installs runtime backend for status and logs commands" do
+    Application.delete_env(:app_kit_core, :runtime_backend)
+
+    for {operation, expected_schema} <- [
+          {:status, "headless_runtime_status.v1"},
+          {:logs, "headless_runtime_logs.v1"}
+        ] do
+      output =
+        capture_io(fn ->
+          assert :ok = HeadlessCLI.run(operation, common_args())
+        end)
+
+      decoded = Jason.decode!(output)
+
+      assert decoded["ok"] == true
+      assert decoded["operation"] == Atom.to_string(operation)
+      assert decoded["data"]["schema_ref"] == expected_schema
+      assert decoded["data"]["data"]["metadata"]["proof_class"] == "headless_fixture_backend"
+    end
+  end
+
   test "task support keeps live provider product examples on the surface command path" do
     for operation <- [
           :live_linear_source,

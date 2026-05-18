@@ -297,11 +297,11 @@ plus `live_provider_effect?: false`. The Symphony preview flag
 accepted as an acknowledgement alias.
 
 ```bash
-mix extravaganza.headless.live.linear_source --live-product-path --ack-headless-guardrails --json
-mix extravaganza.headless.live.linear_current_states --live-product-path --ack-headless-guardrails --json
+printf "%s" "$LINEAR_API_KEY" | mix extravaganza.headless.live.linear_source --live-product-path --ack-headless-guardrails --json --api-key-stdin
+printf "%s" "$LINEAR_API_KEY" | mix extravaganza.headless.live.linear_current_states --live-product-path --ack-headless-guardrails --json --api-key-stdin
 mix extravaganza.headless.live.codex_turn --live-product-path --ack-headless-guardrails --json
-mix extravaganza.headless.live.linear_publication --live-product-path --ack-headless-guardrails --json
-mix extravaganza.headless.live.linear_graphql_tool --live-product-path --ack-headless-guardrails --json
+printf "%s" "$LINEAR_API_KEY" | mix extravaganza.headless.live.linear_publication --live-product-path --ack-headless-guardrails --json --api-key-stdin
+printf "%s" "$LINEAR_API_KEY" | mix extravaganza.headless.live.linear_graphql_tool --live-product-path --ack-headless-guardrails --json --api-key-stdin
 mix extravaganza.headless.live.github_evidence --live-product-path --ack-headless-guardrails --json
 mix extravaganza.headless.live.smoke --live-product-path --ack-headless-guardrails --json
 ```
@@ -319,7 +319,7 @@ wrapper. The wrapper only injects shell credentials for this node; it is not
 product behavior and the command output must not print secret values.
 
 ```bash
-~/scripts/with_bash_secrets mix extravaganza.headless.live.linear_source --live-product-path --ack-headless-guardrails --json
+~/scripts/with_bash_secrets bash -lc 'printf "%s" "$LINEAR_API_KEY" | mix extravaganza.headless.live.linear_source --live-product-path --ack-headless-guardrails --json --api-key-stdin'
 ~/scripts/with_bash_secrets mix extravaganza.headless.live.codex_turn --live-product-path --ack-headless-guardrails --json
 ~/scripts/with_bash_secrets mix extravaganza.headless.live.github_evidence --live-product-path --ack-headless-guardrails --json
 ~/scripts/with_bash_secrets mix extravaganza.headless.live.github_pr_cleanup --live-product-path --ack-headless-guardrails --json --repo OWNER/REPO --branch BRANCH --confirm-close

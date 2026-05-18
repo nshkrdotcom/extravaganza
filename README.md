@@ -55,7 +55,8 @@
    also accepted for CLI compatibility.
 
    See `guides/headless_provider_credentials.md` for the full example
-   matrix and verification checks by provider.
+   matrix and `guides/headless_full_functionality_verification.md` for the
+   complete deterministic, HTTP, script, and live-provider verification flow.
 
 5. For the full API/operator view:
 
@@ -376,6 +377,7 @@ modules directly from product business code.
 - [Headless API Reference](guides/headless_api_reference.md)
 - [Symphony Headless Parity Map](guides/headless_symphony_parity_map.md)
 - [Headless Provider Credentials and Verification](guides/headless_provider_credentials.md)
+- [Headless Full Functionality Verification](guides/headless_full_functionality_verification.md)
 
 ## Persistence Documentation
 
