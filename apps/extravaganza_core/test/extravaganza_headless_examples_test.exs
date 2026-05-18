@@ -626,7 +626,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert source_binding.candidate_filters.team_id == "team-linear"
     assert Keyword.fetch!(opts, :first) == 7
     assert Keyword.fetch!(opts, :cursor) == "cursor-1"
-    assert Keyword.fetch!(opts, :linear_api_key) == secret
+    assert Keyword.fetch!(opts, :api_key) == secret
   end
 
   @tag :live_provider
@@ -653,7 +653,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert_received {:fetch_source_candidates, tenant_id, :issue_tracker, _source_binding, opts}
     assert String.starts_with?(tenant_id, "extravaganza-live-")
     assert opts |> Keyword.fetch!(:pack_version) |> String.starts_with?("1.0.0-live.")
-    assert Keyword.fetch!(opts, :linear_api_key) == secret
+    assert Keyword.fetch!(opts, :api_key) == secret
     refute output =~ secret
   end
 
@@ -695,7 +695,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert Keyword.fetch!(opts, :connection_id) == "connection-linear-existing"
     assert Keyword.fetch!(opts, :credential_ref) == "credential-ref-linear-existing"
     assert Keyword.fetch!(opts, :credential_lease_ref) == "credential-lease-linear-existing"
-    refute Keyword.has_key?(opts, :linear_api_key)
+    refute Keyword.has_key?(opts, :api_key)
     refute output =~ "api_key"
   end
 
@@ -755,7 +755,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert_received {:fetch_source_candidates, tenant_id, :issue_tracker, source_binding, opts}
     assert String.starts_with?(tenant_id, "extravaganza-live-")
     refute Map.has_key?(source_binding.candidate_filters, :assignee)
-    assert Keyword.fetch!(opts, :linear_api_key) == secret
+    assert Keyword.fetch!(opts, :api_key) == secret
     refute output =~ secret
   end
 
@@ -875,7 +875,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert String.starts_with?(tenant_id, "extravaganza-live-")
     assert issue_ids == ["lin-issue-321", "lin-missing"]
     assert source_binding.candidate_filters.assignee == "me"
-    assert Keyword.fetch!(opts, :linear_api_key) == secret
+    assert Keyword.fetch!(opts, :api_key) == secret
     assert Keyword.fetch!(opts, :trace_id) == "trace:live-current-states"
   end
 
@@ -1286,14 +1286,14 @@ defmodule Extravaganza.HeadlessExamplesTest do
 
     assert String.starts_with?(tenant_id, "extravaganza-live-")
     assert Keyword.fetch!(source_opts, :trace_id) == "trace:live-smoke-product"
-    assert Keyword.fetch!(source_opts, :linear_api_key) == secret
+    assert Keyword.fetch!(source_opts, :api_key) == secret
 
     assert_received {:current_source_states, _tenant_id, :issue_tracker, ["lin-issue-321"],
                      current_source_binding, current_opts}
 
     assert current_source_binding.candidate_filters.assignee == "me"
     assert Keyword.fetch!(current_opts, :trace_id) == "trace:live-smoke-product"
-    assert Keyword.fetch!(current_opts, :linear_api_key) == secret
+    assert Keyword.fetch!(current_opts, :api_key) == secret
 
     assert_received {:start_agent_run, _tenant_id, request, codex_opts}
     assert request.trace_id == "trace:live-smoke-product"
@@ -1308,14 +1308,14 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert attrs.issue_id == "lin-issue-321"
     assert attrs.source_binding.source_binding_id == "linear-primary"
     assert Keyword.fetch!(publication_opts, :trace_id) == "trace:live-smoke-product"
-    assert Keyword.fetch!(publication_opts, :linear_api_key) == secret
+    assert Keyword.fetch!(publication_opts, :api_key) == secret
 
     assert_received {:invoke_runtime_tool, _tenant_id, :issue_graphql_tool, :execute_query,
                      graphql_attrs, graphql_opts}
 
     assert graphql_attrs.query == "query Viewer { viewer { id } }"
     assert Keyword.fetch!(graphql_opts, :trace_id) == "trace:live-smoke-product"
-    assert Keyword.fetch!(graphql_opts, :linear_api_key) == secret
+    assert Keyword.fetch!(graphql_opts, :api_key) == secret
 
     assert_received {:collect_evidence, _tenant_id, :proposed_change_evidence, github_request,
                      github_opts}
@@ -1401,7 +1401,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert attrs.source_binding.source_binding_id == "linear-primary"
     assert attrs.source_binding_id == "linear-primary"
     assert attrs.issue_id == "lin-issue-321"
-    assert Keyword.fetch!(opts, :linear_api_key) == secret
+    assert Keyword.fetch!(opts, :api_key) == secret
   end
 
   @tag :live_provider
@@ -1440,7 +1440,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert String.starts_with?(tenant_id, "extravaganza-live-")
     assert attrs.comment_id == "comment-1"
     assert attrs.body == "Updated by product path"
-    assert Keyword.fetch!(opts, :linear_api_key) == secret
+    assert Keyword.fetch!(opts, :api_key) == secret
   end
 
   @tag :live_provider
@@ -1522,7 +1522,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert attrs.issue_id == "lin-issue-321"
     assert attrs.state_name == "Done"
     assert attrs.team_id == "team-linear"
-    assert Keyword.fetch!(opts, :linear_api_key) == secret
+    assert Keyword.fetch!(opts, :api_key) == secret
   end
 
   @tag :live_provider
@@ -1566,7 +1566,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert attrs.issue_id == "lin-issue-321"
     assert attrs.source_binding.source_binding_id == "linear-primary"
     assert Keyword.fetch!(opts, :dry_run?) == true
-    assert Keyword.fetch!(opts, :linear_api_key) == secret
+    assert Keyword.fetch!(opts, :api_key) == secret
   end
 
   @tag :live_provider
@@ -1624,7 +1624,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert String.starts_with?(tenant_id, "extravaganza-live-")
     assert attrs.query == "query Viewer { viewer { id } }"
     assert attrs.variables == %{"includeTeams" => false}
-    assert Keyword.fetch!(opts, :linear_api_key) == secret
+    assert Keyword.fetch!(opts, :api_key) == secret
     assert Keyword.fetch!(opts, :trace_id) == "trace:live-linear-graphql-tool"
     refute output =~ secret
   end

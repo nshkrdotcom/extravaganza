@@ -12,14 +12,19 @@ defmodule Extravaganza.ProviderImplApiStaticTest do
   end
 
   test "headless product intent API uses neutral names" do
-    assert function_exported?(Extravaganza.ProductHost, :sync_issue_tracker_source, 2)
-    assert function_exported?(Extravaganza.ProductHost, :sync_issue_tracker_item, 2)
-    assert function_exported?(Extravaganza.HeadlessSurface, :fetch_source_candidates, 2)
-    assert function_exported?(Extravaganza.HeadlessSurface, :current_source_states, 3)
-    assert function_exported?(Extravaganza.HeadlessSurface, :publish_source_update, 2)
-    assert function_exported?(Extravaganza.HeadlessSurface, :execute_issue_tracker_query_tool, 2)
-    assert function_exported?(Extravaganza.HeadlessSurface, :collect_proposed_change_evidence, 2)
-    assert function_exported?(Extravaganza.HeadlessSurface, :cleanup_proposed_change_branch, 2)
+    assert_public_function(Extravaganza.ProductHost, :sync_issue_tracker_source, 2)
+    assert_public_function(Extravaganza.ProductHost, :sync_issue_tracker_item, 2)
+    assert_public_function(Extravaganza.HeadlessSurface, :fetch_source_candidates, 2)
+    assert_public_function(Extravaganza.HeadlessSurface, :current_source_states, 3)
+    assert_public_function(Extravaganza.HeadlessSurface, :publish_source_update, 2)
+    assert_public_function(Extravaganza.HeadlessSurface, :execute_issue_tracker_query_tool, 2)
+    assert_public_function(Extravaganza.HeadlessSurface, :collect_proposed_change_evidence, 2)
+    assert_public_function(Extravaganza.HeadlessSurface, :cleanup_proposed_change_branch, 2)
+  end
+
+  defp assert_public_function(module, function, arity) do
+    assert Code.ensure_loaded?(module)
+    assert function_exported?(module, function, arity)
   end
 
   defp old_provider_impl_tokens do

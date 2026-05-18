@@ -1074,7 +1074,7 @@ defmodule Extravaganza.HeadlessLiveExamples do
         :tenant_id,
         :pack_version,
         :trace_id,
-        :linear_api_key,
+        :api_key,
         :connection_id,
         :credential_ref,
         :credential_lease_ref,
@@ -1083,6 +1083,7 @@ defmodule Extravaganza.HeadlessLiveExamples do
       |> Enum.to_list()
 
     base
+    |> put_keyword_new_present(:api_key, string_value(opts, :linear_api_key))
     |> put_keyword_new_present(:skip_bootstrap?, live_product_surface_proof?(opts))
     |> put_keyword_new_present(:first, positive_integer_value(opts, :limit))
     |> put_keyword_new_present(:cursor, string_value(opts, :cursor))

@@ -878,7 +878,7 @@ defmodule Extravaganza.HeadlessCLI do
                credential_available?: true,
                credential_source: "stdin",
                credential_length: byte_size(trimmed),
-               linear_api_key: trimmed
+               api_key: trimmed
              }}
         end
 
