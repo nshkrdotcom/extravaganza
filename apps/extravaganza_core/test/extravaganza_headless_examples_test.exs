@@ -1192,6 +1192,15 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert provider_effect["provider_response_received?"] == true
     assert provider_effect["receipt_recorded?"] == true
     assert provider_effect["product_readback_confirmed?"] == true
+
+    assert [
+             %{
+               "capability_id" => "github.pr.update",
+               "lower_request_ref" => "lower-request://github/pr-cleanup",
+               "lower_receipt_ref" => "lower-receipt://github/pr-cleanup/succeeded"
+             }
+           ] = provider_effect["operation_receipts"]
+
     assert_authority_proof(provider_effect, "github", "pr-cleanup")
     assert data["lower_request_ref"] == "lower-request://github/pr-cleanup"
     assert data["lower_receipt_ref"] == "lower-receipt://github/pr-cleanup/succeeded"
