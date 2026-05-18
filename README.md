@@ -38,23 +38,15 @@
 4. Run live provider paths through the same product command surface:
 
    ```bash
-   printf "%s" "$LINEAR_API_KEY" | mix extravaganza.headless.live.smoke --live-product-path --ack-headless-guardrails --json --api-key-stdin --assignee all --issue-id LINEAR_ISSUE_UUID --issue-ids LINEAR_ISSUE_UUID --repo OWNER/REPO --pull-number PR_NUMBER --ref HEAD_SHA
+   ~/scripts/with_bash_secrets bash -lc 'printf "%s" "$LINEAR_API_KEY" | mix extravaganza.headless.live.smoke --live-product-path --ack-headless-guardrails --json --api-key-stdin --assignee all --issue-id LINEAR_ISSUE_UUID --issue-ids LINEAR_ISSUE_UUID --repo OWNER/REPO --pull-number PR_NUMBER --ref HEAD_SHA'
    ```
 
-   If you want live examples to attempt provider execution, export provider
-   credentials in the shell before running the command, for example:
+   On the shared workstation, live GitHub/Linear/Codex examples load secrets by
+   prepending commands with `~/scripts/with_bash_secrets`. Then run with a
+   Linear issue UUID and a GitHub PR/ref target:
 
    ```bash
-   export LINEAR_API_KEY=...
-   export OPENAI_API_KEY=...
-   export CODEX_API_KEY=...
-   export GH_TOKEN=... # or GITHUB_TOKEN
-   ```
-
-   Then rerun with a Linear issue UUID and a GitHub PR/ref target:
-
-   ```bash
-   printf "%s" "$LINEAR_API_KEY" | mix extravaganza.headless.live.smoke --live-product-path --ack-headless-guardrails --json --api-key-stdin --assignee all --issue-id LINEAR_ISSUE_UUID --issue-ids LINEAR_ISSUE_UUID --repo OWNER/REPO --pull-number PR_NUMBER --ref HEAD_SHA
+   ~/scripts/with_bash_secrets bash -lc 'printf "%s" "$LINEAR_API_KEY" | mix extravaganza.headless.live.smoke --live-product-path --ack-headless-guardrails --json --api-key-stdin --assignee all --issue-id LINEAR_ISSUE_UUID --issue-ids LINEAR_ISSUE_UUID --repo OWNER/REPO --pull-number PR_NUMBER --ref HEAD_SHA'
    ```
 
    `--ack-headless-guardrails` is required for live provider paths and
