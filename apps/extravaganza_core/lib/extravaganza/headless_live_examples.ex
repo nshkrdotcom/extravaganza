@@ -1855,16 +1855,23 @@ defmodule Extravaganza.HeadlessLiveExamples do
   end
 
   defp value(%{} = map, key) when is_binary(key) do
-    atom_key = String.to_atom(key)
-
-    cond do
-      Map.has_key?(map, key) -> Map.get(map, key)
-      Map.has_key?(map, atom_key) -> Map.get(map, atom_key)
-      true -> nil
+    case Map.fetch(map, key) do
+      {:ok, value} -> value
+      :error -> atom_key_value(map, key)
     end
   end
 
   defp value(_value, _key), do: nil
+
+  defp atom_key_value(map, key) do
+    Enum.find_value(map, &matching_atom_key_value(&1, key))
+  end
+
+  defp matching_atom_key_value({atom_key, value}, key) when is_atom(atom_key) do
+    if Atom.to_string(atom_key) == key, do: value
+  end
+
+  defp matching_atom_key_value(_entry, _key), do: nil
 
   defp string_value(map, key) do
     case value(map, key) do

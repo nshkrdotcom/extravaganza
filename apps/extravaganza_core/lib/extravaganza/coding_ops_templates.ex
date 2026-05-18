@@ -334,17 +334,28 @@ defmodule Extravaganza.CodingOpsTemplates do
     |> String.split(".")
     |> Enum.reduce(attrs, fn key, value ->
       case value do
-        value when is_map(value) -> Map.get(value, key) || Map.get(value, existing_atom(key))
+        value when is_map(value) -> map_string_or_atom_value(value, key)
         _other -> nil
       end
     end)
   end
 
-  defp existing_atom(key) do
-    String.to_existing_atom(key)
-  rescue
-    ArgumentError -> key
+  defp map_string_or_atom_value(map, key) do
+    case Map.fetch(map, key) do
+      {:ok, value} -> value
+      :error -> map_matching_atom_value(map, key)
+    end
   end
+
+  defp map_matching_atom_value(map, key) do
+    Enum.find_value(map, &matching_atom_value(&1, key))
+  end
+
+  defp matching_atom_value({atom_key, value}, key) when is_atom(atom_key) do
+    if Atom.to_string(atom_key) == key, do: value
+  end
+
+  defp matching_atom_value(_entry, _key), do: nil
 
   defp parse_template(template), do: parse_template(template, [])
 

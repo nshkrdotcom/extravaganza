@@ -14,31 +14,31 @@ defmodule Extravaganza.HeadlessSameRunSmoke do
 
   alias Extravaganza.Presenters.{CommandResultPresenter, RuntimePresenter}
 
-  @readback_names ~w[
-    state
-    queue
-    subject
-    run
-    evidence
-    events
-    reviews
-    review_decision
-    source_preview
-    source_publish
-    source_publication
-    refresh
-    control
-    read_lease
-    stream_attach_lease
-    profile
-    profile_validate
-    profile_reload
-    status
-    logs
-    live_preflight_denial
-    command_coverage
-    route_coverage
-    error_classes
+  @readback_refs [
+    {"state", :state},
+    {"queue", :queue},
+    {"subject", :subject},
+    {"run", :run},
+    {"evidence", :evidence},
+    {"events", :events},
+    {"reviews", :reviews},
+    {"review_decision", :review_decision},
+    {"source_preview", :source_preview},
+    {"source_publish", :source_publish},
+    {"source_publication", :source_publication},
+    {"refresh", :refresh},
+    {"control", :control},
+    {"read_lease", :read_lease},
+    {"stream_attach_lease", :stream_attach_lease},
+    {"profile", :profile},
+    {"profile_validate", :profile_validate},
+    {"profile_reload", :profile_reload},
+    {"status", :status},
+    {"logs", :logs},
+    {"live_preflight_denial", :live_preflight_denial},
+    {"command_coverage", :command_coverage},
+    {"route_coverage", :route_coverage},
+    {"error_classes", :error_classes}
   ]
 
   defmodule SameRunRuntimeBackend do
@@ -336,8 +336,8 @@ defmodule Extravaganza.HeadlessSameRunSmoke do
 
   defp proof(refs, readbacks) do
     readback_rows =
-      Enum.map(@readback_names, fn name ->
-        data = Map.fetch!(readbacks, String.to_existing_atom(name))
+      Enum.map(@readback_refs, fn {name, key} ->
+        data = Map.fetch!(readbacks, key)
 
         refs
         |> Map.take([

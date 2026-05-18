@@ -325,7 +325,7 @@ defmodule Extravaganza.HeadlessJSON do
     end)
   end
 
-  defp fetch(%{} = map, key), do: Map.get(map, key) || Map.get(map, String.to_atom(key))
+  defp fetch(%{} = map, key), do: string_or_atom_key_value(map, key)
   defp fetch(_value, _key), do: nil
 
   defp put_ref(refs, _key, nil), do: refs
@@ -700,7 +700,7 @@ defmodule Extravaganza.HeadlessJSON do
   defp reason_code(reason) when is_atom(reason), do: Atom.to_string(reason)
   defp reason_code(_reason), do: "internal_error"
 
-  defp map_value(%{} = map, key), do: Map.get(map, key) || Map.get(map, String.to_atom(key))
+  defp map_value(%{} = map, key), do: string_or_atom_key_value(map, key)
 
   defp put_optional_detail(details, _key, nil), do: details
   defp put_optional_detail(details, _key, ""), do: details
@@ -712,6 +712,23 @@ defmodule Extravaganza.HeadlessJSON do
       {_key, value} -> is_nil(value)
     end)
   end
+
+  defp string_or_atom_key_value(map, key) do
+    case Map.fetch(map, key) do
+      {:ok, value} -> value
+      :error -> atom_key_value(map, key)
+    end
+  end
+
+  defp atom_key_value(map, key) do
+    Enum.find_value(map, &matching_atom_key_value(&1, key))
+  end
+
+  defp matching_atom_key_value({atom_key, value}, key) when is_atom(atom_key) do
+    if Atom.to_string(atom_key) == key, do: value
+  end
+
+  defp matching_atom_key_value(_entry, _key), do: nil
 
   defp trace_id(opts, refs) do
     Map.get(opts, :trace_id) ||
