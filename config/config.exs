@@ -75,7 +75,13 @@ config :extravaganza_core, Extravaganza.Config,
   placement_profile_id: "local_default",
   execution_timeout_ms: 300_000,
   linear_source_kind: "linear",
-  operator_surface_enabled?: true
+  operator_surface_enabled?: true,
+  app_kit_backends: [
+    work_backend: AppKit.Bridges.MezzanineBridge,
+    work_query_backend: AppKit.Bridges.MezzanineBridge,
+    operator_backend: AppKit.Bridges.MezzanineBridge,
+    review_backend: AppKit.Bridges.MezzanineBridge
+  ]
 
 config :extravaganza_core,
   bootstrap_on_start?: true,

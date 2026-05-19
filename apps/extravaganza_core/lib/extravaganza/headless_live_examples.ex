@@ -1104,7 +1104,50 @@ defmodule Extravaganza.HeadlessLiveExamples do
     |> put_keyword_new_present(:skip_bootstrap?, live_product_surface_proof?(opts))
     |> put_keyword_new_present(:first, positive_integer_value(opts, :limit))
     |> put_keyword_new_present(:cursor, string_value(opts, :cursor))
+    |> maybe_put_backend_stack()
   end
+
+  defp maybe_put_backend_stack(opts) do
+    if Keyword.has_key?(opts, :backend_stack) or Keyword.has_key?(opts, :app_kit_backend_stack) do
+      opts
+    else
+      case app_kit_backend_stack(opts) do
+        nil -> opts
+        stack -> Keyword.put(opts, :backend_stack, stack)
+      end
+    end
+  end
+
+  defp app_kit_backend_stack(opts) do
+    backends =
+      %{}
+      |> maybe_put_backend(
+        :headless_backend,
+        Keyword.get(opts, :headless_backend) ||
+          Keyword.get(opts, :backend) ||
+          Application.get_env(:app_kit_core, :headless_backend)
+      )
+      |> maybe_put_backend(
+        :runtime_backend,
+        Keyword.get(opts, :runtime_backend) ||
+          Keyword.get(opts, :backend) ||
+          Application.get_env(:app_kit_core, :runtime_backend)
+      )
+      |> maybe_put_backend(
+        :source_backend,
+        Keyword.get(opts, :source_backend) ||
+          Application.get_env(:app_kit_core, :source_backend)
+      )
+
+    if map_size(backends) == 0 do
+      nil
+    else
+      AppKit.BackendStack.new!(backends)
+    end
+  end
+
+  defp maybe_put_backend(backends, _role, nil), do: backends
+  defp maybe_put_backend(backends, role, backend), do: Map.put(backends, role, backend)
 
   defp live_product_surface_proof?(%{live_product_path?: true}), do: true
   defp live_product_surface_proof?(_opts), do: nil

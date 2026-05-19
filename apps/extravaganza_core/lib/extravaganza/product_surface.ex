@@ -99,11 +99,13 @@ defmodule Extravaganza.ProductSurface do
   @spec work_control_opts(Config.t(), keyword()) :: keyword()
   def work_control_opts(%Config{} = config, opts) when is_list(opts) or is_map(opts) do
     scoped_opts(config, opts)
+    |> put_configured_backend(config, :work_backend)
   end
 
   @spec work_query_opts(Config.t(), keyword()) :: keyword()
   def work_query_opts(%Config{} = config, opts) when is_list(opts) or is_map(opts) do
     scoped_opts(config, opts)
+    |> put_configured_backend(config, :work_query_backend)
   end
 
   @spec operator_opts(Config.t(), keyword()) :: keyword()
@@ -112,12 +114,21 @@ defmodule Extravaganza.ProductSurface do
     |> normalized_options(opts)
     |> Keyword.put(:tenant_id, config.tenant_id)
     |> Keyword.put(:config, %{operator_surface?: config.operator_surface_enabled?})
+    |> put_configured_backend(config, :operator_backend)
+    |> put_configured_backend(config, :review_backend)
   end
 
   defp scoped_opts(%Config{} = config, opts) when is_list(opts) or is_map(opts) do
     config
     |> normalized_options(opts)
     |> Keyword.put(:scope_id, AppKitContext.scope_id(config))
+  end
+
+  defp put_configured_backend(opts, %Config{} = config, key) do
+    case Keyword.fetch(config.app_kit_backends, key) do
+      {:ok, backend} -> Keyword.put_new(opts, key, backend)
+      :error -> opts
+    end
   end
 
   defp config_overrides(opts) do

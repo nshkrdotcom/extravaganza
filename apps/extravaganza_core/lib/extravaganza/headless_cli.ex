@@ -25,81 +25,210 @@ defmodule Extravaganza.HeadlessCLI do
     SymphonyWorkflowImport
   }
 
-  @operations [
-    :state,
-    :queue,
-    :subject,
-    :run,
-    :start,
-    :refresh,
-    :control,
-    :reviews,
-    :review,
-    :source_preview,
-    :source_sync,
-    :source_publish,
-    :profile,
-    :profile_reload,
-    :profile_validate,
-    :status,
-    :logs,
-    :preflight,
-    :stop,
-    :live_linear_source,
-    :live_linear_current_states,
-    :live_codex_turn,
-    :live_linear_publication,
-    :live_linear_graphql_tool,
-    :live_github_evidence,
-    :live_github_pr_cleanup,
-    :live_smoke,
-    :evidence,
-    :events,
-    :smoke
-  ]
-
-  @live_operations [
-    :live_linear_source,
-    :live_linear_current_states,
-    :live_codex_turn,
-    :live_linear_publication,
-    :live_linear_graphql_tool,
-    :live_github_evidence,
-    :live_github_pr_cleanup,
-    :live_smoke
-  ]
-
-  @mutating_operations [
-    :start,
-    :refresh,
-    :control,
-    :review,
-    :source_sync,
-    :source_publish,
-    :profile_reload,
-    :stop
-  ]
-
   @guardrails_ack_flag "--ack-headless-guardrails"
   @legacy_guardrails_ack_flag "--i-understand-that-this-will-be-running-without-the-usual-guardrails"
   @guardrails_ack_flags [@guardrails_ack_flag, @legacy_guardrails_ack_flag]
 
-  @operation_envelope_names %{
-    live_linear_source: "live.linear-source",
-    live_linear_current_states: "live.linear-current-states",
-    live_codex_turn: "live.codex-turn",
-    live_linear_publication: "live.linear-publication",
-    live_linear_graphql_tool: "live.linear-graphql-tool",
-    live_github_evidence: "live.github-evidence",
-    live_github_pr_cleanup: "live.github-pr-cleanup",
-    live_smoke: "live.smoke"
-  }
+  @operation_specs [
+    %{
+      operation: :state,
+      envelope_name: "state",
+      mix_tasks: ["extravaganza.headless.state"]
+    },
+    %{
+      operation: :queue,
+      envelope_name: "queue",
+      mix_tasks: ["extravaganza.headless.queue"]
+    },
+    %{
+      operation: :subject,
+      envelope_name: "subject",
+      mix_tasks: ["extravaganza.headless.subject"]
+    },
+    %{operation: :run, envelope_name: "run", mix_tasks: ["extravaganza.headless.run"]},
+    %{
+      operation: :start,
+      envelope_name: "start",
+      mix_tasks: ["extravaganza.headless.start"],
+      mutating?: true
+    },
+    %{
+      operation: :refresh,
+      envelope_name: "refresh",
+      mix_tasks: ["extravaganza.headless.refresh"],
+      mutating?: true
+    },
+    %{
+      operation: :control,
+      envelope_name: "control",
+      mix_tasks: ["extravaganza.headless.control"],
+      mutating?: true
+    },
+    %{
+      operation: :reviews,
+      envelope_name: "reviews",
+      mix_tasks: ["extravaganza.headless.reviews"]
+    },
+    %{
+      operation: :review,
+      envelope_name: "review",
+      mix_tasks: ["extravaganza.headless.review"],
+      mutating?: true
+    },
+    %{
+      operation: :source_preview,
+      envelope_name: "source_preview",
+      mix_tasks: ["extravaganza.headless.source_preview"]
+    },
+    %{
+      operation: :source_sync,
+      envelope_name: "source_sync",
+      mix_tasks: ["extravaganza.headless.source.sync", "extravaganza.headless.source_sync"],
+      mutating?: true
+    },
+    %{
+      operation: :source_publish,
+      envelope_name: "source_publish",
+      mix_tasks: ["extravaganza.headless.source_publish"],
+      mutating?: true
+    },
+    %{
+      operation: :profile,
+      envelope_name: "profile",
+      mix_tasks: ["extravaganza.headless.profile"]
+    },
+    %{
+      operation: :profile_reload,
+      envelope_name: "profile_reload",
+      mix_tasks: ["extravaganza.headless.profile_reload"],
+      mutating?: true
+    },
+    %{
+      operation: :profile_validate,
+      envelope_name: "profile_validate",
+      mix_tasks: ["extravaganza.headless.profile_validate"]
+    },
+    %{
+      operation: :status,
+      envelope_name: "status",
+      mix_tasks: ["extravaganza.headless.status"]
+    },
+    %{operation: :logs, envelope_name: "logs", mix_tasks: ["extravaganza.headless.logs"]},
+    %{
+      operation: :preflight,
+      envelope_name: "preflight",
+      mix_tasks: ["extravaganza.headless.preflight"]
+    },
+    %{
+      operation: :stop,
+      envelope_name: "stop",
+      mix_tasks: ["extravaganza.headless.stop"],
+      mutating?: true
+    },
+    %{
+      operation: :live_linear_source,
+      envelope_name: "live.linear-source",
+      mix_tasks: [
+        "extravaganza.headless.live.linear_source",
+        "extravaganza.headless.live_linear_source"
+      ],
+      live?: true
+    },
+    %{
+      operation: :live_linear_current_states,
+      envelope_name: "live.linear-current-states",
+      mix_tasks: [
+        "extravaganza.headless.live.linear_current_states",
+        "extravaganza.headless.live_linear_current_states"
+      ],
+      live?: true
+    },
+    %{
+      operation: :live_codex_turn,
+      envelope_name: "live.codex-turn",
+      mix_tasks: [
+        "extravaganza.headless.live.codex_turn",
+        "extravaganza.headless.live_codex_turn"
+      ],
+      live?: true
+    },
+    %{
+      operation: :live_linear_publication,
+      envelope_name: "live.linear-publication",
+      mix_tasks: [
+        "extravaganza.headless.live.linear_publication",
+        "extravaganza.headless.live_linear_publication"
+      ],
+      live?: true
+    },
+    %{
+      operation: :live_linear_graphql_tool,
+      envelope_name: "live.linear-graphql-tool",
+      mix_tasks: [
+        "extravaganza.headless.live.linear_graphql_tool",
+        "extravaganza.headless.live_linear_graphql_tool"
+      ],
+      live?: true
+    },
+    %{
+      operation: :live_github_evidence,
+      envelope_name: "live.github-evidence",
+      mix_tasks: [
+        "extravaganza.headless.live.github_evidence",
+        "extravaganza.headless.live_github_evidence"
+      ],
+      live?: true
+    },
+    %{
+      operation: :live_github_pr_cleanup,
+      envelope_name: "live.github-pr-cleanup",
+      mix_tasks: [
+        "extravaganza.headless.live.github_pr_cleanup",
+        "extravaganza.headless.live_github_pr_cleanup"
+      ],
+      live?: true
+    },
+    %{
+      operation: :live_smoke,
+      envelope_name: "live.smoke",
+      mix_tasks: ["extravaganza.headless.live.smoke", "extravaganza.headless.live_smoke"],
+      live?: true
+    },
+    %{
+      operation: :evidence,
+      envelope_name: "evidence",
+      mix_tasks: ["extravaganza.headless.evidence"]
+    },
+    %{
+      operation: :events,
+      envelope_name: "events",
+      mix_tasks: ["extravaganza.headless.events"]
+    },
+    %{operation: :smoke, envelope_name: "smoke", mix_tasks: ["extravaganza.headless.smoke"]}
+  ]
+
+  @operations for %{operation: operation} <- @operation_specs, do: operation
+  @live_operations for %{operation: operation, live?: true} <- @operation_specs, do: operation
+  @mutating_operations for %{operation: operation, mutating?: true} <- @operation_specs,
+                           do: operation
+
+  @operation_envelope_names Map.new(@operation_specs, fn spec ->
+                              {spec.operation, spec.envelope_name}
+                            end)
 
   @spec operations() :: [atom()]
   def operations, do: @operations
 
+  @doc false
+  @spec operation_specs() :: [map()]
+  def operation_specs, do: @operation_specs
+
   @spec guardrails_ack_flags() :: [String.t()]
   def guardrails_ack_flags, do: @guardrails_ack_flags
+
+  @doc false
+  @spec parse_options([String.t()]) :: map()
+  def parse_options(argv) when is_list(argv), do: parse(argv)
 
   @spec guardrails_acknowledgement_error(atom(), [String.t()]) ::
           nil | {:operator_ack_required, map()}
@@ -141,13 +270,13 @@ defmodule Extravaganza.HeadlessCLI do
     do:
       HeadlessJSON.wrap(
         :state,
-        HeadlessSurface.state_snapshot(%{}, []),
+        HeadlessSurface.state_snapshot(%{}, surface_opts(opts)),
         &StatePresenter.present/1,
         opts
       )
 
   defp dispatch(:queue, opts) do
-    case HeadlessSurface.operator_queue(%{}, []) do
+    case HeadlessSurface.operator_queue(%{}, surface_opts(opts)) do
       {:ok, queue} -> HeadlessJSON.success(:queue, StatePresenter.present_queue(queue), opts)
       {:error, reason} -> HeadlessJSON.error(:queue, reason, opts)
     end
@@ -158,7 +287,7 @@ defmodule Extravaganza.HeadlessCLI do
 
     HeadlessJSON.wrap(
       :subject,
-      HeadlessSurface.subject_detail(subject_id, %{}, []),
+      HeadlessSurface.subject_detail(subject_id, %{}, surface_opts(opts)),
       &SubjectPresenter.present/1,
       opts
     )
@@ -169,7 +298,7 @@ defmodule Extravaganza.HeadlessCLI do
 
     HeadlessJSON.wrap(
       :run,
-      HeadlessSurface.run_detail(run_id, %{}, []),
+      HeadlessSurface.run_detail(run_id, %{}, surface_opts(opts)),
       &RunPresenter.present/1,
       opts
     )
@@ -177,7 +306,9 @@ defmodule Extravaganza.HeadlessCLI do
 
   defp dispatch(:start, opts) do
     if Map.has_key?(opts, :fixture) do
-      dispatch(:run, Map.put(opts, :operation_override, :start))
+      :run
+      |> dispatch(Map.put(opts, :operation_override, :start))
+      |> Map.put("operation", "start")
     else
       HeadlessJSON.wrap(
         :start,
@@ -193,7 +324,7 @@ defmodule Extravaganza.HeadlessCLI do
 
     HeadlessJSON.wrap(
       :refresh,
-      HeadlessSurface.request_refresh(attrs, []),
+      HeadlessSurface.request_refresh(attrs, surface_opts(opts)),
       &CommandResultPresenter.present/1,
       opts
     )
@@ -206,7 +337,7 @@ defmodule Extravaganza.HeadlessCLI do
 
     HeadlessJSON.wrap(
       :control,
-      HeadlessSurface.request_control(subject_id, action, attrs, []),
+      HeadlessSurface.request_control(subject_id, action, attrs, surface_opts(opts)),
       &CommandResultPresenter.present/1,
       opts
     )
@@ -216,7 +347,7 @@ defmodule Extravaganza.HeadlessCLI do
     do:
       HeadlessJSON.wrap(
         :reviews,
-        HeadlessSurface.list_reviews(%{}, []),
+        HeadlessSurface.list_reviews(%{}, surface_opts(opts)),
         &ReviewPresenter.present_page/1,
         opts
       )
@@ -239,7 +370,7 @@ defmodule Extravaganza.HeadlessCLI do
 
     HeadlessJSON.wrap(
       :review,
-      HeadlessSurface.record_review_decision(identity, attrs, []),
+      HeadlessSurface.record_review_decision(identity, attrs, surface_opts(opts)),
       &CommandResultPresenter.present/1,
       opts
     )
@@ -250,7 +381,7 @@ defmodule Extravaganza.HeadlessCLI do
 
     HeadlessJSON.wrap(
       :source_preview,
-      HeadlessSurface.source_publication_preview(subject_id, []),
+      HeadlessSurface.source_publication_preview(subject_id, surface_opts(opts)),
       &SourcePresenter.present_publication_preview/1,
       opts
     )
@@ -415,7 +546,7 @@ defmodule Extravaganza.HeadlessCLI do
 
     HeadlessJSON.wrap(
       :evidence,
-      HeadlessSurface.evidence_chain(run_id, %{}, []),
+      HeadlessSurface.evidence_chain(run_id, %{}, surface_opts(opts)),
       &EvidencePresenter.present/1,
       opts
     )
@@ -426,7 +557,7 @@ defmodule Extravaganza.HeadlessCLI do
 
     HeadlessJSON.wrap(
       :events,
-      HeadlessSurface.events(%{"run_id" => run_id}, []),
+      HeadlessSurface.events(%{"run_id" => run_id}, surface_opts(opts)),
       &EventPresenter.present_page/1,
       opts
     )
@@ -804,13 +935,29 @@ defmodule Extravaganza.HeadlessCLI do
     |> Map.take([:tenant_id, :pack_version, :profile_cache_path])
     |> Map.put_new(:tenant_id, "extravaganza-headless-#{unique}")
     |> Map.put_new(:pack_version, "1.0.0-headless.#{unique}")
+    |> maybe_put_fixture_backend_stack(opts)
     |> Enum.to_list()
   end
 
   defp surface_opts(opts) do
     opts
     |> Map.take([:tenant_id, :pack_version])
+    |> maybe_put_fixture_backend_stack(opts)
     |> Enum.to_list()
+  end
+
+  defp maybe_put_fixture_backend_stack(selected, %{fixture: _fixture}) do
+    Map.put_new(selected, :backend_stack, fixture_backend_stack())
+  end
+
+  defp maybe_put_fixture_backend_stack(selected, _opts), do: selected
+
+  defp fixture_backend_stack do
+    AppKit.BackendStack.new!(%{
+      headless_backend: HeadlessFixtureBackend,
+      runtime_backend: HeadlessFixtureBackend,
+      source_backend: HeadlessFixtureBackend
+    })
   end
 
   defp live_opts(opts) do

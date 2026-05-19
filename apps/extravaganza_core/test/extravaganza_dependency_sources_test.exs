@@ -2,6 +2,7 @@ defmodule Extravaganza.DependencySourcesTest do
   use ExUnit.Case, async: true
 
   @repo_root Path.expand("../../..", __DIR__)
+  @dependency_sources Path.join(@repo_root, "build_support/dependency_sources.exs")
   @config_path Path.join(@repo_root, "build_support/dependency_sources.config.exs")
   @expected_apps [
     :ai_trace_replay_contracts,
@@ -73,8 +74,7 @@ defmodule Extravaganza.DependencySourcesTest do
   ]
 
   test "declares every cross-repo dependency in the no-env dependency manifest" do
-    {config, _binding} = Code.eval_file(@config_path)
-
+    config = DependencySources.config!(@repo_root)
     deps = Map.fetch!(config, :deps)
 
     assert Enum.sort(Map.keys(deps)) == Enum.sort(@expected_apps)
@@ -89,6 +89,14 @@ defmodule Extravaganza.DependencySourcesTest do
       assert dep_config.default_order in [[:path, :github, :hex], [:github, :hex, :path]]
       assert dep_config.publish_order == [:hex]
     end)
+
+    dependency_source = File.read!(@dependency_sources)
+    config_source = File.read!(@config_path)
+
+    refute String.contains?(dependency_source, "Code.eval_file")
+    refute String.contains?(dependency_source, "String.to_atom")
+    refute String.contains?(dependency_source, "String.to_existing_atom")
+    refute String.contains?(config_source, "System.get_env")
   end
 
   test "umbrella root owns clean-clone dependency overrides" do

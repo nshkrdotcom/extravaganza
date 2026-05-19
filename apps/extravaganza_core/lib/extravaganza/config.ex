@@ -18,7 +18,7 @@ defmodule Extravaganza.Config do
     :linear_source_kind,
     :operator_surface_enabled?
   ]
-  defstruct @enforce_keys
+  defstruct @enforce_keys ++ [app_kit_backends: []]
 
   @type t :: %__MODULE__{
           tenant_id: String.t(),
@@ -33,7 +33,8 @@ defmodule Extravaganza.Config do
           placement_profile_id: String.t(),
           execution_timeout_ms: pos_integer(),
           linear_source_kind: String.t(),
-          operator_surface_enabled?: boolean()
+          operator_surface_enabled?: boolean(),
+          app_kit_backends: keyword()
         }
 
   @spec load(keyword() | map()) :: t()
@@ -57,7 +58,8 @@ defmodule Extravaganza.Config do
       placement_profile_id: Map.fetch!(configured, :placement_profile_id),
       execution_timeout_ms: Map.fetch!(configured, :execution_timeout_ms),
       linear_source_kind: Map.fetch!(configured, :linear_source_kind),
-      operator_surface_enabled?: Map.fetch!(configured, :operator_surface_enabled?)
+      operator_surface_enabled?: Map.fetch!(configured, :operator_surface_enabled?),
+      app_kit_backends: Map.get(configured, :app_kit_backends, [])
     }
   end
 end

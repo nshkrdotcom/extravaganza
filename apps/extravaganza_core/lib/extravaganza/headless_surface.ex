@@ -19,6 +19,7 @@ defmodule Extravaganza.HeadlessSurface do
   alias Extravaganza.{
     AppKitContext,
     Config,
+    HeadlessFixtureBackend,
     HeadlessReadback,
     Operators,
     ProductSurface,
@@ -32,7 +33,7 @@ defmodule Extravaganza.HeadlessSurface do
   @spec state_snapshot(map(), keyword()) :: {:ok, struct()} | {:error, term()}
   def state_snapshot(params \\ %{}, opts \\ []) when is_map(params) and is_list(opts) do
     with {:ok, %{context: context}} <- context_bundle(opts) do
-      AppKitHeadlessSurface.state_snapshot(context, Map.new(params), opts)
+      AppKitHeadlessSurface.state_snapshot(context, Map.new(params), app_kit_opts(opts))
     end
   end
 
@@ -60,7 +61,12 @@ defmodule Extravaganza.HeadlessSurface do
   def subject_detail(subject_id, params \\ %{}, opts \\ [])
       when is_binary(subject_id) and is_map(params) and is_list(opts) do
     with {:ok, %{context: context}} <- context_bundle(opts) do
-      AppKitHeadlessSurface.subject_detail(context, subject_id, Map.new(params), opts)
+      AppKitHeadlessSurface.subject_detail(
+        context,
+        subject_id,
+        Map.new(params),
+        app_kit_opts(opts)
+      )
     end
   end
 
@@ -75,7 +81,7 @@ defmodule Extravaganza.HeadlessSurface do
   def run_detail(run_id, params \\ %{}, opts \\ [])
       when is_binary(run_id) and is_map(params) and is_list(opts) do
     with {:ok, %{context: context}} <- context_bundle(opts) do
-      AppKitHeadlessSurface.run_detail(context, run_id, Map.new(params), opts)
+      AppKitHeadlessSurface.run_detail(context, run_id, Map.new(params), app_kit_opts(opts))
     end
   end
 
@@ -109,7 +115,7 @@ defmodule Extravaganza.HeadlessSurface do
         reason: map_value(attrs, :reason) || "manual_refresh"
       }
 
-      AppKitHeadlessSurface.request_refresh(context, request, opts)
+      AppKitHeadlessSurface.request_refresh(context, request, app_kit_opts(opts))
     end
   end
 
@@ -129,7 +135,7 @@ defmodule Extravaganza.HeadlessSurface do
       }
 
       if headless_control_backend_path?(opts) do
-        AppKitHeadlessSurface.request_control(context, request, opts)
+        AppKitHeadlessSurface.request_control(context, request, app_kit_opts(opts))
       else
         dispatch_product_control(config, context, subject_id, action, attrs, opts)
       end
@@ -190,7 +196,7 @@ defmodule Extravaganza.HeadlessSurface do
         context,
         :issue_tracker,
         %{source_binding: source_binding},
-        opts
+        app_kit_opts(opts)
       )
     end
   end
@@ -204,7 +210,7 @@ defmodule Extravaganza.HeadlessSurface do
         context,
         :issue_tracker,
         %{issue_ids: issue_ids, source_binding: source_binding},
-        opts
+        app_kit_opts(opts)
       )
     end
   end
@@ -212,7 +218,7 @@ defmodule Extravaganza.HeadlessSurface do
   @spec publish_source_update(map(), keyword()) :: {:ok, map()} | {:error, term()}
   def publish_source_update(attrs, opts \\ []) when is_map(attrs) and is_list(opts) do
     with {:ok, %{context: context}} <- context_bundle(opts) do
-      AppKitSourceSurface.publish(context, :source_publication, attrs, opts)
+      AppKitSourceSurface.publish(context, :source_publication, attrs, app_kit_opts(opts))
     end
   end
 
@@ -290,28 +296,28 @@ defmodule Extravaganza.HeadlessSurface do
   def apply_runtime_profile(runtime_profile, opts \\ [])
       when is_map(runtime_profile) and is_list(opts) do
     with {:ok, %{context: context}} <- context_bundle(opts) do
-      AppKitRuntimeSurface.apply_runtime_profile(context, runtime_profile, opts)
+      AppKitRuntimeSurface.apply_runtime_profile(context, runtime_profile, app_kit_opts(opts))
     end
   end
 
   @spec runtime_status(map(), keyword()) :: {:ok, struct()} | {:error, term()}
   def runtime_status(params \\ %{}, opts \\ []) when is_map(params) and is_list(opts) do
     with {:ok, %{context: context}} <- context_bundle(opts) do
-      AppKitRuntimeSurface.runtime_status(context, Map.new(params), opts)
+      AppKitRuntimeSurface.runtime_status(context, Map.new(params), app_kit_opts(opts))
     end
   end
 
   @spec runtime_logs(map(), keyword()) :: {:ok, struct()} | {:error, term()}
   def runtime_logs(params \\ %{}, opts \\ []) when is_map(params) and is_list(opts) do
     with {:ok, %{context: context}} <- context_bundle(opts) do
-      AppKitRuntimeSurface.runtime_logs(context, Map.new(params), opts)
+      AppKitRuntimeSurface.runtime_logs(context, Map.new(params), app_kit_opts(opts))
     end
   end
 
   @spec record_live_effect(map(), keyword()) :: {:ok, struct()} | {:error, term()}
   def record_live_effect(attrs, opts \\ []) when is_map(attrs) and is_list(opts) do
     with {:ok, %{context: context}} <- context_bundle(opts) do
-      AppKitRuntimeSurface.record_live_effect(context, attrs, opts)
+      AppKitRuntimeSurface.record_live_effect(context, attrs, app_kit_opts(opts))
     end
   end
 
@@ -367,6 +373,60 @@ defmodule Extravaganza.HeadlessSurface do
     else
       opts
     end
+  end
+
+  defp app_kit_opts(opts) do
+    if Keyword.has_key?(opts, :backend_stack) or Keyword.has_key?(opts, :app_kit_backend_stack) do
+      opts
+    else
+      case app_kit_backend_stack(opts) do
+        nil -> opts
+        stack -> Keyword.put(opts, :backend_stack, stack)
+      end
+    end
+  end
+
+  defp app_kit_backend_stack(opts) do
+    backends = Map.new(app_kit_backend_pairs(opts))
+
+    if map_size(backends) == 0 do
+      nil
+    else
+      AppKit.BackendStack.new!(backends)
+    end
+  end
+
+  defp app_kit_backend_pairs(opts) do
+    [
+      {:headless_backend, headless_backend(opts)},
+      {:runtime_backend, runtime_backend(opts)},
+      {:source_backend, source_backend(opts)}
+    ]
+    |> Enum.reject(fn {_role, backend} -> is_nil(backend) end)
+  end
+
+  defp headless_backend(opts) do
+    Keyword.get(opts, :headless_backend) ||
+      Keyword.get(opts, :backend) ||
+      Application.get_env(:app_kit_core, :headless_backend) ||
+      fixture_backend()
+  end
+
+  defp runtime_backend(opts) do
+    Keyword.get(opts, :runtime_backend) ||
+      Keyword.get(opts, :backend) ||
+      Application.get_env(:app_kit_core, :runtime_backend) ||
+      fixture_backend()
+  end
+
+  defp source_backend(opts) do
+    Keyword.get(opts, :source_backend) ||
+      Application.get_env(:app_kit_core, :source_backend) ||
+      fixture_backend()
+  end
+
+  defp fixture_backend do
+    if fixture_context?(), do: HeadlessFixtureBackend
   end
 
   defp put_runtime_binding(request) do
