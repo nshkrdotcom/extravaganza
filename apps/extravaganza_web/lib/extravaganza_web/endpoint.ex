@@ -1,6 +1,16 @@
 defmodule ExtravaganzaWeb.Endpoint do
   use Phoenix.Endpoint, otp_app: :extravaganza_web
 
+  def init(:supervisor, config) do
+    config =
+      case Keyword.get(config, :headless_server_plan) do
+        %{} = plan -> ExtravaganzaWeb.HeadlessServer.endpoint_config(config, plan)
+        _missing -> config
+      end
+
+    {:ok, config}
+  end
+
   @session_options [
     store: :cookie,
     key: "_extravaganza_web_key",

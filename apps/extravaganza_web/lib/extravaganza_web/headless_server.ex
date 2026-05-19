@@ -10,6 +10,7 @@ defmodule ExtravaganzaWeb.HeadlessServer do
 
   alias Extravaganza.SymphonyWorkflowImport
   alias ExtravaganzaWeb.Endpoint
+  use Supervisor
 
   @default_host "127.0.0.1"
   @route_map %{
@@ -38,16 +39,34 @@ defmodule ExtravaganzaWeb.HeadlessServer do
   end
 
   @spec start_link(keyword() | map()) :: Supervisor.on_start()
-  def start_link(opts \\ []) do
+  def start_link(opts \\ [])
+
+  def start_link(%{"enabled?" => _enabled?} = plan) do
+    start_plan(plan)
+  end
+
+  def start_link(opts) do
     with {:ok, plan} <- plan(opts) do
-      if plan["enabled?"] do
-        configure_endpoint!(plan)
-        Endpoint.start_link()
-      else
-        :ignore
-      end
+      start_plan(plan)
     end
   end
+
+  @impl Supervisor
+  def init(%{"enabled?" => true} = plan) do
+    children =
+      pubsub_children() ++
+        [
+          {Endpoint, endpoint_opts(plan)}
+        ]
+
+    Supervisor.init(children, strategy: :one_for_one)
+  end
+
+  defp start_plan(%{"enabled?" => true} = plan) do
+    Supervisor.start_link(__MODULE__, plan)
+  end
+
+  defp start_plan(_plan), do: :ignore
 
   @spec bound_port() :: non_neg_integer() | nil
   def bound_port do
@@ -91,23 +110,40 @@ defmodule ExtravaganzaWeb.HeadlessServer do
   end
 
   @spec configure_endpoint!(plan()) :: :ok
-  def configure_endpoint!(%{"configured_port" => port, "host" => host} = _plan)
+  def configure_endpoint!(_plan), do: :ok
+
+  @spec endpoint_opts(plan()) :: keyword()
+  def endpoint_opts(%{"configured_port" => port, "host" => host} = plan)
+      when is_integer(port) do
+    [
+      headless_server_plan: plan,
+      headless_server_port: port,
+      headless_server_host: host
+    ]
+  end
+
+  def endpoint_opts(_plan), do: []
+
+  @spec endpoint_config(keyword(), plan()) :: keyword()
+  def endpoint_config(config, %{"configured_port" => port, "host" => host})
       when is_integer(port) do
     {:ok, ip} = parse_host(host)
 
-    existing = Application.get_env(:extravaganza_web, Endpoint, [])
-
-    updated =
-      existing
-      |> Keyword.put(:server, true)
-      |> Keyword.put(:http, Keyword.merge(Keyword.get(existing, :http, []), ip: ip, port: port))
-      |> Keyword.put(:url, Keyword.merge(Keyword.get(existing, :url, []), host: host, port: port))
-
-    Application.put_env(:extravaganza_web, Endpoint, updated)
-    :ok
+    config
+    |> Keyword.put(:server, true)
+    |> Keyword.put(:http, Keyword.merge(Keyword.get(config, :http, []), ip: ip, port: port))
+    |> Keyword.put(:url, Keyword.merge(Keyword.get(config, :url, []), host: host, port: port))
   end
 
-  def configure_endpoint!(_plan), do: :ok
+  def endpoint_config(config, _plan), do: config
+
+  defp pubsub_children do
+    if Process.whereis(ExtravaganzaWeb.PubSub) do
+      []
+    else
+      [{Phoenix.PubSub, name: ExtravaganzaWeb.PubSub}]
+    end
+  end
 
   defp normalize_opts(opts) when is_list(opts), do: Keyword.new(opts)
   defp normalize_opts(opts) when is_map(opts), do: Map.to_list(opts)
@@ -185,7 +221,10 @@ defmodule ExtravaganzaWeb.HeadlessServer do
       "replacement_for" => "symphony_cli_wait_for_shutdown",
       "one_shot?" => false,
       "start_module" => inspect(__MODULE__),
+      "shutdown_runner" => "ExtravaganzaWeb.HeadlessServer.Runner",
       "supervisor" => inspect(Endpoint),
+      "pid_file_supported?" => true,
+      "ready_file_supported?" => true,
       "waits_for_shutdown?" => true
     }
   end

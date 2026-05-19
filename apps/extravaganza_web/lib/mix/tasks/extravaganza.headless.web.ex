@@ -2,6 +2,7 @@ defmodule Mix.Tasks.Extravaganza.Headless.Web do
   use Mix.Task
 
   alias ExtravaganzaWeb.HeadlessServer
+  alias ExtravaganzaWeb.HeadlessServer.Runner
 
   @moduledoc false
   @shortdoc "Start the product headless web shell"
@@ -14,6 +15,8 @@ defmodule Mix.Tasks.Extravaganza.Headless.Web do
     workflow: :string,
     workflow_path: :string,
     cwd: :string,
+    pid_file: :string,
+    ready_file: :string,
     env: :keep
   ]
 
@@ -33,7 +36,7 @@ defmodule Mix.Tasks.Extravaganza.Headless.Web do
         if Keyword.get(opts, :once, false) do
           emit_success(plan, Keyword.get(opts, :json, false))
         else
-          start_server(plan, Keyword.get(opts, :json, false))
+          start_server(plan, opts)
         end
 
       {:error, reason} ->
@@ -41,31 +44,32 @@ defmodule Mix.Tasks.Extravaganza.Headless.Web do
     end
   end
 
-  defp start_server(%{"enabled?" => false}, json?) do
+  defp start_server(%{"enabled?" => false}, opts) do
+    json? = Keyword.get(opts, :json, false)
+
     emit_error(:port_required, json?)
   end
 
-  defp start_server(plan, json?) do
-    HeadlessServer.configure_endpoint!(plan)
+  defp start_server(plan, opts) do
+    json? = Keyword.get(opts, :json, false)
 
-    case Application.ensure_all_started(:extravaganza_web) do
-      {:ok, _apps} ->
-        plan
-        |> Map.put("bound_port", HeadlessServer.bound_port())
-        |> emit_success(json?)
+    case Runner.start(plan, runner_opts(opts)) do
+      {:ok, runner} ->
+        emit_success(runner.plan, json?)
 
-        Process.sleep(:infinity)
-
-      {:error, {:already_started, _app}} ->
-        plan
-        |> Map.put("bound_port", HeadlessServer.bound_port())
-        |> emit_success(json?)
-
-        Process.sleep(:infinity)
+        with {:ok, receipt} <- Runner.await_shutdown(runner) do
+          emit_shutdown(receipt, json?)
+        end
 
       {:error, reason} ->
-        emit_error({:server_start_failed, reason}, json?)
+        emit_error(reason, json?)
     end
+  end
+
+  defp runner_opts(opts) do
+    opts
+    |> Keyword.take([:pid_file, :ready_file])
+    |> Enum.reject(fn {_key, value} -> value in [nil, ""] end)
   end
 
   defp parse(argv) do
@@ -137,6 +141,25 @@ defmodule Mix.Tasks.Extravaganza.Headless.Web do
     :ok
   end
 
+  defp emit_shutdown(receipt, true) do
+    IO.puts(
+      Jason.encode!(%{
+        "ok" => true,
+        "schema" => "extravaganza.headless.response.v1",
+        "operation" => "web.shutdown",
+        "data" => receipt,
+        "refs" => %{}
+      })
+    )
+
+    :ok
+  end
+
+  defp emit_shutdown(receipt, false) do
+    Mix.shell().info("Headless web shell stopped: #{receipt["reason"]}")
+    :ok
+  end
+
   defp render_error({:invalid_port, port}) do
     %{
       "code" => "invalid_port",
@@ -176,6 +199,14 @@ defmodule Mix.Tasks.Extravaganza.Headless.Web do
     }
   end
 
+  defp render_error({:lifecycle_file_failed, path, reason}) do
+    %{
+      "code" => "lifecycle_file_failed",
+      "message" => inspect(reason),
+      "path" => path
+    }
+  end
+
   defp render_error(:port_required) do
     %{
       "code" => "port_required",
@@ -192,7 +223,6 @@ defmodule Mix.Tasks.Extravaganza.Headless.Web do
 
   defp configure_json_logging(argv) do
     if "--json" in argv do
-      Application.put_env(:logger, :level, :error)
       :logger.set_primary_config(:level, :error)
       Logger.configure(level: :error)
     end

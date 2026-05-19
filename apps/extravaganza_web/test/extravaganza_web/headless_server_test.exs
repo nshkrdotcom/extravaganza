@@ -4,6 +4,7 @@ defmodule ExtravaganzaWeb.HeadlessServerTest do
   import ExUnit.CaptureIO
 
   alias ExtravaganzaWeb.HeadlessServer
+  alias ExtravaganzaWeb.HeadlessServer.Runner
   alias Mix.Tasks.Extravaganza.Headless.Web
 
   @tag :tmp_dir
@@ -100,7 +101,10 @@ defmodule ExtravaganzaWeb.HeadlessServerTest do
              "replacement_for" => "symphony_cli_wait_for_shutdown",
              "one_shot?" => false,
              "start_module" => "ExtravaganzaWeb.HeadlessServer",
+             "shutdown_runner" => "ExtravaganzaWeb.HeadlessServer.Runner",
              "supervisor" => "ExtravaganzaWeb.Endpoint",
+             "pid_file_supported?" => true,
+             "ready_file_supported?" => true,
              "waits_for_shutdown?" => true
            }
 
@@ -133,6 +137,61 @@ defmodule ExtravaganzaWeb.HeadlessServerTest do
              })
 
     assert Process.alive?(pid)
+  end
+
+  @tag :tmp_dir
+  test "runner writes lifecycle files and renders shutdown receipts", %{tmp_dir: tmp_dir} do
+    pid_file = Path.join(tmp_dir, "headless.pid")
+    ready_file = Path.join(tmp_dir, "headless.ready.json")
+
+    runner = %Runner{
+      plan: %{"bound_port" => 4321},
+      pid_file: pid_file,
+      ready_file: ready_file
+    }
+
+    assert :ok = Runner.write_lifecycle_files(runner)
+    assert String.trim(File.read!(pid_file)) == System.pid()
+
+    assert %{
+             "status" => "ready",
+             "operation" => "web",
+             "bound_port" => 4321
+           } = ready_file |> File.read!() |> Jason.decode!()
+
+    receipt = Runner.shutdown_receipt(runner, %{source: "signal", reason: :sigterm})
+
+    assert receipt["status"] == "stopped"
+    assert receipt["source"] == "signal"
+    assert receipt["reason"] == "sigterm"
+    assert receipt["bound_port"] == 4321
+    assert receipt["pid_file"] == pid_file
+    assert receipt["ready_file"] == ready_file
+  end
+
+  test "runner wait handles shutdown and signal messages without infinite sleep" do
+    send(self(), {:shutdown, :operator_shutdown})
+
+    assert %{source: "message", reason: :operator_shutdown} =
+             Runner.wait_for_shutdown(signal_traps?: false, timeout: 10)
+
+    send(self(), {:headless_server_shutdown, :sigterm})
+
+    assert %{source: "signal", reason: :sigterm} =
+             Runner.wait_for_shutdown(signal_traps?: false, timeout: 10)
+
+    send(self(), {:headless_server_shutdown, :sigint})
+
+    assert %{source: "signal", reason: :sigint} =
+             Runner.wait_for_shutdown(signal_traps?: false, timeout: 10)
+
+    source =
+      __DIR__
+      |> Path.join("../../lib/mix/tasks/extravaganza.headless.web.ex")
+      |> Path.expand()
+      |> File.read!()
+
+    refute String.contains?(source, "Process.sleep(:infinity)")
   end
 
   test "plan maps every Symphony supervised child to its product replacement" do
