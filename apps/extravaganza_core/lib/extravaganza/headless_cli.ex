@@ -3,8 +3,16 @@ defmodule Extravaganza.HeadlessCLI do
   Product-owned command dispatcher for local headless examples and Mix tasks.
   """
 
-  alias Extravaganza.HeadlessCLI.{Dispatch, Errors, Guardrails, OperationRegistry, Output, Parser}
-  alias Extravaganza.HeadlessFixtureBackend
+  alias Extravaganza.HeadlessCLI.{
+    Dispatch,
+    Errors,
+    FixtureContext,
+    Guardrails,
+    OperationRegistry,
+    Output,
+    Parser
+  }
+
   alias Extravaganza.HeadlessJSON
 
   @spec operations() :: [atom()]
@@ -34,7 +42,12 @@ defmodule Extravaganza.HeadlessCLI do
   end
 
   @spec run(atom(), [String.t()]) :: :ok
-  def run(operation, argv) when is_atom(operation) and is_list(argv) do
+  def run(operation, argv), do: run(operation, argv, %{})
+
+  @spec run(atom(), [String.t()], keyword() | map()) :: :ok
+  def run(operation, argv, runtime_opts)
+      when is_atom(operation) and is_list(argv) and
+             (is_list(runtime_opts) or is_map(runtime_opts)) do
     unless OperationRegistry.operation?(operation) do
       raise ArgumentError, message: inspect(Errors.unsupported_operation(operation))
     end
@@ -42,9 +55,9 @@ defmodule Extravaganza.HeadlessCLI do
     opts =
       argv
       |> Parser.parse()
+      |> Map.merge(Map.new(runtime_opts))
       |> OperationRegistry.maybe_default_live_fixture(operation)
-
-    maybe_install_fixture_backend(opts)
+      |> FixtureContext.apply()
 
     operation
     |> guarded_dispatch(opts)
@@ -70,20 +83,4 @@ defmodule Extravaganza.HeadlessCLI do
 
     Output.print(envelope, opts)
   end
-
-  defp maybe_install_fixture_backend(%{fixture: _fixture}) do
-    Application.put_env(:app_kit_core, :headless_backend, HeadlessFixtureBackend)
-
-    unless Application.get_env(:app_kit_core, :source_backend) do
-      Application.put_env(:app_kit_core, :source_backend, HeadlessFixtureBackend)
-    end
-
-    unless Application.get_env(:app_kit_core, :runtime_backend) do
-      Application.put_env(:app_kit_core, :runtime_backend, HeadlessFixtureBackend)
-    end
-
-    Application.put_env(:extravaganza_core, :headless_fixture_context?, true)
-  end
-
-  defp maybe_install_fixture_backend(_opts), do: :ok
 end

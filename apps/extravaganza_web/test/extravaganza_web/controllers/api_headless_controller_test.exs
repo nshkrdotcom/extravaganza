@@ -9,6 +9,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
 
   alias Extravaganza.{ProductBootstrap, ProductHost, ProductPack}
   alias Extravaganza.TestSupport.{ExecutionTraceFixture, FakeHeadlessBackend}
+  alias ExtravaganzaWeb.HeadlessSurfaceOptions
   alias ExtravaganzaWeb.ObservabilityUpdates
   alias Mezzanine.ConfigRegistry.PackRegistration
   alias Mezzanine.Pack.Compiler
@@ -25,45 +26,14 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
     {"/api/v1/live/smoke", "live.smoke"}
   ]
 
-  setup do
-    previous_backend = Application.get_env(:app_kit_core, :headless_backend)
-    previous_runtime_backend = Application.get_env(:app_kit_core, :runtime_backend)
-    previous_source_backend = Application.get_env(:app_kit_core, :source_backend)
-    previous_fixture_context = Application.get_env(:extravaganza_core, :headless_fixture_context?)
-    Application.put_env(:app_kit_core, :headless_backend, FakeHeadlessBackend)
-    Application.put_env(:app_kit_core, :runtime_backend, __MODULE__.RuntimeBackend)
-    Application.put_env(:app_kit_core, :source_backend, __MODULE__.SourceBackend)
-    Application.put_env(:extravaganza_core, :headless_fixture_context?, true)
-
-    on_exit(fn ->
-      if previous_backend do
-        Application.put_env(:app_kit_core, :headless_backend, previous_backend)
-      else
-        Application.delete_env(:app_kit_core, :headless_backend)
-      end
-
-      if previous_runtime_backend do
-        Application.put_env(:app_kit_core, :runtime_backend, previous_runtime_backend)
-      else
-        Application.delete_env(:app_kit_core, :runtime_backend)
-      end
-
-      if previous_source_backend do
-        Application.put_env(:app_kit_core, :source_backend, previous_source_backend)
-      else
-        Application.delete_env(:app_kit_core, :source_backend)
-      end
-
-      if is_nil(previous_fixture_context) do
-        Application.delete_env(:extravaganza_core, :headless_fixture_context?)
-      else
-        Application.put_env(
-          :extravaganza_core,
-          :headless_fixture_context?,
-          previous_fixture_context
-        )
-      end
-    end)
+  setup %{conn: conn} do
+    {:ok,
+     conn:
+       HeadlessSurfaceOptions.put(conn,
+         headless_backend: FakeHeadlessBackend,
+         runtime_backend: __MODULE__.RuntimeBackend,
+         source_backend: __MODULE__.SourceBackend
+       )}
   end
 
   test "GET /api/v1/state returns the offline M1 state presenter", %{conn: conn} do
@@ -308,7 +278,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
     for action <- ~w[pause resume cancel retry] do
       accepted =
         conn
-        |> recycle()
+        |> recycle_with_surface_opts()
         |> post(~p"/api/v1/subjects/subject:fixture/control/#{action}", %{
           "idempotency_key" => "idem:api-#{action}"
         })
@@ -328,7 +298,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
 
     denied =
       conn
-      |> recycle()
+      |> recycle_with_surface_opts()
       |> post(~p"/api/v1/subjects/subject:fixture/actions/cancel", %{
         "idempotency_key" => "idem:api-cancel",
         "deny" => "true"
@@ -365,7 +335,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
 
     body =
       conn
-      |> recycle()
+      |> recycle_with_surface_opts()
       |> post(~p"/api/v1/reviews/decision:fixture/decisions/accept", %{
         "decision_kind" => "operator_review",
         "subject_id" => "subject:fixture",
@@ -436,7 +406,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
 
     logs =
       conn
-      |> recycle()
+      |> recycle_with_surface_opts()
       |> get(~p"/api/v1/logs")
       |> json_response(200)
 
@@ -488,7 +458,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
 
     reload =
       conn
-      |> recycle()
+      |> recycle_with_surface_opts()
       |> post(~p"/api/v1/profile/reload", %{
         "workflow_path" => workflow_path,
         "profile_cache_path" => cache_path,
@@ -510,7 +480,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
 
     status =
       conn
-      |> recycle()
+      |> recycle_with_surface_opts()
       |> get(~p"/api/v1/status", %{"profile_cache_path" => cache_path})
       |> json_response(200)
 
@@ -603,7 +573,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
 
     stream =
       conn
-      |> recycle()
+      |> recycle_with_surface_opts()
       |> post(~p"/api/v1/subjects/#{subject_id}/stream-attach-lease", %{})
       |> json_response(200)
 
@@ -645,7 +615,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
 
     not_found =
       conn
-      |> recycle()
+      |> recycle_with_surface_opts()
       |> get("/api/v1/not/a/defined/route")
       |> json_response(404)
 
@@ -657,7 +627,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
     for {path, operation} <- @live_api_routes do
       body =
         conn
-        |> recycle()
+        |> recycle_with_surface_opts()
         |> post(path, %{})
         |> json_response(400)
 
@@ -675,7 +645,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
 
       body =
         conn
-        |> recycle()
+        |> recycle_with_surface_opts()
         |> post(path, %{
           "ack_headless_guardrails" => true,
           "trace_id" => trace_id
@@ -717,7 +687,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
     for {path, _operation} <- @live_api_routes do
       body =
         conn
-        |> recycle()
+        |> recycle_with_surface_opts()
         |> get(path)
         |> json_response(405)
 
@@ -733,7 +703,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
 
     invalid_action =
       conn
-      |> recycle()
+      |> recycle_with_surface_opts()
       |> post(~p"/api/v1/subjects/subject:fixture/control/not-a-real-action", %{})
       |> json_response(422)
 
@@ -741,7 +711,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
 
     action_denied =
       conn
-      |> recycle()
+      |> recycle_with_surface_opts()
       |> with_backend(__MODULE__.ActionDeniedBackend, fn conn ->
         post(conn, ~p"/api/v1/subjects/subject:fixture/control/cancel", %{})
       end)
@@ -751,7 +721,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
 
     projection_unavailable =
       conn
-      |> recycle()
+      |> recycle_with_surface_opts()
       |> with_backend(__MODULE__.ProjectionUnavailableBackend, fn conn ->
         get(conn, ~p"/api/v1/runs/run:fixture")
       end)
@@ -762,7 +732,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
 
     timeout =
       conn
-      |> recycle()
+      |> recycle_with_surface_opts()
       |> with_backend(__MODULE__.TimeoutBackend, fn conn -> get(conn, ~p"/api/v1/state") end)
       |> json_response(503)
 
@@ -785,18 +755,22 @@ defmodule ExtravaganzaWeb.Api.HeadlessControllerTest do
   end
 
   defp with_backend(conn, backend, callback) when is_function(callback, 1) do
-    previous_backend = Application.get_env(:app_kit_core, :headless_backend)
-    Application.put_env(:app_kit_core, :headless_backend, backend)
+    conn =
+      HeadlessSurfaceOptions.put(conn,
+        headless_backend: backend,
+        runtime_backend: __MODULE__.RuntimeBackend,
+        source_backend: __MODULE__.SourceBackend
+      )
 
-    try do
-      callback.(conn)
-    after
-      if previous_backend do
-        Application.put_env(:app_kit_core, :headless_backend, previous_backend)
-      else
-        Application.delete_env(:app_kit_core, :headless_backend)
-      end
-    end
+    callback.(conn)
+  end
+
+  defp recycle_with_surface_opts(conn) do
+    opts = Map.fetch!(conn.private, HeadlessSurfaceOptions.private_key())
+
+    conn
+    |> Phoenix.ConnTest.recycle()
+    |> HeadlessSurfaceOptions.put(opts)
   end
 
   defp start_subject_with_trace!(opts) do

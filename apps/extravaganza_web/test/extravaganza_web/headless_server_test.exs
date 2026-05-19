@@ -3,28 +3,8 @@ defmodule ExtravaganzaWeb.HeadlessServerTest do
 
   import ExUnit.CaptureIO
 
-  alias Extravaganza.TestSupport.FakeHeadlessBackend
   alias ExtravaganzaWeb.HeadlessServer
   alias Mix.Tasks.Extravaganza.Headless.Web
-
-  setup do
-    previous_backend = Application.get_env(:app_kit_core, :headless_backend)
-    previous_runtime_backend = Application.get_env(:app_kit_core, :runtime_backend)
-    previous_source_backend = Application.get_env(:app_kit_core, :source_backend)
-    previous_fixture_context = Application.get_env(:extravaganza_core, :headless_fixture_context?)
-
-    Application.put_env(:app_kit_core, :headless_backend, FakeHeadlessBackend)
-    Application.put_env(:app_kit_core, :runtime_backend, __MODULE__.RuntimeBackend)
-    Application.put_env(:app_kit_core, :source_backend, __MODULE__.SourceBackend)
-    Application.put_env(:extravaganza_core, :headless_fixture_context?, true)
-
-    on_exit(fn ->
-      restore_env(:app_kit_core, :headless_backend, previous_backend)
-      restore_env(:app_kit_core, :runtime_backend, previous_runtime_backend)
-      restore_env(:app_kit_core, :source_backend, previous_source_backend)
-      restore_env(:extravaganza_core, :headless_fixture_context?, previous_fixture_context)
-    end)
-  end
 
   @tag :tmp_dir
   test "CLI port overrides workflow server port and keeps route mappings explicit", %{
@@ -314,77 +294,5 @@ defmodule ExtravaganzaWeb.HeadlessServerTest do
   defp row_for(rows, child) do
     Enum.find(rows, fn row -> row["symphony_child"] == child end) ||
       flunk("missing supervision equivalence row for #{child}")
-  end
-
-  defp restore_env(app, key, nil), do: Application.delete_env(app, key)
-  defp restore_env(app, key, value), do: Application.put_env(app, key, value)
-
-  defmodule RuntimeBackend do
-    @behaviour AppKit.Core.Backends.RuntimeBackend
-
-    alias AppKit.Core.RuntimeSurface.{RuntimeLogPage, RuntimeStatusSnapshot}
-
-    @impl true
-    def apply_runtime_profile(_context, _runtime_profile, _opts), do: {:error, :not_used}
-
-    @impl true
-    def runtime_status(_context, _request, _opts) do
-      RuntimeStatusSnapshot.new(%{
-        tenant_ref: "extravaganza",
-        program_ref: "program://headless-web",
-        health: %{"runtime" => "ok", "web_shell" => "running"},
-        preflight: %{"phoenix_endpoint" => "started"}
-      })
-    end
-
-    @impl true
-    def runtime_logs(_context, _request, _opts) do
-      RuntimeLogPage.new(%{
-        entries: [
-          %{
-            ref: "runtime-log:headless-web:1",
-            event_kind: "headless_web.lifecycle",
-            occurred_at: "2026-05-14T00:00:00Z",
-            summary: "Headless web shell accepted lifecycle request",
-            payload: %{"surface" => "web"}
-          }
-        ]
-      })
-    end
-
-    @impl true
-    def record_live_effect(_context, attrs, _opts), do: {:ok, attrs}
-  end
-
-  defmodule SourceBackend do
-    @behaviour AppKit.Core.Backends.SourceBackend
-
-    @impl true
-    def sync_source(_context, source_role_ref, _source_page, _opts),
-      do: {:ok, %{source_role_ref: source_role_ref}}
-
-    @impl true
-    def current_states(_context, source_role_ref, _request, _opts),
-      do: {:ok, %{source_role_ref: source_role_ref}}
-
-    @impl true
-    def fetch_candidates(_context, source_role_ref, _request, _opts),
-      do: {:ok, %{source_role_ref: source_role_ref}}
-
-    @impl true
-    def publish_source(context, _publication_role_ref, attrs, _opts) do
-      {:ok,
-       %{
-         "source_publication_receipt_ref" => "source-publication:headless-web",
-         "tenant_ref" => context.tenant_ref.id,
-         "subject_ref" => Map.get(attrs, "subject_ref") || Map.get(attrs, :subject_ref),
-         "status" => "receipt_recorded",
-         "provider" => "linear",
-         "effect" => Map.get(attrs, "effect") || Map.get(attrs, :effect)
-       }}
-    end
-
-    def invoke_runtime_tool(_context, _tool_role_ref, _operation_role_ref, _attrs, _opts),
-      do: {:error, :not_used}
   end
 end

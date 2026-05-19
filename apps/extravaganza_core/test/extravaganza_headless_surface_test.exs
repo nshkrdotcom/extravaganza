@@ -48,7 +48,8 @@ defmodule Extravaganza.HeadlessSurfaceTest do
   end
 
   test "HeadlessSurface reads fixture M1 state through AppKit only" do
-    assert {:ok, %RuntimeStateSnapshot{} = snapshot} = HeadlessSurface.state_snapshot(%{})
+    assert {:ok, %RuntimeStateSnapshot{} = snapshot} =
+             HeadlessSurface.state_snapshot(%{}, surface_opts())
 
     states = Enum.map(snapshot.rows, & &1.state)
 
@@ -317,7 +318,7 @@ defmodule Extravaganza.HeadlessSurfaceTest do
   end
 
   test "subject presenter indexes issue lookup, source, action, lease, run, and blocker coverage" do
-    assert {:ok, subject} = HeadlessSurface.subject_detail("subject:fixture")
+    assert {:ok, subject} = HeadlessSurface.subject_detail("subject:fixture", %{}, surface_opts())
     rendered = SubjectPresenter.present(subject, correlation_id: "corr:subject")
 
     assert rendered["schema_ref"] == "headless_subject_detail.v1"
@@ -391,7 +392,9 @@ defmodule Extravaganza.HeadlessSurfaceTest do
              "reason_codes" => ["non_terminal_dependency"]
            }
 
-    assert {:ok, issue_subject} = HeadlessSurface.subject_by_issue_identifier("ENG-42")
+    assert {:ok, issue_subject} =
+             HeadlessSurface.subject_by_issue_identifier("ENG-42", %{}, surface_opts())
+
     rendered_issue = SubjectPresenter.present(issue_subject)
 
     assert rendered_issue["data"]["subject_ref"] == "ENG-42"
@@ -405,14 +408,16 @@ defmodule Extravaganza.HeadlessSurfaceTest do
   end
 
   test "subject and run presenters pass through future M2 event slots safely" do
-    assert {:ok, subject} = HeadlessSurface.subject_detail("subject:fixture")
+    assert {:ok, subject} = HeadlessSurface.subject_detail("subject:fixture", %{}, surface_opts())
     rendered_subject = SubjectPresenter.present(subject)
 
     event_kinds = Enum.map(rendered_subject["data"]["events"], & &1["event_kind"])
     assert "future_m2_state_added" in event_kinds
     assert rendered_subject["data"]["agent_loop_diagnostics"] == []
 
-    assert {:ok, %RuntimeRunDetail{} = run} = HeadlessSurface.run_detail("run:fixture")
+    assert {:ok, %RuntimeRunDetail{} = run} =
+             HeadlessSurface.run_detail("run:fixture", %{}, surface_opts())
+
     rendered_run = RunPresenter.present(run)
 
     assert Enum.map(rendered_run["data"]["events"], & &1["event_seq"]) == Enum.to_list(0..15)
@@ -505,7 +510,9 @@ defmodule Extravaganza.HeadlessSurfaceTest do
   end
 
   test "run presenter indexes lower handle, workspace, turn, retry, codex event, and receipt coverage" do
-    assert {:ok, %RuntimeRunDetail{} = run} = HeadlessSurface.run_detail("run:fixture")
+    assert {:ok, %RuntimeRunDetail{} = run} =
+             HeadlessSurface.run_detail("run:fixture", %{}, surface_opts())
+
     rendered = RunPresenter.present(run, correlation_id: "corr:run")
 
     assert rendered["schema_ref"] == "headless_run_detail.v1"
@@ -663,7 +670,9 @@ defmodule Extravaganza.HeadlessSurfaceTest do
   end
 
   test "run presenter preserves product-visible provider facts through readback projection" do
-    assert {:ok, %RuntimeRunDetail{} = run} = HeadlessSurface.run_detail("run:fixture")
+    assert {:ok, %RuntimeRunDetail{} = run} =
+             HeadlessSurface.run_detail("run:fixture", %{}, surface_opts())
+
     rendered = RunPresenter.present(run, correlation_id: "corr:provider-facts")
     data = rendered["data"]
 
@@ -698,7 +707,10 @@ defmodule Extravaganza.HeadlessSurfaceTest do
 
   test "refresh and control commands return typed command results" do
     assert {:ok, %CommandResult{} = refresh} =
-             HeadlessSurface.request_refresh(%{"idempotency_key" => "idem:refresh"})
+             HeadlessSurface.request_refresh(
+               %{"idempotency_key" => "idem:refresh"},
+               surface_opts()
+             )
 
     assert refresh.command_kind == "refresh"
     assert refresh.workflow_effect_state == "pending_signal"
@@ -712,10 +724,15 @@ defmodule Extravaganza.HeadlessSurfaceTest do
     assert rendered_refresh["data"]["coalesced?"] == false
 
     assert {:ok, %CommandResult{} = denied} =
-             HeadlessSurface.request_control("subject:fixture", "cancel", %{
-               "idempotency_key" => "idem:cancel",
-               "deny" => "true"
-             })
+             HeadlessSurface.request_control(
+               "subject:fixture",
+               "cancel",
+               %{
+                 "idempotency_key" => "idem:cancel",
+                 "deny" => "true"
+               },
+               surface_opts()
+             )
 
     assert denied.accepted? == false
     assert denied.workflow_effect_state == "rejected_by_authority"
@@ -728,9 +745,14 @@ defmodule Extravaganza.HeadlessSurfaceTest do
           {:request_rework, "rework"}
         ] do
       assert {:ok, %CommandResult{} = aliased} =
-               HeadlessSurface.request_control("subject:fixture", legacy_action, %{
-                 "idempotency_key" => "idem:#{public_action}"
-               })
+               HeadlessSurface.request_control(
+                 "subject:fixture",
+                 legacy_action,
+                 %{
+                   "idempotency_key" => "idem:#{public_action}"
+                 },
+                 surface_opts()
+               )
 
       assert aliased.command_kind == public_action
     end
@@ -752,6 +774,14 @@ defmodule Extravaganza.HeadlessSurfaceTest do
     assert receipt["provider_credentials_required?"] == false
     assert receipt["network_required?"] == false
     assert receipt["receipt_state"] == "proven"
+  end
+
+  defp surface_opts do
+    [
+      headless_fixture_context?: true,
+      skip_bootstrap?: true,
+      headless_backend: FakeHeadlessBackend
+    ]
   end
 end
 

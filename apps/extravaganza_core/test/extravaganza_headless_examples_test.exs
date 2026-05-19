@@ -205,7 +205,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
         ] do
       output =
         capture_io(fn ->
-          assert :ok = HeadlessCLI.run(operation, common_args())
+          assert :ok = run_cli(operation, common_args())
         end)
 
       decoded = Jason.decode!(output)
@@ -270,7 +270,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     output =
       capture_io(fn ->
         assert :ok =
-                 HeadlessCLI.run(:live_codex_turn, [
+                 run_cli(:live_codex_turn, [
                    "--json",
                    "--live-product-path",
                    "--trace-id",
@@ -312,7 +312,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     output =
       capture_io(fn ->
         assert :ok =
-                 HeadlessCLI.run(:live_codex_turn, [
+                 run_cli(:live_codex_turn, [
                    "--json",
                    @guardrails_ack,
                    "--live-product-path",
@@ -329,7 +329,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     legacy_output =
       capture_io("linear-secret-value\n", fn ->
         assert :ok =
-                 HeadlessCLI.run(:live_linear_source, [
+                 run_cli(:live_linear_source, [
                    "--json",
                    @legacy_guardrails_ack,
                    "--api-key-stdin",
@@ -349,7 +349,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     output =
       capture_io(fn ->
         assert :ok =
-                 HeadlessCLI.run(:refresh, [
+                 run_cli(:refresh, [
                    "--json",
                    "--trace-id",
                    "trace:refresh-ack-missing"
@@ -365,7 +365,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     accepted_output =
       capture_io(fn ->
         assert :ok =
-                 HeadlessCLI.run(:refresh, [
+                 run_cli(:refresh, [
                    "--json",
                    @guardrails_ack,
                    "--trace-id",
@@ -380,7 +380,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     fixture_output =
       capture_io(fn ->
         assert :ok =
-                 HeadlessCLI.run(:refresh, [
+                 run_cli(:refresh, [
                    "--json",
                    "--fixture",
                    "headless",
@@ -409,7 +409,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
         ] do
       output =
         capture_io(fn ->
-          assert :ok = HeadlessCLI.run(operation, ["--json", "--trace-id", "trace:live"])
+          assert :ok = run_cli(operation, ["--json", "--trace-id", "trace:live"])
         end)
 
       decoded = Jason.decode!(output)
@@ -500,10 +500,10 @@ defmodule Extravaganza.HeadlessExamplesTest do
       output =
         if stdin? do
           capture_io("credential-value\n", fn ->
-            assert :ok = HeadlessCLI.run(operation, argv)
+            assert :ok = run_cli(operation, argv)
           end)
         else
-          capture_io(fn -> assert :ok = HeadlessCLI.run(operation, argv) end)
+          capture_io(fn -> assert :ok = run_cli(operation, argv) end)
         end
 
       decoded = Jason.decode!(output)
@@ -540,7 +540,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     output =
       capture_io("", fn ->
         assert :ok =
-                 HeadlessCLI.run(:live_linear_source, [
+                 run_cli(:live_linear_source, [
                    "--json",
                    "--api-key-stdin",
                    "--trace-id",
@@ -563,7 +563,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     output =
       capture_io(secret <> "\n", fn ->
         assert :ok =
-                 HeadlessCLI.run(:live_linear_source, [
+                 run_cli(:live_linear_source, [
                    "--json",
                    "--api-key-stdin",
                    @guardrails_ack,
@@ -609,7 +609,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     output =
       capture_io(secret <> "\n", fn ->
         assert :ok =
-                 HeadlessCLI.run(:live_linear_source, [
+                 run_cli(:live_linear_source, [
                    "--json",
                    "--api-key-stdin",
                    @guardrails_ack,
@@ -657,7 +657,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     output =
       capture_io(secret <> "\n", fn ->
         assert :ok =
-                 HeadlessCLI.run(:live_linear_source, [
+                 run_cli(:live_linear_source, [
                    "--json",
                    "--api-key-stdin",
                    @guardrails_ack,
@@ -683,7 +683,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     output =
       capture_io(fn ->
         assert :ok =
-                 HeadlessCLI.run(:live_linear_source, [
+                 run_cli(:live_linear_source, [
                    "--json",
                    @guardrails_ack,
                    "--live-product-path",
@@ -725,7 +725,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     output =
       capture_io(fn ->
         assert :ok =
-                 HeadlessCLI.run(:live_linear_source, [
+                 run_cli(:live_linear_source, [
                    "--json",
                    "--credential-ref",
                    "credential-ref-linear-existing",
@@ -755,7 +755,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     output =
       capture_io(secret <> "\n", fn ->
         assert :ok =
-                 HeadlessCLI.run(:live_linear_source, [
+                 run_cli(:live_linear_source, [
                    "--json",
                    "--api-key-stdin",
                    @guardrails_ack,
@@ -789,7 +789,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     output =
       capture_io(secret <> "\n", fn ->
         assert :ok =
-                 HeadlessCLI.run(:live_linear_source, [
+                 run_cli(:live_linear_source, [
                    "--json",
                    "--api-key-stdin",
                    @guardrails_ack,
@@ -827,7 +827,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     output =
       capture_io(secret <> "\n", fn ->
         assert :ok =
-                 HeadlessCLI.run(:live_linear_source, [
+                 run_cli(:live_linear_source, [
                    "--json",
                    "--api-key-stdin",
                    @guardrails_ack,
@@ -853,7 +853,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     output =
       capture_io(secret <> "\n", fn ->
         assert :ok =
-                 HeadlessCLI.run(:live_linear_current_states, [
+                 run_cli(:live_linear_current_states, [
                    "--json",
                    "--api-key-stdin",
                    @guardrails_ack,
@@ -907,7 +907,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     output =
       capture_io(fn ->
         assert :ok =
-                 HeadlessCLI.run(:live_codex_turn, [
+                 run_cli(:live_codex_turn, [
                    "--json",
                    @guardrails_ack,
                    "--live-product-path",
@@ -1093,7 +1093,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     output =
       capture_io(fn ->
         assert :ok =
-                 HeadlessCLI.run(:live_github_evidence, [
+                 run_cli(:live_github_evidence, [
                    "--json",
                    @guardrails_ack,
                    "--live-product-path",
@@ -1177,7 +1177,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     output =
       capture_io(fn ->
         assert :ok =
-                 HeadlessCLI.run(:live_github_pr_cleanup, [
+                 run_cli(:live_github_pr_cleanup, [
                    "--json",
                    @guardrails_ack,
                    "--live-product-path",
@@ -1245,7 +1245,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     output =
       capture_io(secret <> "\n", fn ->
         assert :ok =
-                 HeadlessCLI.run(:live_smoke, [
+                 run_cli(:live_smoke, [
                    "--json",
                    "--api-key-stdin",
                    @guardrails_ack,
@@ -1355,7 +1355,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     output =
       capture_io(secret <> "\n", fn ->
         assert :ok =
-                 HeadlessCLI.run(:live_linear_source, [
+                 run_cli(:live_linear_source, [
                    "--json",
                    "--api-key-stdin",
                    "--trace-id",
@@ -1385,7 +1385,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     output =
       capture_io(secret <> "\n", fn ->
         assert :ok =
-                 HeadlessCLI.run(:live_linear_publication, [
+                 run_cli(:live_linear_publication, [
                    "--json",
                    "--api-key-stdin",
                    @guardrails_ack,
@@ -1432,7 +1432,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     output =
       capture_io(secret <> "\n", fn ->
         assert :ok =
-                 HeadlessCLI.run(:live_linear_publication, [
+                 run_cli(:live_linear_publication, [
                    "--json",
                    "--api-key-stdin",
                    @guardrails_ack,
@@ -1471,7 +1471,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     output =
       capture_io(secret <> "\n", fn ->
         assert :ok =
-                 HeadlessCLI.run(:live_linear_publication, [
+                 run_cli(:live_linear_publication, [
                    "--json",
                    "--api-key-stdin",
                    @guardrails_ack,
@@ -1511,7 +1511,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     output =
       capture_io(secret <> "\n", fn ->
         assert :ok =
-                 HeadlessCLI.run(:live_linear_publication, [
+                 run_cli(:live_linear_publication, [
                    "--json",
                    "--api-key-stdin",
                    @guardrails_ack,
@@ -1553,7 +1553,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     output =
       capture_io(secret <> "\n", fn ->
         assert :ok =
-                 HeadlessCLI.run(:live_linear_publication, [
+                 run_cli(:live_linear_publication, [
                    "--json",
                    "--api-key-stdin",
                    @guardrails_ack,
@@ -1597,7 +1597,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
     output =
       capture_io(secret <> "\n", fn ->
         assert :ok =
-                 HeadlessCLI.run(:live_linear_graphql_tool, [
+                 run_cli(:live_linear_graphql_tool, [
                    "--json",
                    "--api-key-stdin",
                    @guardrails_ack,
@@ -1654,7 +1654,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
   test "aggregate live smoke emits a receipt for all live-gated provider examples" do
     output =
       capture_io(fn ->
-        assert :ok = HeadlessCLI.run(:live_smoke, ["--json", "--trace-id", "trace:live"])
+        assert :ok = run_cli(:live_smoke, ["--json", "--trace-id", "trace:live"])
       end)
 
     decoded = Jason.decode!(output)
@@ -1719,7 +1719,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
 
     output =
       capture_io(fn ->
-        assert :ok = HeadlessCLI.run(:live_smoke, ["--json", "--trace-id", "trace:live"])
+        assert :ok = run_cli(:live_smoke, ["--json", "--trace-id", "trace:live"])
       end)
 
     decoded = Jason.decode!(output)
@@ -1748,7 +1748,7 @@ defmodule Extravaganza.HeadlessExamplesTest do
            ["run_ref", "event_page_ref"]},
           {:stop, ["--confirm-no-active-lower-runs" | common_args()], "headless_shutdown.v1", []}
         ] do
-      output = capture_io(fn -> assert :ok = HeadlessCLI.run(operation, argv) end)
+      output = capture_io(fn -> assert :ok = run_cli(operation, argv) end)
       decoded = Jason.decode!(output)
 
       assert decoded["ok"] == true
@@ -1869,6 +1869,27 @@ defmodule Extravaganza.HeadlessExamplesTest do
     assert route_evidence["trace_replay"]["replay_system_ref"] == "ai_trace"
     assert route_evidence["trace_replay"]["status"] == "not_emitted"
     assert [_ | _] = provider_effect["operation_receipts"]
+  end
+
+  defp run_cli(operation, argv, overrides \\ []) do
+    overrides = Keyword.merge(default_operation_overrides(operation), overrides)
+    HeadlessCLI.run(operation, argv, Keyword.merge(cli_opts(), overrides))
+  end
+
+  defp default_operation_overrides(operation) when operation in [:live_codex_turn, :live_smoke],
+    do: [headless_backend: __MODULE__.CodexAgentBackend]
+
+  defp default_operation_overrides(_operation), do: []
+
+  defp cli_opts do
+    [
+      headless_fixture_context?: true,
+      skip_bootstrap?: true,
+      headless_backend: HeadlessFixtureBackend,
+      runtime_backend: HeadlessFixtureBackend,
+      source_backend: __MODULE__.SourceBackend,
+      generic_backend: __MODULE__.GenericRuntimeBackend
+    ]
   end
 
   defmodule CodexAgentBackend do

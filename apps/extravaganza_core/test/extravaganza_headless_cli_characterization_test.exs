@@ -279,6 +279,62 @@ defmodule Extravaganza.HeadlessCLICharacterizationTest do
     end
   end
 
+  test "fixture CLI context does not leak into concurrent non-fixture command context" do
+    Application.delete_env(:app_kit_core, :headless_backend)
+    Application.delete_env(:app_kit_core, :source_backend)
+    Application.delete_env(:app_kit_core, :runtime_backend)
+    Application.delete_env(:extravaganza_core, :headless_fixture_context?)
+
+    fixture_task =
+      Task.async(fn ->
+        capture_io(fn ->
+          assert :ok =
+                   HeadlessCLI.run(:run, [
+                     "--json",
+                     "--fixture",
+                     "headless_m1",
+                     "--run-id",
+                     "run:fixture",
+                     "--trace-id",
+                     "trace:fixture-context"
+                   ])
+        end)
+      end)
+
+    non_fixture_task =
+      Task.async(fn ->
+        capture_io(fn ->
+          assert :ok =
+                   HeadlessCLI.run(
+                     :run,
+                     [
+                       "--json",
+                       "--run-id",
+                       "run:non-fixture",
+                       "--trace-id",
+                       "trace:non-fixture-context"
+                     ],
+                     headless_fixture_context?: true,
+                     skip_bootstrap?: true,
+                     headless_backend: __MODULE__.IsolatedHeadlessBackend
+                   )
+        end)
+      end)
+
+    fixture = fixture_task |> Task.await() |> Jason.decode!()
+    non_fixture = non_fixture_task |> Task.await() |> Jason.decode!()
+
+    assert fixture["ok"] == true
+    assert fixture["refs"]["run_ref"] == "run:fixture"
+    assert non_fixture["ok"] == false
+    assert non_fixture["error"]["message"] =~ "isolated backend called"
+
+    assert Application.get_env(:app_kit_core, :headless_backend) == nil
+    assert Application.get_env(:app_kit_core, :source_backend) == nil
+    assert Application.get_env(:app_kit_core, :runtime_backend) == nil
+    assert Application.get_env(:extravaganza_core, :headless_fixture_context?) == nil
+  end
+
   @tag :tmp_dir
   test "every operation emits the standard fixture JSON envelope shape", %{tmp_dir: tmp_dir} do
     for spec <- HeadlessCLI.operation_specs() do
@@ -356,4 +412,27 @@ defmodule Extravaganza.HeadlessCLICharacterizationTest do
 
   defp restore_env(app, key, nil), do: Application.delete_env(app, key)
   defp restore_env(app, key, value), do: Application.put_env(app, key, value)
+
+  defmodule IsolatedHeadlessBackend do
+    @behaviour AppKit.Core.Backends.HeadlessBackend
+
+    @impl true
+    def state_snapshot(_context, _request, _opts), do: {:error, :isolated_backend_called}
+
+    @impl true
+    def runtime_subject_detail(_context, _subject_ref, _request, _opts),
+      do: {:error, :isolated_backend_called}
+
+    @impl true
+    def runtime_run_detail(_context, _run_ref, _request, _opts),
+      do: {:error, :isolated_backend_called}
+
+    @impl true
+    def request_runtime_refresh(_context, _request, _opts),
+      do: {:error, :isolated_backend_called}
+
+    @impl true
+    def request_runtime_control(_context, _request, _opts),
+      do: {:error, :isolated_backend_called}
+  end
 end

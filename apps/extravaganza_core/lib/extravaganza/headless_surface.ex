@@ -39,7 +39,7 @@ defmodule Extravaganza.HeadlessSurface do
 
   @spec operator_queue(map(), keyword()) :: {:ok, map()} | {:error, term()}
   def operator_queue(params \\ %{}, opts \\ []) when is_map(params) and is_list(opts) do
-    if fixture_context?() do
+    if fixture_context?(opts) do
       with {:ok, %RuntimeStateSnapshot{} = snapshot} <- state_snapshot(params, opts) do
         {:ok,
          %{
@@ -155,7 +155,7 @@ defmodule Extravaganza.HeadlessSurface do
 
   @spec list_reviews(map(), keyword()) :: {:ok, map()} | {:error, term()}
   def list_reviews(params \\ %{}, opts \\ []) when is_map(params) and is_list(opts) do
-    if fixture_context?(),
+    if fixture_context?(opts),
       do: {:ok, fixture_reviews()},
       else: Queries.pending_reviews(params, opts)
   end
@@ -163,7 +163,7 @@ defmodule Extravaganza.HeadlessSurface do
   @spec record_review_decision(map(), map(), keyword()) :: {:ok, map()} | {:error, term()}
   def record_review_decision(review_identity, attrs \\ %{}, opts \\ [])
       when is_map(review_identity) and is_map(attrs) and is_list(opts) do
-    if fixture_context?() do
+    if fixture_context?(opts) do
       fixture_review_decision(review_identity, attrs)
     else
       Reviews.record_review_decision(review_identity, attrs, opts)
@@ -173,7 +173,7 @@ defmodule Extravaganza.HeadlessSurface do
   @spec source_publication_preview(String.t(), keyword()) :: {:ok, map()} | {:error, term()}
   def source_publication_preview(subject_id, opts \\ [])
       when is_binary(subject_id) and is_list(opts) do
-    if fixture_context?() do
+    if fixture_context?(opts) do
       with {:ok, evidence} <- evidence_chain("run:fixture", %{"subject_id" => subject_id}, opts) do
         {:ok, Map.fetch!(evidence, "source_publication")}
       end
@@ -339,8 +339,7 @@ defmodule Extravaganza.HeadlessSurface do
   defp normalize_control_action(_action), do: {:error, :invalid_action}
 
   defp context_bundle(opts) do
-    if Keyword.get(opts, :skip_bootstrap?) ||
-         Application.get_env(:extravaganza_core, :headless_fixture_context?, false) do
+    if Keyword.get(opts, :skip_bootstrap?) || fixture_context?(opts) do
       config = Config.load(opts)
       {:ok, %{config: config, context: AppKitContext.bootstrap_context(config), profile: %{}}}
     else
@@ -348,11 +347,10 @@ defmodule Extravaganza.HeadlessSurface do
     end
   end
 
-  defp fixture_context?,
-    do: Application.get_env(:extravaganza_core, :headless_fixture_context?, false)
+  defp fixture_context?(opts), do: Keyword.get(opts, :headless_fixture_context?, false) == true
 
   defp headless_control_backend_path?(opts),
-    do: Keyword.get(opts, :skip_bootstrap?) || fixture_context?()
+    do: Keyword.get(opts, :skip_bootstrap?) || fixture_context?(opts)
 
   defp dispatch_product_control(config, context, subject_id, action, attrs, opts) do
     case to_string(action) do
@@ -364,9 +362,8 @@ defmodule Extravaganza.HeadlessSurface do
   defp runtime_gateway_opts(opts) do
     backend =
       Keyword.get(opts, :generic_backend) ||
-        Application.get_env(:app_kit_core, :generic_backend) ||
         Keyword.get(opts, :source_backend) ||
-        Application.get_env(:app_kit_core, :source_backend)
+        fixture_backend(opts)
 
     if backend do
       Keyword.put(opts, :generic_backend, backend)
@@ -408,25 +405,22 @@ defmodule Extravaganza.HeadlessSurface do
   defp headless_backend(opts) do
     Keyword.get(opts, :headless_backend) ||
       Keyword.get(opts, :backend) ||
-      Application.get_env(:app_kit_core, :headless_backend) ||
-      fixture_backend()
+      fixture_backend(opts)
   end
 
   defp runtime_backend(opts) do
     Keyword.get(opts, :runtime_backend) ||
       Keyword.get(opts, :backend) ||
-      Application.get_env(:app_kit_core, :runtime_backend) ||
-      fixture_backend()
+      fixture_backend(opts)
   end
 
   defp source_backend(opts) do
     Keyword.get(opts, :source_backend) ||
-      Application.get_env(:app_kit_core, :source_backend) ||
-      fixture_backend()
+      fixture_backend(opts)
   end
 
-  defp fixture_backend do
-    if fixture_context?(), do: HeadlessFixtureBackend
+  defp fixture_backend(opts) do
+    if fixture_context?(opts), do: HeadlessFixtureBackend
   end
 
   defp put_runtime_binding(request) do

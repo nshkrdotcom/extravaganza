@@ -32,7 +32,7 @@ defmodule Extravaganza.HeadlessJSONContractTest do
   end
 
   test "success envelopes include stable refs without raw lower/provider material" do
-    assert {:ok, run} = HeadlessSurface.run_detail("run:fixture")
+    assert {:ok, run} = HeadlessSurface.run_detail("run:fixture", %{}, surface_opts())
 
     envelope =
       "run_detail"
@@ -69,7 +69,7 @@ defmodule Extravaganza.HeadlessJSONContractTest do
   end
 
   test "run detail JSON keeps the deterministic operator-visible field sets" do
-    assert {:ok, run} = HeadlessSurface.run_detail("run:fixture")
+    assert {:ok, run} = HeadlessSurface.run_detail("run:fixture", %{}, surface_opts())
 
     presented = RunPresenter.present(run)
     data = presented["data"]
@@ -342,7 +342,9 @@ defmodule Extravaganza.HeadlessJSONContractTest do
   end
 
   test "evidence chain and event page are first-class headless readback operations" do
-    assert {:ok, evidence_chain} = HeadlessSurface.evidence_chain("run:fixture")
+    assert {:ok, evidence_chain} =
+             HeadlessSurface.evidence_chain("run:fixture", %{}, surface_opts())
+
     evidence = EvidencePresenter.present(evidence_chain)
 
     assert evidence["schema_ref"] == "headless_evidence_chain.v1"
@@ -352,7 +354,9 @@ defmodule Extravaganza.HeadlessJSONContractTest do
     assert evidence["data"]["source_publication"]["source_publication_receipt_ref"] ==
              "source-publication:fixture"
 
-    assert {:ok, event_page} = HeadlessSurface.events(%{"run_id" => "run:fixture"})
+    assert {:ok, event_page} =
+             HeadlessSurface.events(%{"run_id" => "run:fixture"}, surface_opts())
+
     events = EventPresenter.present_page(event_page)
 
     assert events["schema_ref"] == "headless_events.v1"
@@ -391,7 +395,8 @@ defmodule Extravaganza.HeadlessJSONContractTest do
   end
 
   test "evidence chain indexes every Symphony headless evidence category" do
-    assert {:ok, evidence_chain} = HeadlessSurface.evidence_chain("run:fixture")
+    assert {:ok, evidence_chain} =
+             HeadlessSurface.evidence_chain("run:fixture", %{}, surface_opts())
 
     assert evidence_chain["evidence_coverage_gaps"] == []
 
@@ -479,7 +484,8 @@ defmodule Extravaganza.HeadlessJSONContractTest do
   end
 
   test "event page indexes every Symphony headless timeline category" do
-    assert {:ok, event_page} = HeadlessSurface.events(%{"run_id" => "run:fixture"})
+    assert {:ok, event_page} =
+             HeadlessSurface.events(%{"run_id" => "run:fixture"}, surface_opts())
 
     assert event_page["timeline_coverage_gaps"] == []
 
@@ -609,5 +615,13 @@ defmodule Extravaganza.HeadlessJSONContractTest do
     assert envelope["error"]["class"] == "app_not_started"
     assert envelope["error"]["retryable"] == true
     assert envelope["error"]["missing_refs"] == ["live_surface_dependency"]
+  end
+
+  defp surface_opts do
+    [
+      headless_fixture_context?: true,
+      skip_bootstrap?: true,
+      headless_backend: FakeHeadlessBackend
+    ]
   end
 end

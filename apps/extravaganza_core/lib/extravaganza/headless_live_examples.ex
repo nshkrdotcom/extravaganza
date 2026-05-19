@@ -1095,7 +1095,14 @@ defmodule Extravaganza.HeadlessLiveExamples do
         :connection_id,
         :credential_ref,
         :credential_lease_ref,
-        :dry_run?
+        :dry_run?,
+        :backend_stack,
+        :generic_backend,
+        :headless_backend,
+        :runtime_backend,
+        :source_backend,
+        :headless_fixture_context?,
+        :skip_bootstrap?
       ])
       |> Enum.to_list()
 
@@ -1125,18 +1132,18 @@ defmodule Extravaganza.HeadlessLiveExamples do
         :headless_backend,
         Keyword.get(opts, :headless_backend) ||
           Keyword.get(opts, :backend) ||
-          Application.get_env(:app_kit_core, :headless_backend)
+          fixture_backend(opts)
       )
       |> maybe_put_backend(
         :runtime_backend,
         Keyword.get(opts, :runtime_backend) ||
           Keyword.get(opts, :backend) ||
-          Application.get_env(:app_kit_core, :runtime_backend)
+          fixture_backend(opts)
       )
       |> maybe_put_backend(
         :source_backend,
         Keyword.get(opts, :source_backend) ||
-          Application.get_env(:app_kit_core, :source_backend)
+          fixture_backend(opts)
       )
 
     if map_size(backends) == 0 do
@@ -1148,6 +1155,12 @@ defmodule Extravaganza.HeadlessLiveExamples do
 
   defp maybe_put_backend(backends, _role, nil), do: backends
   defp maybe_put_backend(backends, role, backend), do: Map.put(backends, role, backend)
+
+  defp fixture_backend(opts) do
+    if Keyword.get(opts, :headless_fixture_context?, false) == true do
+      HeadlessFixtureBackend
+    end
+  end
 
   defp live_product_surface_proof?(%{live_product_path?: true}), do: true
   defp live_product_surface_proof?(_opts), do: nil
@@ -1966,10 +1979,9 @@ defmodule Extravaganza.HeadlessLiveExamples do
   defp product_proof(%{live_product_path?: true}), do: fixture_product_proof()
 
   defp product_proof(opts) do
-    case Application.get_env(:extravaganza_core, :headless_fixture_context?) do
-      true -> fixture_product_proof()
-      _other -> same_run_product_proof(opts)
-    end
+    if value(opts, :headless_fixture_context?) == true,
+      do: fixture_product_proof(),
+      else: same_run_product_proof(opts)
   end
 
   defp same_run_product_proof(opts) do

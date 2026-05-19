@@ -39,7 +39,7 @@ defmodule Extravaganza.HeadlessRuntimeSurfaceTest do
     output =
       capture_io(fn ->
         assert :ok =
-                 HeadlessCLI.run(:profile_reload, [
+                 run_cli(:profile_reload, [
                    "--json",
                    @guardrails_ack,
                    "--workflow",
@@ -90,7 +90,7 @@ defmodule Extravaganza.HeadlessRuntimeSurfaceTest do
     status_output =
       capture_io(fn ->
         assert :ok =
-                 HeadlessCLI.run(:status, [
+                 run_cli(:status, [
                    "--json",
                    "--profile-cache",
                    cache_path,
@@ -122,7 +122,7 @@ defmodule Extravaganza.HeadlessRuntimeSurfaceTest do
     output =
       capture_io(fn ->
         assert :ok =
-                 HeadlessCLI.run(:profile_reload, [
+                 run_cli(:profile_reload, [
                    "--json",
                    @guardrails_ack,
                    "--workflow",
@@ -167,7 +167,7 @@ defmodule Extravaganza.HeadlessRuntimeSurfaceTest do
     status_output =
       capture_io(fn ->
         assert :ok =
-                 HeadlessCLI.run(:status, [
+                 run_cli(:status, [
                    "--json",
                    "--profile-cache",
                    cache_path,
@@ -200,7 +200,7 @@ defmodule Extravaganza.HeadlessRuntimeSurfaceTest do
     initial_output =
       capture_io(fn ->
         assert :ok =
-                 HeadlessCLI.run(:profile_reload, [
+                 run_cli(:profile_reload, [
                    "--json",
                    @guardrails_ack,
                    "--workflow",
@@ -221,7 +221,7 @@ defmodule Extravaganza.HeadlessRuntimeSurfaceTest do
     failed_output =
       capture_io(fn ->
         assert :ok =
-                 HeadlessCLI.run(:profile_reload, [
+                 run_cli(:profile_reload, [
                    "--json",
                    @guardrails_ack,
                    "--workflow",
@@ -245,7 +245,7 @@ defmodule Extravaganza.HeadlessRuntimeSurfaceTest do
     status_output =
       capture_io(fn ->
         assert :ok =
-                 HeadlessCLI.run(:status, [
+                 run_cli(:status, [
                    "--json",
                    "--profile-cache",
                    cache_path,
@@ -277,7 +277,7 @@ defmodule Extravaganza.HeadlessRuntimeSurfaceTest do
         ] do
       output =
         capture_io(fn ->
-          assert :ok = HeadlessCLI.run(operation, ["--json", "--trace-id", "trace:runtime"])
+          assert :ok = run_cli(operation, ["--json", "--trace-id", "trace:runtime"])
         end)
 
       decoded = Jason.decode!(output)
@@ -344,7 +344,7 @@ defmodule Extravaganza.HeadlessRuntimeSurfaceTest do
     output =
       capture_io(fn ->
         assert :ok =
-                 HeadlessCLI.run(:logs, [
+                 run_cli(:logs, [
                    "--json",
                    "--logs-root",
                    logs_root,
@@ -388,7 +388,7 @@ defmodule Extravaganza.HeadlessRuntimeSurfaceTest do
     output =
       capture_io(fn ->
         assert :ok =
-                 HeadlessCLI.run(:source_publish, [
+                 run_cli(:source_publish, [
                    "--json",
                    @guardrails_ack,
                    "--subject",
@@ -408,21 +408,24 @@ defmodule Extravaganza.HeadlessRuntimeSurfaceTest do
   end
 
   test "HeadlessSurface exposes runtime status logs and source publication wrappers" do
-    assert {:ok, status} = HeadlessSurface.runtime_status(%{}, [])
+    assert {:ok, status} = HeadlessSurface.runtime_status(%{}, runtime_surface_opts())
     assert status.health["runtime"] == "ok"
     assert status.health["startup_terminal_cleanup"]["last_cleanup_at"] == "2026-05-13T00:29:00Z"
     assert status.health["startup_terminal_cleanup"]["cleaned_count"] == 2
 
-    assert {:ok, logs} = HeadlessSurface.runtime_logs(%{}, [])
+    assert {:ok, logs} = HeadlessSurface.runtime_logs(%{}, runtime_surface_opts())
 
     assert Enum.any?(logs.entries, &(&1.event_kind == "runtime_profile_applied"))
     assert Enum.any?(logs.entries, &(&1.event_kind == "startup.terminal_cleanup.completed"))
 
     assert {:ok, published} =
-             HeadlessSurface.publish_source_update(%{
-               subject_ref: "subject:fixture",
-               effect: "comment"
-             })
+             HeadlessSurface.publish_source_update(
+               %{
+                 subject_ref: "subject:fixture",
+                 effect: "comment"
+               },
+               runtime_surface_opts()
+             )
 
     assert published["source_publication_receipt_ref"] == "source-publication:fixture"
   end
@@ -503,6 +506,19 @@ defmodule Extravaganza.HeadlessRuntimeSurfaceTest do
     """)
 
     path
+  end
+
+  defp run_cli(operation, argv, overrides \\ []) do
+    HeadlessCLI.run(operation, argv, Keyword.merge(runtime_surface_opts(), overrides))
+  end
+
+  defp runtime_surface_opts do
+    [
+      headless_fixture_context?: true,
+      skip_bootstrap?: true,
+      runtime_backend: __MODULE__.RuntimeBackend,
+      source_backend: __MODULE__.SourceBackend
+    ]
   end
 
   defmodule RuntimeBackend do

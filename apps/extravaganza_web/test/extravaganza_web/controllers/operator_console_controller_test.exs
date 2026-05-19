@@ -2,31 +2,10 @@ defmodule ExtravaganzaWeb.OperatorConsoleControllerTest do
   use ExtravaganzaWeb.ConnCase, async: false
 
   alias Extravaganza.TestSupport.FakeHeadlessBackend
+  alias ExtravaganzaWeb.HeadlessSurfaceOptions
 
-  setup do
-    previous_backend = Application.get_env(:app_kit_core, :headless_backend)
-    previous_fixture_context = Application.get_env(:extravaganza_core, :headless_fixture_context?)
-
-    Application.put_env(:app_kit_core, :headless_backend, FakeHeadlessBackend)
-    Application.put_env(:extravaganza_core, :headless_fixture_context?, true)
-
-    on_exit(fn ->
-      if previous_backend do
-        Application.put_env(:app_kit_core, :headless_backend, previous_backend)
-      else
-        Application.delete_env(:app_kit_core, :headless_backend)
-      end
-
-      if is_nil(previous_fixture_context) do
-        Application.delete_env(:extravaganza_core, :headless_fixture_context?)
-      else
-        Application.put_env(
-          :extravaganza_core,
-          :headless_fixture_context?,
-          previous_fixture_context
-        )
-      end
-    end)
+  setup %{conn: conn} do
+    {:ok, conn: HeadlessSurfaceOptions.put(conn, headless_backend: FakeHeadlessBackend)}
   end
 
   test "GET /operator-console renders the AppKit DTO-only console mount", %{conn: conn} do

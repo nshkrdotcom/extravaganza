@@ -23,7 +23,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
     SubjectPresenter
   }
 
-  alias ExtravaganzaWeb.ObservabilityUpdates
+  alias ExtravaganzaWeb.{HeadlessSurfaceOptions, ObservabilityUpdates}
 
   @live_ack_param "ack_headless_guardrails"
   @live_ack_params [@live_ack_param, "ack-headless-guardrails", "guardrails_ack"]
@@ -76,7 +76,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
 
   @spec state(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def state(conn, params) do
-    case HeadlessSurface.state_snapshot(params) do
+    case HeadlessSurface.state_snapshot(params, surface_opts(conn)) do
       {:ok, snapshot} ->
         render_success(conn, :state, StatePresenter.present(snapshot, presenter_opts(conn)))
 
@@ -87,7 +87,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
 
   @spec status(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def status(conn, params) do
-    case HeadlessSurface.runtime_status(params) do
+    case HeadlessSurface.runtime_status(params, surface_opts(conn)) do
       {:ok, status} ->
         presenter_opts =
           conn
@@ -107,7 +107,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
 
   @spec logs(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def logs(conn, params) do
-    case HeadlessSurface.runtime_logs(params) do
+    case HeadlessSurface.runtime_logs(params, surface_opts(conn)) do
       {:ok, logs} ->
         render_success(conn, :logs, RuntimePresenter.present_logs(logs, presenter_opts(conn)))
 
@@ -118,7 +118,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
 
   @spec preflight(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def preflight(conn, params) do
-    case HeadlessPreflight.run(params) do
+    case HeadlessPreflight.run(Map.put(params, "backend_opts", surface_opts(conn))) do
       {:ok, report} -> render_success(conn, :preflight, report)
       {:error, reason} -> render_error(conn, reason)
     end
@@ -158,7 +158,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
   def profile_reload(conn, params) do
     result =
       with {:ok, reload} <- SymphonyWorkflowImport.reload(params) do
-        apply_runtime_profile_to_reload(reload, params)
+        apply_runtime_profile_to_reload(reload, params, surface_opts(conn))
       end
 
     case result do
@@ -169,7 +169,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
 
   @spec subject(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def subject(conn, %{"subject_id" => subject_id} = params) do
-    case HeadlessSurface.subject_detail(subject_id, params) do
+    case HeadlessSurface.subject_detail(subject_id, params, surface_opts(conn)) do
       {:ok, detail} ->
         render_success(conn, :subject, SubjectPresenter.present(detail, presenter_opts(conn)))
 
@@ -180,7 +180,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
 
   @spec issue_subject(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def issue_subject(conn, %{"issue_identifier" => issue_identifier} = params) do
-    case HeadlessSurface.subject_by_issue_identifier(issue_identifier, params) do
+    case HeadlessSurface.subject_by_issue_identifier(issue_identifier, params, surface_opts(conn)) do
       {:ok, detail} ->
         render_success(conn, :subject, SubjectPresenter.present(detail, presenter_opts(conn)))
 
@@ -191,7 +191,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
 
   @spec run(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def run(conn, %{"run_id" => run_id} = params) do
-    case HeadlessSurface.run_detail(run_id, params) do
+    case HeadlessSurface.run_detail(run_id, params, surface_opts(conn)) do
       {:ok, detail} ->
         render_success(conn, :run, RunPresenter.present(detail, presenter_opts(conn)))
 
@@ -202,7 +202,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
 
   @spec refresh(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def refresh(conn, params) do
-    case HeadlessSurface.request_refresh(params) do
+    case HeadlessSurface.request_refresh(params, surface_opts(conn)) do
       {:ok, result} ->
         presented = CommandResultPresenter.present(result, presenter_opts(conn))
 
@@ -221,7 +221,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
 
   @spec control(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def control(conn, %{"subject_id" => subject_id, "action" => action} = params) do
-    case HeadlessSurface.request_control(subject_id, action, params) do
+    case HeadlessSurface.request_control(subject_id, action, params, surface_opts(conn)) do
       {:ok, result} ->
         presented = CommandResultPresenter.present(result, presenter_opts(conn))
 
@@ -243,7 +243,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
 
   @spec read_lease(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def read_lease(conn, %{"subject_id" => subject_id}) do
-    case HeadlessSurface.issue_read_lease(subject_id) do
+    case HeadlessSurface.issue_read_lease(subject_id, surface_opts(conn)) do
       {:ok, lease} ->
         render_success(conn, :read_lease, LeasePresenter.present(lease, presenter_opts(conn)))
 
@@ -254,7 +254,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
 
   @spec stream_attach_lease(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def stream_attach_lease(conn, %{"subject_id" => subject_id}) do
-    case HeadlessSurface.issue_stream_attach_lease(subject_id) do
+    case HeadlessSurface.issue_stream_attach_lease(subject_id, surface_opts(conn)) do
       {:ok, lease} ->
         render_success(
           conn,
@@ -269,7 +269,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
 
   @spec source_publication(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def source_publication(conn, %{"subject_id" => subject_id}) do
-    case HeadlessSurface.source_publication_preview(subject_id) do
+    case HeadlessSurface.source_publication_preview(subject_id, surface_opts(conn)) do
       {:ok, preview} ->
         render_success(
           conn,
@@ -284,7 +284,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
 
   @spec source_publish(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def source_publish(conn, params) do
-    case HeadlessSurface.publish_source_update(source_publish_attrs(params)) do
+    case HeadlessSurface.publish_source_update(source_publish_attrs(params), surface_opts(conn)) do
       {:ok, result} ->
         presented = SourcePresenter.present_publication_preview(result, presenter_opts(conn))
 
@@ -373,7 +373,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
 
   @spec reviews(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def reviews(conn, params) do
-    case HeadlessSurface.list_reviews(params) do
+    case HeadlessSurface.list_reviews(params, surface_opts(conn)) do
       {:ok, reviews_page} ->
         render_success(
           conn,
@@ -395,10 +395,14 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
       subject_kind: Map.get(params, "subject_kind")
     }
 
-    case HeadlessSurface.record_review_decision(review_identity, %{
-           decision: decision,
-           reason: Map.get(params, "reason")
-         }) do
+    case HeadlessSurface.record_review_decision(
+           review_identity,
+           %{
+             decision: decision,
+             reason: Map.get(params, "reason")
+           },
+           surface_opts(conn)
+         ) do
       {:ok, result} ->
         presented = CommandResultPresenter.present(result, presenter_opts(conn))
 
@@ -420,7 +424,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
 
   @spec evidence(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def evidence(conn, %{"run_id" => run_id} = params) do
-    case HeadlessSurface.evidence_chain(run_id, params) do
+    case HeadlessSurface.evidence_chain(run_id, params, surface_opts(conn)) do
       {:ok, evidence} ->
         render_success(conn, :evidence, EvidencePresenter.present(evidence, presenter_opts(conn)))
 
@@ -431,7 +435,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
 
   @spec events(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def events(conn, params) do
-    case HeadlessSurface.events(params) do
+    case HeadlessSurface.events(params, surface_opts(conn)) do
       {:ok, events} ->
         render_success(conn, :events, EventPresenter.present_page(events, presenter_opts(conn)))
 
@@ -675,12 +679,17 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
     end
   end
 
+  defp surface_opts(conn) do
+    HeadlessSurfaceOptions.for_conn(conn)
+  end
+
   defp apply_runtime_profile_to_reload(
          %{"status" => "reloaded", "profile" => %{"app_kit_runtime_profile" => runtime_profile}} =
            reload,
-         params
+         params,
+         opts
        ) do
-    with {:ok, apply_result} <- HeadlessSurface.apply_runtime_profile(runtime_profile) do
+    with {:ok, apply_result} <- HeadlessSurface.apply_runtime_profile(runtime_profile, opts) do
       apply_readback = RuntimePresenter.present_profile_apply(apply_result)
 
       reload =
@@ -694,7 +703,7 @@ defmodule ExtravaganzaWeb.Api.HeadlessController do
     end
   end
 
-  defp apply_runtime_profile_to_reload(reload, _params), do: {:ok, reload}
+  defp apply_runtime_profile_to_reload(reload, _params, _opts), do: {:ok, reload}
 
   defp source_publish_attrs(%{"subject_id" => subject_id} = params),
     do:

@@ -14,7 +14,6 @@ defmodule Extravaganza.HeadlessCLI.Dispatch do
   }
 
   alias Extravaganza.{
-    HeadlessFixtureBackend,
     HeadlessJSON,
     HeadlessPreflight,
     HeadlessShutdown,
@@ -22,6 +21,8 @@ defmodule Extravaganza.HeadlessCLI.Dispatch do
     ProductHost,
     SymphonyWorkflowImport
   }
+
+  alias Extravaganza.HeadlessCLI.FixtureContext
 
   @spec run(atom(), map()) :: map()
   def run(operation, opts) when is_atom(operation) and is_map(opts), do: dispatch(operation, opts)
@@ -359,32 +360,33 @@ defmodule Extravaganza.HeadlessCLI.Dispatch do
     unique = unique_suffix()
 
     opts
-    |> Map.take([:tenant_id, :pack_version, :profile_cache_path])
+    |> Map.take([
+      :tenant_id,
+      :pack_version,
+      :profile_cache_path,
+      :skip_bootstrap?,
+      :headless_fixture_context?,
+      :backend_stack
+    ])
     |> Map.put_new(:tenant_id, "extravaganza-headless-#{unique}")
     |> Map.put_new(:pack_version, "1.0.0-headless.#{unique}")
-    |> maybe_put_fixture_backend_stack(opts)
     |> Enum.to_list()
   end
 
   defp surface_opts(opts) do
     opts
-    |> Map.take([:tenant_id, :pack_version])
-    |> maybe_put_fixture_backend_stack(opts)
+    |> Map.take([
+      :tenant_id,
+      :pack_version,
+      :skip_bootstrap?,
+      :headless_fixture_context?,
+      :backend_stack,
+      :generic_backend,
+      :headless_backend,
+      :runtime_backend,
+      :source_backend
+    ])
     |> Enum.to_list()
-  end
-
-  defp maybe_put_fixture_backend_stack(selected, %{fixture: _fixture}) do
-    Map.put_new(selected, :backend_stack, fixture_backend_stack())
-  end
-
-  defp maybe_put_fixture_backend_stack(selected, _opts), do: selected
-
-  defp fixture_backend_stack do
-    AppKit.BackendStack.new!(%{
-      headless_backend: HeadlessFixtureBackend,
-      runtime_backend: HeadlessFixtureBackend,
-      source_backend: HeadlessFixtureBackend
-    })
   end
 
   defp live_opts(opts) do
@@ -423,11 +425,19 @@ defmodule Extravaganza.HeadlessCLI.Dispatch do
           :tenant_id,
           :pack_version,
           :trace_id,
-          :confirm_close?
+          :confirm_close?,
+          :skip_bootstrap?,
+          :headless_fixture_context?,
+          :backend_stack,
+          :generic_backend,
+          :headless_backend,
+          :runtime_backend,
+          :source_backend
         ])
         |> Map.merge(stdin_credential)
         |> live_product_defaults()
         |> Map.put_new(:credential_available?, false)
+        |> FixtureContext.apply()
 
       {:ok, live_opts}
     end

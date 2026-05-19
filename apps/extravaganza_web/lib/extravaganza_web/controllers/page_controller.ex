@@ -4,7 +4,7 @@ defmodule ExtravaganzaWeb.PageController do
   alias AppKit.OperatorConsole
   alias Extravaganza.Presenters.{ReviewPresenter, StatePresenter, SubjectPresenter}
   alias Extravaganza.ProductHost
-  alias ExtravaganzaWeb.ObservabilityUpdates
+  alias ExtravaganzaWeb.{HeadlessSurfaceOptions, ObservabilityUpdates}
 
   @observability_stream_timeout_ms 30_000
 
@@ -76,7 +76,7 @@ defmodule ExtravaganzaWeb.PageController do
 
   @spec operator_console(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def operator_console(conn, _params) do
-    {runtime_dashboard, runtime_dashboard_error} = runtime_dashboard()
+    {runtime_dashboard, runtime_dashboard_error} = runtime_dashboard(conn)
 
     with {:ok, session} <- OperatorConsole.authorize(operator_console_session()),
          {:ok, console} <- OperatorConsole.render(session, operator_console_sections()) do
@@ -237,8 +237,8 @@ defmodule ExtravaganzaWeb.PageController do
     Map.drop(params, ["_csrf_token", "action", "subject_id"])
   end
 
-  defp runtime_dashboard do
-    case ProductHost.state_snapshot(%{}) do
+  defp runtime_dashboard(conn) do
+    case ProductHost.state_snapshot(%{}, surface_opts(conn)) do
       {:ok, snapshot} ->
         dashboard =
           snapshot
@@ -250,6 +250,10 @@ defmodule ExtravaganzaWeb.PageController do
       {:error, reason} ->
         {%{}, inspect(reason)}
     end
+  end
+
+  defp surface_opts(conn) do
+    HeadlessSurfaceOptions.for_conn(conn)
   end
 
   defp await_observability_update(conn) do
