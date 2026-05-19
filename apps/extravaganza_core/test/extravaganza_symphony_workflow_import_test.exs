@@ -5,6 +5,13 @@ defmodule Extravaganza.SymphonyWorkflowImportTest do
 
   alias Extravaganza.{HeadlessCLI, SymphonyWorkflowImport}
 
+  alias Extravaganza.SymphonyWorkflowImport.{
+    Document,
+    ReloadCache,
+    RuntimeProfile,
+    Validation
+  }
+
   @secret "linear-secret-from-test"
 
   @tag :tmp_dir
@@ -107,6 +114,29 @@ defmodule Extravaganza.SymphonyWorkflowImportTest do
     assert loaded.path == workflow_path
     assert loaded.config == %{}
     assert loaded.prompt_template == "Plain prompt body"
+  end
+
+  @tag :tmp_dir
+  test "import boundary modules expose parsing validation persistence and runtime profiles", %{
+    tmp_dir: tmp_dir
+  } do
+    workflow_path = write_workflow!(tmp_dir, valid_workflow())
+    opts = [workflow_path: workflow_path, env: %{"LINEAR_API_KEY" => @secret}]
+
+    assert Document.default_workflow_path(cwd: tmp_dir) == Path.join(tmp_dir, "WORKFLOW.md")
+    assert {:ok, loaded} = Document.load(opts)
+    assert loaded.path == workflow_path
+
+    assert {:ok, profile} = SymphonyWorkflowImport.profile(opts)
+    assert :ok = Validation.validate_profile(profile)
+    assert Validation.validation_summary(profile["config"]) == %{"status" => "valid"}
+
+    runtime_profile = RuntimeProfile.runtime_profile(profile["config"])
+    assert runtime_profile["runtime_profile_ref"] == "codex_session"
+    assert runtime_profile["workspace_root"] == Path.expand("relative_workspaces", tmp_dir)
+
+    cache_path = ReloadCache.profile_cache_path(opts)
+    assert cache_path == Path.join(tmp_dir, ".extravaganza_symphony_profile_last_good.json")
   end
 
   @tag :tmp_dir

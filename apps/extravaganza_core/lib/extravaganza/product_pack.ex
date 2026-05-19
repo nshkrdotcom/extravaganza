@@ -349,6 +349,29 @@ defmodule Extravaganza.ProductPack do
     |> source_binding_snapshot(binding_overrides)
   end
 
+  @spec workflow_role_refs(Config.t() | keyword() | map()) :: map()
+  def workflow_role_refs(config_or_overrides \\ Config.load())
+
+  def workflow_role_refs(%Config{} = config) do
+    config
+    |> manifest()
+    |> Map.fetch!(:workflow_specs)
+    |> List.first()
+    |> case do
+      %WorkflowSpec{} = workflow ->
+        %{
+          source_role_ref: workflow.source_role_ref,
+          runtime_role_ref: workflow.runtime_role_ref,
+          publication_role_ref: workflow.publication_role_ref,
+          evidence_role_refs: workflow.evidence_role_refs,
+          resource_effect_role_refs: workflow.resource_effect_role_refs,
+          tool_role_refs: workflow.metadata[:tool_role_refs] || []
+        }
+    end
+  end
+
+  def workflow_role_refs(overrides), do: overrides |> Config.load() |> workflow_role_refs()
+
   @spec profile_slots(Config.t() | keyword() | map()) :: map()
   def profile_slots(%Config{}) do
     %{

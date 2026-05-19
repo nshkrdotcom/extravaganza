@@ -12,6 +12,7 @@ defmodule Extravaganza.HeadlessSameRunSmoke do
     SymphonyWorkflowImport
   }
 
+  alias Extravaganza.HeadlessFixtures.LinearSource
   alias Extravaganza.Presenters.{CommandResultPresenter, RuntimePresenter}
 
   @readback_refs [
@@ -956,25 +957,7 @@ defmodule Extravaganza.HeadlessSameRunSmoke do
   end
 
   defp linear_subject(opts) do
-    issue_id = Map.get(opts, :issue_id) || "SMOKE-#{unique_suffix()}"
-    title = Map.get(opts, :title) || "Same-run deterministic smoke #{issue_id}"
-    description = Map.get(opts, :description) || "Deterministic same-run headless smoke."
-
-    %{
-      external_ref: "linear:#{issue_id}",
-      title: title,
-      description: description,
-      source_kind: "linear",
-      payload: %{"issue_id" => issue_id, "identifier" => issue_id, "state" => "Todo"},
-      normalized_payload: %{
-        "issue_id" => issue_id,
-        "identifier" => issue_id,
-        "title" => title,
-        "description" => description,
-        "state" => "Todo",
-        "labels" => ["headless", "same-run", "deterministic"]
-      }
-    }
+    LinearSource.same_run_subject(opts)
   end
 
   defp opts_map(opts) when is_map(opts), do: Map.new(opts)

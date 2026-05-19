@@ -23,6 +23,7 @@ defmodule Extravaganza.HeadlessCLI.Dispatch do
   }
 
   alias Extravaganza.HeadlessCLI.FixtureContext
+  alias Extravaganza.HeadlessFixtures.LinearSource
 
   @spec run(atom(), map()) :: map()
   def run(operation, opts) when is_atom(operation) and is_map(opts), do: dispatch(operation, opts)
@@ -73,7 +74,7 @@ defmodule Extravaganza.HeadlessCLI.Dispatch do
     else
       HeadlessJSON.wrap(
         :start,
-        ProductHost.start_run(default_linear_subject(opts), product_opts(opts)),
+        ProductHost.start_run(LinearSource.start_subject(opts), product_opts(opts)),
         &present_start_result/1,
         opts
       )
@@ -152,7 +153,7 @@ defmodule Extravaganza.HeadlessCLI.Dispatch do
     HeadlessJSON.wrap(
       :source_sync,
       ProductHost.sync_issue_tracker_source(
-        %{issues: [default_linear_issue(opts)]},
+        %{issues: [LinearSource.source_issue(opts)]},
         product_opts(opts)
       ),
       fn value -> value end,
@@ -530,51 +531,6 @@ defmodule Extravaganza.HeadlessCLI.Dispatch do
       :reason,
       :trace_id
     ])
-  end
-
-  defp default_linear_subject(opts) do
-    issue_id = Map.get(opts, :issue_id) || "HEADLESS-#{unique_suffix()}"
-    title = Map.get(opts, :title) || "Headless deterministic start #{issue_id}"
-    description = Map.get(opts, :description) || "Admitted by the headless product command path."
-
-    %{
-      external_ref: "linear:#{issue_id}",
-      title: title,
-      description: description,
-      source_kind: "linear",
-      payload: %{
-        "issue_id" => issue_id,
-        "identifier" => issue_id,
-        "title" => title,
-        "description" => description,
-        "state" => "Todo"
-      },
-      normalized_payload: %{
-        "issue_id" => issue_id,
-        "identifier" => issue_id,
-        "title" => title,
-        "description" => description,
-        "state" => "Todo",
-        "labels" => ["headless", "deterministic"]
-      }
-    }
-  end
-
-  defp default_linear_issue(opts) do
-    issue_id = Map.get(opts, :issue_id) || "HEADLESS-#{unique_suffix()}"
-    title = Map.get(opts, :title) || "Headless deterministic source #{issue_id}"
-    description = Map.get(opts, :description) || "Admitted by the headless source command path."
-
-    %{
-      id: issue_id,
-      identifier: issue_id,
-      title: title,
-      description: description,
-      state: %{name: "Todo", type: "unstarted"},
-      labels: ["headless", "deterministic"],
-      url: "https://linear.app/example/issue/#{issue_id}",
-      updated_at: DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601()
-    }
   end
 
   defp present_start_result(result) do
