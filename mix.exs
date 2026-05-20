@@ -118,6 +118,7 @@ defmodule Extravaganza.MixProject do
         "guides/headless_live_demo.md",
         "guides/headless_provider_credentials.md",
         "guides/headless_full_functionality_verification.md",
+        "guides/code_smell_remediation.md",
         "guides/headless_symphony_parity_map.md",
         "guides/headless_symphony_workflow_profiles.md",
         "docs/overview.md",
@@ -134,6 +135,7 @@ defmodule Extravaganza.MixProject do
           "guides/headless_live_demo.md",
           "guides/headless_provider_credentials.md",
           "guides/headless_full_functionality_verification.md",
+          "guides/code_smell_remediation.md",
           "guides/headless_symphony_parity_map.md",
           "guides/headless_symphony_workflow_profiles.md"
         ],

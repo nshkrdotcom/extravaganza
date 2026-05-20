@@ -58,6 +58,10 @@
    matrix and `guides/headless_full_functionality_verification.md` for the
    complete deterministic, HTTP, script, and live-provider verification flow.
 
+   Maintainers changing CLI dispatch, fixture installation, live examples, or
+   Symphony parity should also read
+   [Code Smell Remediation](guides/code_smell_remediation.md).
+
 5. For the full API/operator view:
 
    ```bash
