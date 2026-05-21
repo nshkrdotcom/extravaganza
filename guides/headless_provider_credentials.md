@@ -29,6 +29,9 @@ matrix below. Non-fixture commands that mutate product state still require
 - `mix extravaganza.headless.profile_validate --workflow WORKFLOW.md --json`
 - `mix extravaganza.headless.profile_reload --workflow WORKFLOW.md --ack-headless-guardrails --json`
 - `mix extravaganza.headless.smoke --json`
+- `MIX_ENV=test mix extravaganza.headless.smoke --deterministic --same-run --json`
+  for the native agent-foundation product proof; this deterministic path uses
+  AppKit intake fixtures and does not require live provider credentials.
 
 `source_sync` runs through a deterministic fixture issue payload only when a
 fixture context is supplied; if you run it without fixture context and without

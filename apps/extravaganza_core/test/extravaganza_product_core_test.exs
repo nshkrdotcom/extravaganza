@@ -2304,8 +2304,16 @@ defmodule ExtravaganzaProductCoreTest do
              ProductHost.same_run_smoke(tenant_id: tenant_id, pack_version: pack_version)
 
     proof = Map.fetch!(smoke, "proof")
+    agent_foundation = Map.fetch!(smoke, "agent_foundation")
 
     assert proof["proof_class"] == "product_same_run_deterministic"
+    assert agent_foundation["acceptance"]["AF-020"]["status"] == "pass"
+
+    assert agent_foundation["acceptance"]["AF-020"]["refs"] == [
+             "agent-foundation-product://extravaganza/deterministic",
+             "agent-ledger://extravaganza/agent-foundation/run-1"
+           ]
+
     assert proof["all_readbacks_share_refs"] == true
     assert is_binary(proof["subject_ref"])
     assert is_binary(proof["run_ref"])

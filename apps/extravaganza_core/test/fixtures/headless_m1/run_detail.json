@@ -33,7 +33,7 @@
         "credential_present?": true,
         "credential_redeemed?": true,
         "credential_source": "fixture_lease",
-        "credential_ref": "credential:fixture",
+        "credential_handle_ref": "credential:fixture",
         "credential_lease_ref": "credential-lease:fixture",
         "secret_material_present?": false,
         "secret_material_redacted?": true

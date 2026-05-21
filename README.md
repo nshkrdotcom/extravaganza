@@ -142,7 +142,11 @@ and API path.
 What this means in practice:
 
 - `MIX_ENV=test mix extravaganza.headless.smoke --deterministic --same-run --json`
-  is the local fixture-backed product proof.
+  is the local fixture-backed product proof. Its response includes
+  `data.agent_foundation.acceptance.AF-020.status: "pass"` when the native
+  agent-foundation product path enters through `AppKit.AgentIntake`, renders
+  product-safe running/pending/catch-up/replayed/completed/failed/denied states,
+  and avoids lower-stack imports.
 - `printf "%s" "$LINEAR_API_KEY" | mix extravaganza.headless.live.smoke --live-product-path --ack-headless-guardrails --json --api-key-stdin --assignee all --issue-id LINEAR_ISSUE_UUID --issue-ids LINEAR_ISSUE_UUID --repo OWNER/REPO --pull-number PR_NUMBER --ref HEAD_SHA`
   exercises the same product command surface against live provider paths when
   credentials and concrete provider targets are present. The 2026-05-18 cutover

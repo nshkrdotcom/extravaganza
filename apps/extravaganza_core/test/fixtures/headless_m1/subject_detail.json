@@ -19,7 +19,7 @@
       "priority": 1,
       "labels": ["automation", "review"],
       "branch_ref": "eng-42-fixture-subject-detail",
-      "source_url": "https://linear.app/acme/issue/ENG-42",
+      "source_url": "source-url:linear:ENG-42",
       "source_state": "Todo",
       "workflow_state": "Todo",
       "source_routing": {
@@ -35,7 +35,7 @@
           "source_ref": "linear://fixture/issue/SEC-9",
           "source_state": "In Progress",
           "title": "Restore deployment credentials",
-          "url": "https://linear.app/acme/issue/SEC-9"
+          "url": "source-url:linear:SEC-9"
         }
       ]
     },

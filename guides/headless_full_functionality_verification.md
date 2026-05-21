@@ -66,6 +66,17 @@ The deterministic smoke proof should also be run under test env before release:
 MIX_ENV=test mix extravaganza.headless.smoke --deterministic --same-run --json
 ```
 
+The smoke response must include the native agent-foundation product proof:
+
+- `data.agent_foundation.proof_class: "extravaganza_agent_foundation_product"`
+- `data.agent_foundation.appkit_surface: "AppKit.AgentIntake"`
+- `data.agent_foundation.acceptance.AF-020.status: "pass"`
+- `data.agent_foundation.operator_states`: running, pending review, catching up,
+  replayed, completed, failed, and denied
+- `data.agent_foundation.live_provider_required?: false`
+- no raw provider credentials, lower runtime selectors, external agent protocol
+  adapters, or sidecar runtime commands
+
 ## Script Proof
 
 Keep `MIX_ENV=test` for deterministic script verification.

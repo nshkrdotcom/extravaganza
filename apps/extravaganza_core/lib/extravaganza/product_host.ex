@@ -4,6 +4,7 @@ defmodule Extravaganza.ProductHost do
   """
 
   alias Extravaganza.{
+    AgentFoundationProduct,
     HeadlessLiveExamples,
     HeadlessSameRunSmoke,
     HeadlessSurface,
@@ -37,6 +38,11 @@ defmodule Extravaganza.ProductHost do
   @spec same_run_smoke(keyword() | map()) :: {:ok, map()} | {:error, term()}
   def same_run_smoke(opts \\ []) do
     HeadlessSameRunSmoke.run(opts)
+  end
+
+  @spec agent_foundation_smoke(keyword() | map()) :: {:ok, map()} | {:error, term()}
+  def agent_foundation_smoke(opts \\ []) do
+    AgentFoundationProduct.deterministic_smoke(opts)
   end
 
   @spec run_status(AppKit.Core.RunRef.t(), map(), keyword()) :: {:ok, map()} | {:error, term()}

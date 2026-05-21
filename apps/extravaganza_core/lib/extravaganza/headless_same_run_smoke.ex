@@ -4,6 +4,7 @@ defmodule Extravaganza.HeadlessSameRunSmoke do
   alias AppKit.Core.RuntimeReadback.RuntimeRunDetail
 
   alias Extravaganza.{
+    AgentFoundationProduct,
     HeadlessCLI,
     HeadlessFixtureBackend,
     HeadlessJSON,
@@ -224,7 +225,8 @@ defmodule Extravaganza.HeadlessSameRunSmoke do
            {:ok, profile_validate} <- profile_validate(workflow_opts),
            {:ok, profile_reload} <- profile_reload(workflow_opts, runtime_opts),
            {:ok, status} <- HeadlessSurface.runtime_status(runtime_request(refs), runtime_opts),
-           {:ok, logs} <- HeadlessSurface.runtime_logs(runtime_request(refs), runtime_opts) do
+           {:ok, logs} <- HeadlessSurface.runtime_logs(runtime_request(refs), runtime_opts),
+           {:ok, agent_foundation} <- AgentFoundationProduct.deterministic_smoke(product_opts) do
         live_preflight_denial = live_preflight_denial()
         command_coverage = command_coverage()
         route_coverage = route_coverage()
@@ -264,6 +266,7 @@ defmodule Extravaganza.HeadlessSameRunSmoke do
         {:ok,
          %{
            "proof" => proof,
+           "agent_foundation" => agent_foundation,
            "route_evidence" => proof["route_evidence"],
            "start" => start_summary(refs, start_result),
            "readbacks" => proof["readbacks"]
