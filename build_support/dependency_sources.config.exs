@@ -17,6 +17,7 @@ end
     ai_trace_replay_contracts: dep.("AITrace", "core/replay_contracts", "~> 0.1.0"),
     app_kit_app_config: dep.("app_kit", "core/app_config", "~> 0.1.0"),
     app_kit_budget_surface: dep.("app_kit", "core/budget_surface", "~> 0.1.0"),
+    app_kit_context_surface: dep.("app_kit", "core/context_surface", "~> 0.1.0"),
     app_kit_cost_dashboard: dep.("app_kit", "web/cost_dashboard", "~> 0.1.0"),
     app_kit_cost_surface: dep.("app_kit", "core/cost_surface", "~> 0.1.0"),
     app_kit_core: dep.("app_kit", "core/app_kit_core", "~> 0.1.0"),

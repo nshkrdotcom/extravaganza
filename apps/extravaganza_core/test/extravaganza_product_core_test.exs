@@ -2338,6 +2338,7 @@ defmodule ExtravaganzaProductCoreTest do
              "run",
              "evidence",
              "route_evidence",
+             "context_ai_summary",
              "events",
              "reviews",
              "review_decision",
@@ -2382,6 +2383,16 @@ defmodule ExtravaganzaProductCoreTest do
     assert readbacks_by_name["route_evidence"]["receipt_ref"] == proof["lower_receipt_ref"]
     assert readbacks_by_name["route_evidence"]["evidence_ref"] == proof["evidence_chain_ref"]
     assert readbacks_by_name["route_evidence"]["trace_replay"]["status"] == "not_emitted"
+
+    context_summary = readbacks_by_name["context_ai_summary"]
+    assert context_summary["surface"] == "AppKit.ContextSurface"
+    assert context_summary["context_packet"]["packet_hash"] =~ "sha256:"
+    assert context_summary["model_invocation"]["prompt_artifact_ref"] =~ "prompt-artifact://"
+    assert context_summary["model_invocation"]["provider_payload_ref"] =~ "provider-payload://"
+    assert context_summary["model_invocation"]["payload_hash"] =~ "sha256:"
+    assert context_summary["eval_verdict"]["verdict"] == "pass"
+    assert context_summary["operator_review"]["operator_state"] == "pending"
+    assert context_summary["forbidden_raw_fields_present?"] == false
 
     assert readbacks_by_name["command_coverage"]["operations"] ==
              Enum.map(HeadlessCLI.operations(), &Atom.to_string/1)

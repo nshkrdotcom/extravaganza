@@ -8,6 +8,7 @@ defmodule Extravaganza.DependencySourcesTest do
     :ai_trace_replay_contracts,
     :app_kit_app_config,
     :app_kit_budget_surface,
+    :app_kit_context_surface,
     :app_kit_cost_dashboard,
     :app_kit_cost_surface,
     :app_kit_core,

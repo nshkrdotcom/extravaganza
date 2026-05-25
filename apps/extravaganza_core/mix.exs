@@ -10,6 +10,7 @@ defmodule ExtravaganzaCore.MixProject do
   @repo_root Path.expand("../..", __DIR__)
   @runtime_dependency_apps [
     :app_kit_core,
+    :app_kit_context_surface,
     :mezzanine_pack_model,
     :app_kit_installation_surface,
     :app_kit_prompt_surface,

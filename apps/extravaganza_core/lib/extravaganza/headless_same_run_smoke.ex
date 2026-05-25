@@ -5,6 +5,7 @@ defmodule Extravaganza.HeadlessSameRunSmoke do
 
   alias Extravaganza.{
     AgentFoundationProduct,
+    ContextAIProductProof,
     HeadlessCLI,
     HeadlessFixtureBackend,
     HeadlessJSON,
@@ -23,6 +24,7 @@ defmodule Extravaganza.HeadlessSameRunSmoke do
     {"run", :run},
     {"evidence", :evidence},
     {"route_evidence", :route_evidence},
+    {"context_ai_summary", :context_ai_summary},
     {"events", :events},
     {"reviews", :reviews},
     {"review_decision", :review_decision},
@@ -226,6 +228,7 @@ defmodule Extravaganza.HeadlessSameRunSmoke do
            {:ok, profile_reload} <- profile_reload(workflow_opts, runtime_opts),
            {:ok, status} <- HeadlessSurface.runtime_status(runtime_request(refs), runtime_opts),
            {:ok, logs} <- HeadlessSurface.runtime_logs(runtime_request(refs), runtime_opts),
+           {:ok, context_ai_summary} <- ContextAIProductProof.from_same_run(refs),
            {:ok, agent_foundation} <- AgentFoundationProduct.deterministic_smoke(product_opts) do
         live_preflight_denial = live_preflight_denial()
         command_coverage = command_coverage()
@@ -255,6 +258,7 @@ defmodule Extravaganza.HeadlessSameRunSmoke do
             status: status,
             logs: logs,
             route_evidence: route_evidence(refs),
+            context_ai_summary: context_ai_summary,
             live_preflight_denial: live_preflight_denial,
             command_coverage: command_coverage,
             route_coverage: route_coverage,
@@ -268,6 +272,7 @@ defmodule Extravaganza.HeadlessSameRunSmoke do
            "proof" => proof,
            "agent_foundation" => agent_foundation,
            "route_evidence" => proof["route_evidence"],
+           "context_ai_summary" => proof["context_ai_summary"],
            "start" => start_summary(refs, start_result),
            "readbacks" => proof["readbacks"]
          }}
@@ -386,6 +391,7 @@ defmodule Extravaganza.HeadlessSameRunSmoke do
       "evidence_chain_ref" => refs.evidence_chain_ref,
       "event_page_ref" => refs.event_page_ref,
       "route_evidence" => route_evidence(refs),
+      "context_ai_summary" => readbacks.context_ai_summary,
       "all_readbacks_share_refs" => true,
       "steps" => [
         "profile_loaded",
@@ -397,6 +403,9 @@ defmodule Extravaganza.HeadlessSameRunSmoke do
         "deterministic_authority_projected",
         "deterministic_lower_projected",
         "deterministic_receipt_projected",
+        "context_packet_summary_projected",
+        "model_invocation_summary_projected",
+        "eval_verdict_summary_projected",
         "review_projected",
         "source_previewed",
         "source_published",
@@ -531,6 +540,7 @@ defmodule Extravaganza.HeadlessSameRunSmoke do
     do: Map.take(events, ["event_page_ref", "run_ref", "page"])
 
   defp compact_smoke_data("route_evidence", route_evidence), do: route_evidence
+  defp compact_smoke_data("context_ai_summary", summary), do: summary
 
   defp compact_smoke_data(_name, value), do: HeadlessJSON.sanitize(value)
 
