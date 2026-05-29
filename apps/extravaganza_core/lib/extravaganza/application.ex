@@ -8,10 +8,12 @@ defmodule Extravaganza.Application do
     children =
       configured_repo_children() ++
         [
-          Extravaganza.BootstrapWorker
+          Extravaganza.BootstrapWorker,
+          Extravaganza.ChassisRegistration,
+          Extravaganza.VirtualServerSupervisor
         ]
 
-    opts = [strategy: :one_for_one, name: Extravaganza.Supervisor]
+    opts = [strategy: :rest_for_one, name: Extravaganza.Supervisor]
     Supervisor.start_link(children, opts)
   end
 

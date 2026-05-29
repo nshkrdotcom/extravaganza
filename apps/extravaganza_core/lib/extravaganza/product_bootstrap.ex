@@ -64,6 +64,11 @@ defmodule Extravaganza.ProductBootstrap do
     end
   end
 
+  @spec cached_installation_ref() :: String.t()
+  def cached_installation_ref do
+    Application.get_env(:extravaganza_core, :installation_ref, "installation:extravaganza:local")
+  end
+
   defp ensure_installation(%Config{} = config, install_template, context_opts) do
     context = AppKitContext.bootstrap_context(config, context_opts)
 

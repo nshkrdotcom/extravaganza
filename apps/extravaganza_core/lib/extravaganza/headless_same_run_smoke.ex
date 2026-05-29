@@ -545,7 +545,7 @@ defmodule Extravaganza.HeadlessSameRunSmoke do
   defp compact_smoke_data(_name, value), do: HeadlessJSON.sanitize(value)
 
   defp route_evidence(refs) do
-    trace_ref = refs.trace_id || "trace://extravaganza/same-run/#{refs.run_ref}"
+    trace_ref = valid_trace_ref(refs.trace_id) || "trace://extravaganza/same-run/#{refs.run_ref}"
 
     %{
       "product_role_ref" => "runtime-role://extravaganza/coding-agent-runtime",
@@ -573,6 +573,9 @@ defmodule Extravaganza.HeadlessSameRunSmoke do
       }
     }
   end
+
+  defp valid_trace_ref("trace://" <> suffix = trace_ref) when suffix != "", do: trace_ref
+  defp valid_trace_ref(_trace_ref), do: nil
 
   defp same_run_context(refs, start_result, subject_attrs, runtime_projection) do
     %{

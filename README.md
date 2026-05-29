@@ -390,3 +390,11 @@ modules directly from product business code.
 ## Persistence Documentation
 
 See `docs/persistence.md` for tiers, defaults, adapters, unsupported selections, config examples, restart claims, durability claims, debug sidecar behavior, redaction guarantees, migration or preflight behavior, and no-bypass scope when applicable.
+
+## Chassis Deployment Profile
+
+Extravaganza now includes ChassisRegistration, VirtualServerSupervisor, topology helpers, and priv/chassis_profiles manifests for monolith, decoupled cockpit, ternary split, and maximal decoupled deployments. BootstrapWorker.init/1 remains preserved.
+
+## Chassis Evolution Flag / Readback Operator Flow
+
+Operator readback flows through AppKit.SpatialGateway and AppKit.EvolutionSurface. CHASSIS_DEPLOYMENT_PROFILE is treated as standalone fallback only.

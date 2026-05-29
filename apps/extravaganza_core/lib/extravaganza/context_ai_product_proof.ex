@@ -161,7 +161,7 @@ defmodule Extravaganza.ContextAIProductProof do
   defp normalize(value) when is_list(value), do: Enum.map(value, &normalize/1)
   defp normalize(value), do: value
 
-  defp trace_ref(%{trace_id: trace_id}) when is_binary(trace_id) and trace_id != "", do: trace_id
+  defp trace_ref(%{trace_id: "trace://" <> suffix = trace_id}) when suffix != "", do: trace_id
   defp trace_ref(%{run_ref: run_ref}), do: "trace://extravaganza/same-run/#{run_ref}"
 
   defp digest(content) do
