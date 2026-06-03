@@ -393,8 +393,47 @@ See `docs/persistence.md` for tiers, defaults, adapters, unsupported selections,
 
 ## Chassis Deployment Profile
 
-Extravaganza now includes ChassisRegistration, VirtualServerSupervisor, topology helpers, and priv/chassis_profiles manifests for monolith, decoupled cockpit, ternary split, and maximal decoupled deployments. BootstrapWorker.init/1 remains preserved.
+Extravaganza is deployed by Chassis through
+`Chassis.Stack.ConfigurationProfile` profiles:
+
+- `profile:monolith`
+- `profile:decoupled-cockpit-2`
+- `profile:ternary-split-3`
+- `profile:maximal-decoupled`
+
+`Extravaganza.Topology.virtual_servers_for/3` maps the selected profile,
+environment, and installation facts into the virtual servers that Chassis
+places onto BEAM nodes. Product code keeps product defaults and operator copy;
+Chassis owns host placement, release materialization, node mesh, receipts, and
+rollback pointers.
+
+The relevant Chassis specs are
+`../j/jido_brainstorm/nshkrdotcom/docs/20260529/chassis_impl/0509_app_configs_and_deployment_profiles.md`
+and
+`../j/jido_brainstorm/nshkrdotcom/docs/20260529/chassis_impl/0522_extravaganza_chassis_integration_spec.md`.
+
+## ChassisRegistration / SpatialGateway Startup Flow
+
+`Extravaganza.ChassisRegistration` is the product-owned sibling that publishes
+the product's active Chassis deployment readback through AppKit. It extends the
+existing `Extravaganza.BootstrapWorker` path rather than replacing it:
+`Extravaganza.ProductBootstrap.ensure_bootstrapped/1` runs first, then the
+registration path calls
+`AppKit.SpatialGateway.register_deployed_app(:extravaganza, git_sha())`.
+
+The supervisor posture remains `:rest_for_one` so registration starts after
+the bootstrap worker and is restarted with downstream spatial readback when
+bootstrap state is rebuilt.
 
 ## Chassis Evolution Flag / Readback Operator Flow
 
-Operator readback flows through AppKit.SpatialGateway and AppKit.EvolutionSurface. CHASSIS_DEPLOYMENT_PROFILE is treated as standalone fallback only.
+The Chassis Evolution operator UX stays above AppKit. The list page calls
+`AppKit.EvolutionSurface.list_evolution_batches/3`; the detail page calls
+`get_evolution_batch/3`, `get_candidate_summary/3`,
+`get_trial_summary/3`, and `get_swap_status/3` as needed. Promotion requests
+flow through `request_candidate_promotion/4`, and the operator consent step
+records a distinct consent ref through `record_operator_consent/4`.
+
+Extravaganza must never apply a candidate without explicit operator consent.
+`CHASSIS_DEPLOYMENT_PROFILE` is a standalone fallback only; governed product
+readback comes from AppKit surfaces and Chassis receipts.
