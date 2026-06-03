@@ -7,7 +7,9 @@ runtime_domains = Enum.uniq(runtime_stack.ash_domains() ++ [Mezzanine.Archival])
 config :ash, domains: runtime_domains
 
 config :extravaganza_core,
-  ecto_repos: runtime_repos
+  ecto_repos: runtime_repos,
+  chassis_env: if(System.get_env("CHASSIS_ENV") == "prod", do: :prod, else: :dev),
+  release_sha: System.get_env("RELEASE_SHA", "unknown")
 
 config :mezzanine_ops_domain,
   ecto_repos: [runtime_stack.ops_domain_repo()],

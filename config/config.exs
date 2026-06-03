@@ -85,6 +85,8 @@ config :extravaganza_core, Extravaganza.Config,
 
 config :extravaganza_core,
   bootstrap_on_start?: true,
-  linear_polling_enabled?: false
+  linear_polling_enabled?: false,
+  chassis_env: :dev,
+  release_sha: "unknown"
 
 import_config "#{config_env()}.exs"

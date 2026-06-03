@@ -15,6 +15,8 @@ defmodule Extravaganza.ProductBootstrap do
     ProductPack
   }
 
+  @installation_cache_key {__MODULE__, :installation_ref}
+
   @spec ensure_bootstrapped(keyword() | map()) ::
           {:ok,
            %{
@@ -44,7 +46,9 @@ defmodule Extravaganza.ProductBootstrap do
              install_template,
              bootstrap_install_result,
              context_opts
-           ) do
+           ),
+         installation_ref <- install_result.installation_ref,
+         :ok <- cache_installation_ref(installation_ref) do
       {:ok,
        %{
          config: config,
@@ -52,7 +56,7 @@ defmodule Extravaganza.ProductBootstrap do
          install_result: install_result,
          authoring_result: bundle_result,
          bootstrap_install_result: bootstrap_install_result,
-         installation_ref: install_result.installation_ref,
+         installation_ref: installation_ref,
          bundle:
            Map.get(bundle_result.metadata, :bundle) || Map.get(bundle_result.metadata, "bundle"),
          pack: %{
@@ -66,8 +70,21 @@ defmodule Extravaganza.ProductBootstrap do
 
   @spec cached_installation_ref() :: String.t()
   def cached_installation_ref do
-    Application.get_env(:extravaganza_core, :installation_ref, "installation:extravaganza:local")
+    Application.get_env(:extravaganza_core, :installation_ref) ||
+      :persistent_term.get(@installation_cache_key, "installation:extravaganza:local")
   end
+
+  defp cache_installation_ref(%{id: id}) when is_binary(id) do
+    :persistent_term.put(@installation_cache_key, id)
+    :ok
+  end
+
+  defp cache_installation_ref(ref) when is_binary(ref) do
+    :persistent_term.put(@installation_cache_key, ref)
+    :ok
+  end
+
+  defp cache_installation_ref(_ref), do: :ok
 
   defp ensure_installation(%Config{} = config, install_template, context_opts) do
     context = AppKitContext.bootstrap_context(config, context_opts)

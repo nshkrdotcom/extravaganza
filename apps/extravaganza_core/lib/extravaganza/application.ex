@@ -9,8 +9,8 @@ defmodule Extravaganza.Application do
       configured_repo_children() ++
         [
           Extravaganza.BootstrapWorker,
-          Extravaganza.ChassisRegistration,
-          Extravaganza.VirtualServerSupervisor
+          {Extravaganza.ChassisRegistration, app_atom: :extravaganza},
+          {Extravaganza.VirtualServerSupervisor, app_atom: :extravaganza}
         ]
 
     opts = [strategy: :rest_for_one, name: Extravaganza.Supervisor]

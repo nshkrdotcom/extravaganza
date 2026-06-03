@@ -1,1 +1,33 @@
-{"app_ref":"extravaganza","profile_ref":"profile:decoupled-cockpit-2","services":["extravaganza_core","extravaganza_web"]}
+{
+  "app_atom": "extravaganza",
+  "profile_ref": "profile:decoupled-cockpit-2",
+  "environment": "prod",
+  "service_specs": [
+    {
+      "service_spec_ref": "svc:extravaganza:appkit",
+      "node_name_pattern": "appkit@*",
+      "release_name": "extravaganza",
+      "release_tarball_pattern": "extravaganza-*.tar.gz",
+      "systemd_unit_name": "nshkr_extravaganza_web",
+      "env_files": ["/opt/nshkr/secrets/service.env"],
+      "phoenix_endpoint_port": 4000,
+      "virtual_servers": ["vs_app_kit", "vs_observability"]
+    },
+    {
+      "service_spec_ref": "svc:extravaganza:stack",
+      "node_name_pattern": "stack@*",
+      "release_name": "extravaganza",
+      "release_tarball_pattern": "extravaganza-*.tar.gz",
+      "systemd_unit_name": "nshkr_extravaganza_core",
+      "env_files": ["/opt/nshkr/secrets/service.env"],
+      "virtual_servers": [
+        "vs_mezzanine",
+        "vs_outer_brain",
+        "vs_citadel",
+        "vs_jido_integration",
+        "vs_execution_plane",
+        "vs_secrets_plane"
+      ]
+    }
+  ]
+}

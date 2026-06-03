@@ -21,6 +21,7 @@ end
     app_kit_cost_dashboard: dep.("app_kit", "web/cost_dashboard", "~> 0.1.0"),
     app_kit_cost_surface: dep.("app_kit", "core/cost_surface", "~> 0.1.0"),
     app_kit_core: dep.("app_kit", "core/app_kit_core", "~> 0.1.0"),
+    app_kit_chassis_bridge: dep.("app_kit", "bridges/chassis_bridge", "~> 0.1.0"),
     app_kit_eval_studio: dep.("app_kit", "web/eval_studio", "~> 0.1.0"),
     app_kit_eval_surface: dep.("app_kit", "core/eval_surface", "~> 0.1.0"),
     app_kit_guardrail_surface: dep.("app_kit", "core/guardrail_surface", "~> 0.1.0"),
@@ -53,6 +54,7 @@ end
     citadel_observability_contract: dep.("citadel", "core/observability_contract", "~> 0.1.0"),
     citadel_policy_packs: dep.("citadel", "core/policy_packs", "~> 0.1.0"),
     citadel_query_bridge: dep.("citadel", "bridges/query_bridge", "~> 0.1.0"),
+    chassis_stack: dep.("chassis", "core/chassis_stack", "~> 0.1.0"),
     execution_plane: %{
       path: Path.join(siblings_root, "execution_plane/core/execution_plane"),
       github: %{
