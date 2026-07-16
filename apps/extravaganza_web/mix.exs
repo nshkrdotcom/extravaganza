@@ -45,7 +45,7 @@ defmodule ExtravaganzaWeb.MixProject do
       DependencySources.dep(:app_kit_operator_console, @repo_root, override: true),
       {:phoenix, "~> 1.8.1"},
       {:phoenix_html, "~> 4.1"},
-      {:phoenix_live_view, "~> 1.1.0"},
+      {:phoenix_live_view, "~> 1.2.7"},
       {:bandit, "~> 1.5"},
       {:jason, "~> 1.4"}
     ]
