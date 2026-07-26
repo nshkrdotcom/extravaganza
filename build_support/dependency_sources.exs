@@ -1,13 +1,109 @@
 defmodule DependencySources do
   @moduledoc false
 
-  @helper_version 2
+  # Settled common dependency-source helper.
+  #
+  # This file is the single reconciled implementation shared by every repository
+  # that vendors `build_support/dependency_sources.exs`. It absorbs the useful
+  # hardening that had drifted into separate copies:
+  #
+  #   * absolute `:path` normalization, so a resolved sibling checkout does not
+  #     depend on the working directory Mix happens to run from;
+  #   * literal-only parsing of the config and local-override files, so neither
+  #     can execute arbitrary code during dependency resolution;
+  #   * bounded, static name conversion, so no dependency name, source name, or
+  #     GitHub option key can create a new atom from file content.
+  #
+  # It additionally provides:
+  #
+  #   H1 `publish_preflight/2` - fail-closed check that each committed `hex:`
+  #      constraint admits the version in the sibling checkout that was actually
+  #      developed against, naming the exact bump required, and (with
+  #      `check_registry?: true`) that the exact sibling version exists as a
+  #      published Hex release.
+  #   H2 `sources/2` / `format_sources/1` / `path_notice/1` and the
+  #      `mix deps.sources` task, plus a one-line notice when any dependency
+  #      resolves to a local path.
+  #   H3 exact `System.argv/0` task-token publish detection. Publish mode is
+  #      Hex-only, takes precedence over local overrides, and rejects an
+  #      override that requests a non-Hex source. No OS environment variable
+  #      selects a dependency source.
+  #   H4 `release_dag/0` / `release_order/0` - the machine-readable release
+  #      order that H1 reads.
+
+  @helper_version 5
+  @repo_root Path.dirname(__DIR__)
+
   @source_keys [:path, :github, :hex]
   @source_by_name Map.new(@source_keys, &{Atom.to_string(&1), &1})
   @github_option_keys [:branch, :ref, :tag, :subdir]
   @github_option_by_name Map.new(@github_option_keys, &{Atom.to_string(&1), &1})
 
+  @default_order [:path, :github, :hex]
+  @default_publish_order [:hex]
+
+  # H3: the exact mutating package tasks. Read-only tasks such as `hex.info`
+  # and `hex.outdated` are deliberately absent - they must resolve exactly the
+  # way ordinary development does.
+  @publish_tasks ["hex.publish", "hex.build", "deps.publish_preflight"]
+
+  # H2: tasks whose standard output is consumed by other tooling. They never
+  # receive the local-path notice.
+  @quiet_tasks [
+    "run",
+    "eval",
+    "cmd",
+    "app.start",
+    "app.config",
+    "escript.build",
+    "deps.sources",
+    "deps.publish_preflight"
+  ]
+
+  # H4: the release order for the packages published as one train. An edge
+  # `package => [prerequisite]` means the prerequisite must be published first,
+  # and its `hex:` constraint bumped in the dependent before the dependent
+  # publishes. Packages absent from this map are independent.
+  #
+  # The Execution Plane components are in this graph because they are a real
+  # ordering constraint, not background detail: `cli_subprocess_core` declares
+  # all three, and `execution_plane_process` / `execution_plane_jsonrpc` are
+  # built to publish (both carry full Hex `package/0` metadata) but are not on
+  # the registry yet. Publishing `cli_subprocess_core` before them produces a
+  # package whose requirements cannot resolve, which is exactly the class of
+  # failure H1's registry check now refuses.
+  @release_dag %{
+    execution_plane: [],
+    execution_plane_process: [:execution_plane],
+    execution_plane_jsonrpc: [:execution_plane],
+    cli_subprocess_core: [
+      :execution_plane,
+      :execution_plane_jsonrpc,
+      :execution_plane_process
+    ],
+    codex_sdk: [:cli_subprocess_core],
+    claude_agent_sdk: [:cli_subprocess_core],
+    cursor_cli_sdk: [:cli_subprocess_core],
+    agent_session_manager: [:cli_subprocess_core, :cursor_cli_sdk],
+    gemini_ex: [],
+    inference: []
+  }
+
   def helper_version, do: @helper_version
+
+  def repo_root, do: @repo_root
+
+  def release_dag, do: @release_dag
+
+  def release_prerequisites(package) when is_atom(package),
+    do: Map.get(@release_dag, package, [])
+
+  def release_order do
+    @release_dag
+    |> Map.keys()
+    |> Enum.sort()
+    |> topological_order([])
+  end
 
   def config!(repo_root \\ Path.dirname(__DIR__)) do
     repo_root
@@ -18,18 +114,13 @@ defmodule DependencySources do
 
   def deps(repo_root \\ Path.dirname(__DIR__), opts \\ []) do
     repo_root = Path.expand(repo_root)
-    config = config!(repo_root)
-    app_lookup = app_lookup(config)
-    overrides = load_local_overrides(repo_root)
-    publish? = Keyword.get(opts, :publish?, publish_mode?())
+    selections = selections(repo_root, opts)
 
-    config
-    |> deps_config()
-    |> Enum.map(fn {app, dep_config} ->
-      app = normalize_app!(app, app_lookup)
-      dep_config = normalize_dep_config!(dep_config)
-      override = local_override(app, overrides)
-      source = selected_source!(app, dep_config, override, publish?, repo_root)
+    if Keyword.get(opts, :notify?, true) do
+      notify_path_sources(repo_root, selections)
+    end
+
+    Enum.map(selections, fn {app, dep_config, override, source} ->
       dep_tuple(app, dep_config, source, repo_root, override, [])
     end)
   end
@@ -44,8 +135,500 @@ defmodule DependencySources do
     override = local_override(app, overrides)
     source = selected_source!(app, dep_config, override, publish_mode?(), repo_root)
 
+    notify_path_sources(repo_root, selections(repo_root, []))
+
     dep_tuple(app, dep_config, source, repo_root, override, extra_opts)
   end
+
+  # H2 ---------------------------------------------------------------------
+
+  def sources(repo_root \\ Path.dirname(__DIR__), opts \\ []) do
+    repo_root = Path.expand(repo_root)
+
+    repo_root
+    |> selections(opts)
+    |> Enum.map(fn {app, dep_config, override, source} ->
+      source_entry(app, dep_config, override, source, repo_root)
+    end)
+    |> Enum.sort_by(& &1.app)
+  end
+
+  def format_sources([]), do: "dependency sources: (no managed dependencies)"
+
+  def format_sources(report) when is_list(report) do
+    lines =
+      Enum.map(report, fn entry ->
+        "  #{entry.app} -> #{entry.source} (#{entry.location}) -> #{entry.version || "unknown"}"
+      end)
+
+    Enum.join(["dependency sources:" | lines], "\n")
+  end
+
+  def path_notice(report) when is_list(report) do
+    case Enum.filter(report, &(&1.source == :path)) do
+      [] ->
+        nil
+
+      entries ->
+        apps = entries |> Enum.map(&to_string(&1.app)) |> Enum.join(", ")
+        "[dependency_sources] local path source in use for: #{apps}"
+    end
+  end
+
+  # H1 ---------------------------------------------------------------------
+
+  def publish_preflight(repo_root \\ Path.dirname(__DIR__), opts \\ []) do
+    repo_root = Path.expand(repo_root)
+    config = config!(repo_root)
+    dependencies = normalized_deps(config)
+
+    package =
+      case Keyword.fetch(opts, :package) do
+        {:ok, package} -> package
+        :error -> current_package(repo_root)
+      end
+
+    entries =
+      dependencies
+      |> Enum.reject(fn {app, _dep_config} -> app == package end)
+      |> Enum.map(fn {app, dep_config} -> preflight_entry(app, dep_config, repo_root) end)
+      |> check_registry(
+        Keyword.get(opts, :check_registry?, false),
+        Keyword.get(opts, :registry_lookup, &hex_release_state/2)
+      )
+      |> Enum.sort_by(& &1.app)
+
+    blockers =
+      (Enum.filter(entries, &(&1.status == :blocked)) ++
+         missing_release_prerequisites(package, dependencies))
+      |> Enum.sort_by(& &1.app)
+
+    case blockers do
+      [] -> {:ok, entries}
+      _ -> {:error, blockers}
+    end
+  end
+
+  def publish_preflight!(repo_root \\ Path.dirname(__DIR__), opts \\ []) do
+    case publish_preflight(repo_root, opts) do
+      {:ok, entries} -> entries
+      {:error, blockers} -> raise ArgumentError, format_blockers(blockers)
+    end
+  end
+
+  def format_blockers(blockers) when is_list(blockers) do
+    lines = Enum.map(blockers, &("  " <> format_blocker(&1)))
+    Enum.join(["publish preflight refused:" | lines], "\n")
+  end
+
+  defp format_blocker(%{reason: :hex_constraint_stale} = blocker) do
+    "#{blocker.app}: committed hex constraint #{inspect(blocker.hex)} does not admit " <>
+      "sibling version #{blocker.sibling_version}; bump it to #{inspect(blocker.required)}"
+  end
+
+  defp format_blocker(%{reason: :missing_hex_constraint} = blocker) do
+    "#{blocker.app}: no committed hex constraint; publishing requires one " <>
+      "(#{inspect(blocker.required)} admits the sibling version)"
+  end
+
+  defp format_blocker(%{reason: :invalid_hex_constraint} = blocker) do
+    "#{blocker.app}: committed hex constraint #{inspect(blocker.hex)} is not a valid requirement"
+  end
+
+  defp format_blocker(%{reason: :unreadable_sibling_version} = blocker) do
+    "#{blocker.app}: sibling checkout #{blocker.sibling_path} has no readable mix.exs version"
+  end
+
+  defp format_blocker(%{reason: :hex_release_missing} = blocker) do
+    "#{blocker.app}: sibling version #{blocker.sibling_version} is not published on Hex, so " <>
+      "a package requiring #{inspect(blocker.hex)} cannot yet publish"
+  end
+
+  defp format_blocker(%{reason: :missing_release_prerequisite} = blocker) do
+    "#{blocker.app}: release prerequisite of #{blocker.package} is absent from " <>
+      "build_support/dependency_sources.config.exs"
+  end
+
+  defp preflight_entry(app, dep_config, repo_root) do
+    hex = fetch(dep_config, :hex)
+    sibling_path = sibling_path(dep_config, repo_root)
+
+    case sibling_version(sibling_path) do
+      :absent -> unverified_entry(app, hex, sibling_path)
+      {:error, _reason} -> blocker(app, :unreadable_sibling_version, hex, nil, sibling_path, nil)
+      {:ok, version} -> compared_entry(app, hex, version, sibling_path)
+    end
+  end
+
+  defp compared_entry(app, nil, version, sibling_path) do
+    blocker(app, :missing_hex_constraint, nil, version, sibling_path, required(version))
+  end
+
+  defp compared_entry(app, hex, version, sibling_path) do
+    case requirement_admits?(hex, version) do
+      :ok ->
+        %{
+          app: app,
+          status: :ok,
+          hex: hex,
+          sibling_version: version,
+          sibling_path: sibling_path
+        }
+
+      :stale ->
+        blocker(app, :hex_constraint_stale, hex, version, sibling_path, required(version))
+
+      :invalid ->
+        blocker(app, :invalid_hex_constraint, hex, version, sibling_path, required(version))
+    end
+  end
+
+  defp unverified_entry(app, hex, sibling_path) do
+    %{app: app, status: :unverified, hex: hex, sibling_version: nil, sibling_path: sibling_path}
+  end
+
+  defp blocker(app, reason, hex, version, sibling_path, required) do
+    %{
+      app: app,
+      status: :blocked,
+      reason: reason,
+      hex: hex,
+      sibling_version: version,
+      sibling_path: sibling_path,
+      required: required
+    }
+  end
+
+  defp requirement_admits?(requirement, version) do
+    if Version.match?(version, requirement), do: :ok, else: :stale
+  rescue
+    Version.InvalidRequirementError -> :invalid
+    Version.InvalidVersionError -> :invalid
+  end
+
+  defp required(version) do
+    parsed = Version.parse!(version)
+    "~> #{parsed.major}.#{parsed.minor}.0"
+  end
+
+  # A committed `hex:` constraint that admits the sibling version is still
+  # unpublishable until that exact version is on Hex. That is not hypothetical:
+  # `execution_plane 0.1.0` existed as a historical monolith, so checking only
+  # the package name falsely blessed consumers developed against the canonical
+  # core-only `execution_plane 0.2.0`. The component package names were absent
+  # entirely. Querying each exact sibling version closes both gaps.
+  #
+  # Off by default so ordinary resolution never touches the network; the
+  # `deps.publish_preflight` task turns it on. A registry that cannot be
+  # reached is recorded as unverified rather than reported as missing — an
+  # offline machine must not manufacture a blocker.
+  defp check_registry(entries, false, _lookup), do: entries
+
+  defp check_registry(entries, true, lookup) do
+    Enum.map(entries, &check_registry_entry(&1, lookup))
+  end
+
+  defp check_registry_entry(%{status: status} = entry, _lookup) when status != :ok, do: entry
+
+  defp check_registry_entry(entry, lookup) do
+    case lookup.(entry.app, entry.sibling_version) do
+      :published ->
+        entry
+
+      :missing ->
+        entry
+        |> Map.put(:status, :blocked)
+        |> Map.put(:reason, :hex_release_missing)
+        |> Map.put_new(:required, nil)
+
+      {:unverified, reason} ->
+        Map.put(entry, :registry, {:unverified, reason})
+    end
+  end
+
+  defp hex_release_state(app, version) do
+    case System.cmd(
+           "mix",
+           ["hex.info", Atom.to_string(app), version],
+           stderr_to_stdout: true
+         ) do
+      {_output, 0} ->
+        :published
+
+      {output, _status} ->
+        if String.contains?(output, "No release with name") or
+             String.contains?(output, "No package with name") do
+          :missing
+        else
+          {:unverified, {:hex_info_failed, String.trim(output)}}
+        end
+    end
+  rescue
+    error -> {:unverified, error}
+  catch
+    :exit, reason -> {:unverified, reason}
+  end
+
+  defp missing_release_prerequisites(nil, _dependencies), do: []
+
+  defp missing_release_prerequisites(package, dependencies) do
+    declared = Map.new(dependencies) |> Map.keys()
+
+    package
+    |> release_prerequisites()
+    |> Enum.reject(&(&1 in declared))
+    |> Enum.map(fn app ->
+      %{
+        app: app,
+        status: :blocked,
+        reason: :missing_release_prerequisite,
+        package: package,
+        hex: nil,
+        sibling_version: nil,
+        sibling_path: nil,
+        required: nil
+      }
+    end)
+  end
+
+  defp current_package(repo_root) do
+    packages = Map.keys(@release_dag)
+    app = mix_project_app()
+
+    if app in packages do
+      app
+    else
+      Enum.find(packages, &(Atom.to_string(&1) == Path.basename(repo_root)))
+    end
+  end
+
+  defp mix_project_app do
+    if Code.ensure_loaded?(Mix.Project) and Mix.Project.get() do
+      Mix.Project.config()[:app]
+    end
+  end
+
+  defp topological_order([], placed), do: Enum.reverse(placed)
+
+  defp topological_order(pending, placed) do
+    {ready, blocked} =
+      Enum.split_with(pending, fn package ->
+        Enum.all?(release_prerequisites(package), &(&1 in placed))
+      end)
+
+    case ready do
+      [] -> raise ArgumentError, "release DAG has a cycle among #{inspect(pending)}"
+      _ -> topological_order(blocked, Enum.reverse(ready) ++ placed)
+    end
+  end
+
+  # Resolution -------------------------------------------------------------
+
+  defp selections(repo_root, opts) do
+    config = config!(repo_root)
+    overrides = load_local_overrides(repo_root)
+    publish? = Keyword.get(opts, :publish?, publish_mode?())
+
+    config
+    |> normalized_deps()
+    |> Enum.map(fn {app, dep_config} ->
+      override = local_override(app, overrides)
+      source = selected_source!(app, dep_config, override, publish?, repo_root)
+      {app, dep_config, override, source}
+    end)
+  end
+
+  defp notify_path_sources(repo_root, selections) do
+    key = {__MODULE__, :path_notice, repo_root}
+
+    if not quiet_task?() and :persistent_term.get(key, nil) == nil do
+      :persistent_term.put(key, true)
+      emit_path_notice(selections)
+    end
+
+    :ok
+  end
+
+  # Tasks whose standard output is the product itself never carry the notice,
+  # so nothing that reads `mix` output has an extra line injected into it.
+  defp quiet_task? do
+    System.argv()
+    |> task_tokens()
+    |> Enum.any?(&(&1 in @quiet_tasks))
+  end
+
+  defp emit_path_notice(selections) do
+    report =
+      Enum.map(selections, fn {app, _dep_config, _override, source} ->
+        %{app: app, source: source}
+      end)
+
+    case path_notice(report) do
+      nil -> :ok
+      message -> Mix.shell().info(message)
+    end
+  end
+
+  defp source_entry(app, dep_config, override, source, repo_root) do
+    %{
+      app: app,
+      source: source,
+      location: source_location(dep_config, override, source, repo_root),
+      version: source_version(dep_config, override, source, repo_root)
+    }
+  end
+
+  defp source_location(dep_config, override, :path, repo_root),
+    do: configured_path(dep_config, override, repo_root) || "?"
+
+  defp source_location(dep_config, override, :github, _repo_root) do
+    github = github_config(dep_config, override)
+    fetch(github, :repo) || "?"
+  end
+
+  defp source_location(_dep_config, _override, :hex, _repo_root), do: "hex"
+
+  defp source_version(dep_config, override, :path, repo_root) do
+    path = configured_path(dep_config, override, repo_root)
+
+    case path && sibling_version(Path.expand(path, repo_root)) do
+      {:ok, version} -> version
+      _other -> nil
+    end
+  end
+
+  defp source_version(dep_config, override, :github, _repo_root) do
+    github = github_config(dep_config, override)
+
+    Enum.find_value([:ref, :tag, :branch], fn key ->
+      case fetch(github, key) do
+        nil -> nil
+        value -> "#{key} #{value}"
+      end
+    end)
+  end
+
+  defp source_version(dep_config, override, :hex, _repo_root),
+    do: fetch(override, :hex) || fetch(dep_config, :hex)
+
+  defp configured_path(dep_config, override, repo_root) do
+    case fetch(override, :path) || fetch(dep_config, :path) do
+      nil -> nil
+      path when is_binary(path) -> path
+      paths when is_list(paths) -> Enum.find(paths, &File.exists?(Path.expand(&1, repo_root)))
+      _other -> nil
+    end
+  end
+
+  defp github_config(dep_config, override) do
+    dep_config
+    |> fetch(:github)
+    |> Kernel.||(%{})
+    |> Map.new()
+    |> Map.merge(Map.drop(override, [:source, "source"]))
+  end
+
+  defp sibling_path(dep_config, repo_root) do
+    case configured_path(dep_config, %{}, repo_root) do
+      nil -> nil
+      path -> Path.expand(path, repo_root)
+    end
+  end
+
+  defp sibling_version(nil), do: :absent
+
+  defp sibling_version(dir) do
+    path = Path.join(dir, "mix.exs")
+
+    if File.regular?(path) do
+      read_mix_version(path)
+    else
+      :absent
+    end
+  end
+
+  defp read_mix_version(path) do
+    quoted = path |> File.read!() |> Code.string_to_quoted!(file: path)
+    attributes = module_attributes(quoted)
+
+    case find_version(quoted, attributes) do
+      nil -> {:error, :version_not_found}
+      version -> {:ok, version}
+    end
+  rescue
+    _error -> {:error, :unparsable_mix_exs}
+  end
+
+  defp module_attributes(quoted) do
+    {_quoted, attributes} =
+      Macro.prewalk(quoted, %{}, fn
+        {:@, _meta, [{name, _name_meta, [value]}]} = node, acc when is_atom(name) ->
+          if is_binary(value), do: {node, Map.put_new(acc, name, value)}, else: {node, acc}
+
+        node, acc ->
+          {node, acc}
+      end)
+
+    attributes
+  end
+
+  defp find_version(quoted, attributes) do
+    {_quoted, version} =
+      Macro.prewalk(quoted, nil, fn
+        {:version, value} = node, nil -> {node, version_literal(value, attributes)}
+        node, acc -> {node, acc}
+      end)
+
+    version
+  end
+
+  defp version_literal(value, _attributes) when is_binary(value), do: value
+
+  defp version_literal({:@, _meta, [{name, _name_meta, nil}]}, attributes) when is_atom(name),
+    do: Map.get(attributes, name)
+
+  defp version_literal(_value, _attributes), do: nil
+
+  # H3 ---------------------------------------------------------------------
+
+  def publish_mode?, do: publish_mode?(System.argv())
+
+  def publish_mode?(argv) when is_list(argv) do
+    argv
+    |> task_tokens()
+    |> Enum.any?(&(&1 in @publish_tasks))
+  end
+
+  defp task_tokens(argv) do
+    argv
+    |> Enum.flat_map(&split_task_separators/1)
+    |> collect_task_tokens(true, [])
+    |> Enum.reverse()
+  end
+
+  defp split_task_separators(argument) do
+    case String.split(argument, ",") do
+      [single] -> [single]
+      parts -> parts |> Enum.intersperse(",") |> Enum.reject(&(&1 == ""))
+    end
+  end
+
+  defp collect_task_tokens([], _expect_task?, acc), do: acc
+
+  defp collect_task_tokens([token | rest], _expect_task?, acc) when token in [",", "+"],
+    do: collect_task_tokens(rest, true, acc)
+
+  defp collect_task_tokens(["do" | rest], true, acc), do: collect_task_tokens(rest, true, acc)
+
+  defp collect_task_tokens(["" | rest], true, acc), do: collect_task_tokens(rest, true, acc)
+
+  defp collect_task_tokens([token | rest], true, acc),
+    do: collect_task_tokens(rest, false, [token | acc])
+
+  defp collect_task_tokens([_token | rest], false, acc),
+    do: collect_task_tokens(rest, false, acc)
+
+  # Config loading ---------------------------------------------------------
 
   defp load_config!(path) do
     config =
@@ -82,6 +665,17 @@ defmodule DependencySources do
     Map.new(deps)
   end
 
+  defp normalized_deps(config) do
+    app_lookup = app_lookup(config)
+
+    config
+    |> deps_config()
+    |> Enum.map(fn {app, dep_config} ->
+      {normalize_app!(app, app_lookup), normalize_dep_config!(dep_config)}
+    end)
+    |> Enum.sort_by(fn {app, _dep_config} -> app end)
+  end
+
   defp dep_config_for!(app, config, app_lookup) do
     deps =
       config
@@ -110,11 +704,8 @@ defmodule DependencySources do
 
   defp normalize_app!(app, app_lookup) when is_binary(app) do
     case Map.fetch(app_lookup, app) do
-      {:ok, normalized} ->
-        normalized
-
-      :error ->
-        raise ArgumentError, "dependency source config is missing #{app}"
+      {:ok, normalized} -> normalized
+      :error -> raise ArgumentError, "dependency source config is missing #{app}"
     end
   end
 
@@ -124,30 +715,44 @@ defmodule DependencySources do
   defp local_override(app, overrides),
     do: normalize_dep_config!(overrides[app] || overrides[Atom.to_string(app)] || %{})
 
+  defp fetch(config, key) when is_map(config), do: config[key] || config[Atom.to_string(key)]
+  defp fetch(_config, _key), do: nil
+
+  # Source selection -------------------------------------------------------
+
   defp selected_source!(app, config, override, publish?, repo_root) do
-    override_source = override[:source] || override["source"]
+    override_source = fetch(override, :source)
 
     cond do
+      publish? ->
+        assert_publishable_override!(app, override_source)
+        source_from_order!(app, config, publish_order(config), repo_root)
+
       override_source ->
         normalize_source!(override_source)
 
-      publish? ->
-        source_from_order!(
-          app,
-          config,
-          config[:publish_order] || config["publish_order"] || [:hex],
-          repo_root
-        )
-
       true ->
-        source_from_order!(
-          app,
-          config,
-          config[:default_order] || config["default_order"] || [:path, :github, :hex],
-          repo_root
-        )
+        source_from_order!(app, config, default_order(config), repo_root)
     end
   end
+
+  defp assert_publishable_override!(_app, nil), do: :ok
+
+  defp assert_publishable_override!(app, source) do
+    case normalize_source!(source) do
+      :hex ->
+        :ok
+
+      other ->
+        raise ArgumentError,
+              "publish mode resolves Hex sources only; the local override for " <>
+                "#{app} requests #{inspect(other)}"
+    end
+  end
+
+  defp publish_order(config), do: fetch(config, :publish_order) || @default_publish_order
+
+  defp default_order(config), do: fetch(config, :default_order) || @default_order
 
   defp source_from_order!(app, config, order, repo_root) do
     order
@@ -163,7 +768,7 @@ defmodule DependencySources do
   end
 
   defp configured_path_available?(config, repo_root) do
-    case config[:path] || config["path"] do
+    case fetch(config, :path) do
       nil ->
         false
 
@@ -224,22 +829,17 @@ defmodule DependencySources do
     end
   end
 
-  defp configured?(config, source),
-    do: not is_nil(config[source] || config[Atom.to_string(source)])
+  defp configured?(config, source), do: not is_nil(fetch(config, source))
 
   defp dep_tuple(app, config, :path, repo_root, override, extra_opts) do
-    path = override[:path] || override["path"] || config[:path] || config["path"]
-
-    path =
-      if is_list(path), do: Enum.find(path, &File.exists?(Path.expand(&1, repo_root))), else: path
+    path = configured_path(config, override, repo_root)
 
     {app, Keyword.merge([path: Path.expand(path, repo_root)], dep_options(config, extra_opts))}
   end
 
   defp dep_tuple(app, config, :github, _repo_root, override, extra_opts) do
-    github = Map.new(config[:github] || config["github"] || %{})
-    github = Map.merge(github, Map.drop(override, [:source, "source"]))
-    repo = github[:repo] || github["repo"]
+    github = github_config(config, override)
+    repo = fetch(github, :repo)
 
     opts =
       github
@@ -261,7 +861,7 @@ defmodule DependencySources do
   end
 
   defp dep_tuple(app, config, :hex, _repo_root, override, extra_opts) do
-    requirement = override[:hex] || override["hex"] || config[:hex] || config["hex"]
+    requirement = fetch(override, :hex) || fetch(config, :hex)
 
     case dep_options(config, extra_opts) do
       [] -> {app, requirement}
@@ -289,6 +889,10 @@ defmodule DependencySources do
     end
   end
 
+  defp normalize_source!(source) do
+    raise ArgumentError, "unknown dependency source #{inspect(source)}"
+  end
+
   defp normalize_option_key(key) when is_atom(key), do: key
 
   defp normalize_option_key(key) when is_binary(key) do
@@ -297,6 +901,8 @@ defmodule DependencySources do
       :error -> key
     end
   end
+
+  # Literal-only evaluation ------------------------------------------------
 
   defp config_term!(quoted, config_dir) do
     eval_config_ast!(quoted, %{__DIR__: config_dir})
@@ -447,12 +1053,66 @@ defmodule DependencySources do
 
   defp literal_term!(other) do
     raise ArgumentError,
-          "dependency source config contains non-literal expression #{inspect(other)}"
+          "dependency source local override contains non-literal expression #{inspect(other)}"
   end
+end
 
-  defp publish_mode? do
-    System.argv()
-    |> Enum.join(" ")
-    |> String.contains?("hex.")
+unless Code.ensure_loaded?(Mix.Tasks.Deps.Sources) do
+  defmodule Mix.Tasks.Deps.Sources do
+    @moduledoc false
+    @shortdoc "Prints the resolved source of every managed dependency"
+
+    use Mix.Task
+
+    # The common helper and the deliberately namespaced Gemini form are the two
+    # settled shapes of this file; whichever one the current project loaded is
+    # the one to report against.
+    @helper_candidates [DependencySources, Gemini.DependencySources]
+
+    @impl Mix.Task
+    def run(_args) do
+      helper =
+        Enum.find(@helper_candidates, &Code.ensure_loaded?/1) ||
+          Mix.raise("no dependency source helper is loaded")
+
+      root = helper.repo_root()
+
+      root
+      |> helper.sources(notify?: false)
+      |> helper.format_sources()
+      |> Mix.shell().info()
+    end
+  end
+end
+
+unless Code.ensure_loaded?(Mix.Tasks.Deps.PublishPreflight) do
+  defmodule Mix.Tasks.Deps.PublishPreflight do
+    @moduledoc false
+    @shortdoc "Fails closed when a committed hex constraint is behind its sibling checkout"
+
+    use Mix.Task
+
+    @helper_candidates [DependencySources, Gemini.DependencySources]
+
+    @impl Mix.Task
+    def run(_args) do
+      helper =
+        Enum.find(@helper_candidates, &Code.ensure_loaded?/1) ||
+          Mix.raise("no dependency source helper is loaded")
+
+      root = helper.repo_root()
+
+      case helper.publish_preflight(root, check_registry?: true) do
+        {:ok, entries} ->
+          Mix.shell().info("publish preflight: ok (#{length(entries)} managed dependencies)")
+
+          Enum.each(entries, fn entry ->
+            Mix.shell().info("  #{entry.app} #{entry.status} #{entry.hex}")
+          end)
+
+        {:error, blockers} ->
+          Mix.raise(helper.format_blockers(blockers))
+      end
+    end
   end
 end
