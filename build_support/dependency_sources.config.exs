@@ -62,9 +62,9 @@ end
         branch: "main",
         subdir: "core/execution_plane"
       },
-      hex: "~> 0.1.0",
+      hex: "~> 0.2.0",
       opts: [override: true],
-      default_order: [:github, :hex, :path],
+      default_order: [:path, :github, :hex],
       publish_order: [:hex]
     },
     ground_plane_persistence_policy: dep.("ground_plane", "core/persistence_policy", "~> 0.1.0"),
