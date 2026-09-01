@@ -1,13 +1,81 @@
-unless Code.ensure_loaded?(DependencySources) do
-  Code.require_file("build_support/dependency_sources.exs", __DIR__)
-end
+if bootstrap = System.get_env("MIX_WORKSPACE_OPS_BOOTSTRAP"), do: Code.require_file(bootstrap)
 
 defmodule Extravaganza.MixProject do
   use Mix.Project
 
-  @repo_root __DIR__
   @version "0.1.0"
   @source_url "https://github.com/nshkrdotcom/extravaganza"
+  @workspace_dependencies [
+    {:ai_trace_replay_contracts, "~> 0.1.0", override: true},
+    {:app_kit_app_config, "~> 0.1.0", override: true},
+    {:app_kit_budget_surface, "~> 0.1.0", override: true},
+    {:app_kit_chassis_bridge, "~> 0.1.0", override: true},
+    {:app_kit_context_surface, "~> 0.1.0", override: true},
+    {:app_kit_core, "~> 0.1.0", override: true},
+    {:app_kit_cost_dashboard, "~> 0.1.0", override: true},
+    {:app_kit_cost_surface, "~> 0.1.0", override: true},
+    {:app_kit_eval_studio, "~> 0.1.0", override: true},
+    {:app_kit_eval_surface, "~> 0.1.0", override: true},
+    {:app_kit_guardrail_surface, "~> 0.1.0", override: true},
+    {:app_kit_installation_surface, "~> 0.1.0", override: true},
+    {:app_kit_integration_bridge, "~> 0.1.0", override: true},
+    {:app_kit_memory_surface, "~> 0.1.0", override: true},
+    {:app_kit_mezzanine_bridge, "~> 0.1.0", override: true},
+    {:app_kit_operator_console, "~> 0.1.0", override: true},
+    {:app_kit_operator_surface, "~> 0.1.0", override: true},
+    {:app_kit_policy_authoring, "~> 0.1.0", override: true},
+    {:app_kit_projection_bridge, "~> 0.1.0", override: true},
+    {:app_kit_prompt_surface, "~> 0.1.0", override: true},
+    {:app_kit_replay_surface, "~> 0.1.0", override: true},
+    {:app_kit_replay_viewer, "~> 0.1.0", override: true},
+    {:app_kit_review_surface, "~> 0.1.0", override: true},
+    {:app_kit_run_governance, "~> 0.1.0", override: true},
+    {:app_kit_runtime_gateway, "~> 0.1.0", override: true},
+    {:app_kit_scope_objects, "~> 0.1.0", override: true},
+    {:app_kit_web_components, "~> 0.1.0", override: true},
+    {:app_kit_work_control, "~> 0.1.0", override: true},
+    {:app_kit_work_surface, "~> 0.1.0", override: true},
+    {:chassis_stack, "~> 0.1.0", override: true},
+    {:citadel_authority_contract, "~> 0.1.0", override: true},
+    {:citadel_contract_core, "~> 0.1.0", override: true},
+    {:citadel_domain_surface, "~> 0.1.0", override: true},
+    {:citadel_execution_governance_contract, "~> 0.1.0", override: true},
+    {:citadel_governance, "~> 0.1.0", override: true},
+    {:citadel_host_ingress_bridge, "~> 0.1.0", override: true},
+    {:citadel_kernel, "~> 0.1.0", override: true},
+    {:citadel_observability_contract, "~> 0.1.0", override: true},
+    {:citadel_policy_packs, "~> 0.1.0", override: true},
+    {:citadel_query_bridge, "~> 0.1.0", override: true},
+    {:execution_plane, "~> 0.2.0", override: true},
+    {:ground_plane_persistence_policy, "~> 0.1.0", override: true},
+    {:jido_integration_contracts, "~> 0.1.0", override: true},
+    {:jido_integration_v2, "~> 0.1.0", override: true},
+    {:mezzanine_archival_engine, "~> 0.1.0", override: true},
+    {:mezzanine_audit_engine, "~> 0.1.0", override: true},
+    {:mezzanine_config_registry, "~> 0.1.0", override: true},
+    {:mezzanine_core, "~> 0.1.0", override: true},
+    {:mezzanine_decision_engine, "~> 0.1.0", override: true},
+    {:mezzanine_evidence_engine, "~> 0.1.0", override: true},
+    {:mezzanine_execution_engine, "~> 0.1.0", override: true},
+    {:mezzanine_integration_bridge, "~> 0.1.0", override: true},
+    {:mezzanine_leasing, "~> 0.1.0", override: true},
+    {:mezzanine_m1_m2_runtime, "~> 0.1.0", override: true},
+    {:mezzanine_object_engine, "~> 0.1.0", override: true},
+    {:mezzanine_operator_engine, "~> 0.1.0", override: true},
+    {:mezzanine_ops_domain, "~> 0.1.0", override: true},
+    {:mezzanine_pack_compiler, "~> 0.1.0", override: true},
+    {:mezzanine_pack_model, "~> 0.1.0", override: true},
+    {:mezzanine_projection_engine, "~> 0.1.0", override: true},
+    {:mezzanine_source_engine, "~> 0.1.0", override: true},
+    {:outer_brain_contracts, "~> 0.1.0", override: true},
+    {:outer_brain_core, "~> 0.1.0", override: true},
+    {:outer_brain_domain_bridge, "~> 0.1.0", override: true},
+    {:outer_brain_guardrail_contracts, "~> 0.1.0", override: true},
+    {:outer_brain_journal, "~> 0.1.0", override: true},
+    {:outer_brain_memory_contracts, "~> 0.1.0", override: true},
+    {:outer_brain_prompt_fabric, "~> 0.1.0", override: true},
+    {:outer_brain_prompting, "~> 0.1.0", override: true}
+  ]
 
   def project do
     [
@@ -42,7 +110,13 @@ defmodule Extravaganza.MixProject do
       {:ex_doc, "~> 0.40.1", only: [:dev, :test], runtime: false}
     ]
 
-    tooling_deps ++ DependencySources.deps(@repo_root)
+    tooling_deps ++ Enum.map(@workspace_dependencies, &workspace_dep/1)
+  end
+
+  defp workspace_dep(committed) do
+    if function_exported?(MixWorkspaceOpsBootstrap, :dep, 2),
+      do: apply(MixWorkspaceOpsBootstrap, :dep, [committed, __DIR__]),
+      else: committed
   end
 
   defp aliases do

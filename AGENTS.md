@@ -30,11 +30,12 @@ Do not invent raw `temporal server start-dev` commands for normal work. Do not r
 
 ## Dependency Sources
 
-- Dependency source selection is handled by `build_support/dependency_sources.exs` and `build_support/dependency_sources.config.exs`.
-- Local dependency overrides use `.dependency_sources.local.exs`.
-- Dependency source selection must not use environment variables.
-- Same-repo umbrella package paths may stay in their local `mix.exs` files; cross-repo dependencies that need fallback behavior belong in the dependency-source manifest.
-- Weld maintains helper drift, manifests, clone checks, publish checks, and publish order, but this repo is not a Weld consumer in this pass and must not receive a blind Weld dependency.
+- Committed dependency tuples are the standalone defaults. Mix Workspace Ops may
+  replace only their source coordinates through its tuple-first bootstrap seam.
+- Do not add repository-local source resolvers, machine paths, or ambient source
+  selection variables.
+- Same-repo umbrella dependencies may remain ordinary `in_umbrella` declarations.
+- This repo is not a Weld consumer and must not receive a blind Weld dependency.
 
 ## Runtime Env
 
